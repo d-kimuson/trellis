@@ -14,7 +14,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
 
     public init(
         id: UUID = UUID(),
-        rootPath: String = FileManager.default.currentDirectoryPath
+        rootPath: String = NSHomeDirectory()
     ) {
         self.id = id
         self.rootPath = rootPath

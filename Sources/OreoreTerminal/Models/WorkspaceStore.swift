@@ -180,14 +180,14 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Add a file tree tab to the given area.
     public func addFileTreeTab(to areaId: UUID, path: String? = nil) {
-        let rootPath = path ?? FileManager.default.currentDirectoryPath
+        let rootPath = path ?? NSHomeDirectory()
         let state = FileTreeState(rootPath: rootPath)
         addTabWithContent(to: areaId, content: .fileTree(state))
     }
 
     /// Add a git client tab to the given area.
     public func addGitTab(to areaId: UUID, path: String? = nil) {
-        let repoPath = path ?? FileManager.default.currentDirectoryPath
+        let repoPath = path ?? NSHomeDirectory()
         let state = GitClientState(repositoryPath: repoPath)
         addTabWithContent(to: areaId, content: .gitClient(state))
     }
@@ -359,6 +359,38 @@ public final class WorkspaceStore: ObservableObject {
         workspaces[workspaceIndex].activeAreaId = areaId
         notificationStore?.markAsRead(areaId: areaId)
         return true
+    }
+
+    // MARK: - Area Activation
+
+    /// Activate an area (e.g. when the user clicks on a terminal surface).
+    public func activateArea(_ areaId: UUID) {
+        guard var workspace = activeWorkspace else { return }
+        guard workspace.activeAreaId != areaId else { return }
+        guard workspace.layout.findArea(id: areaId) != nil else { return }
+        workspace.activeAreaId = areaId
+        workspaces[activeWorkspaceIndex] = workspace
+        notificationStore?.markAsRead(areaId: areaId)
+    }
+
+    // MARK: - Process Exit Handling
+
+    /// Close the tab containing the given terminal session (called when the shell process exits).
+    public func closeTerminalSession(_ session: TerminalSession) {
+        for (wsIndex, workspace) in workspaces.enumerated() {
+            for area in workspace.allAreas {
+                if let tabIndex = area.tabs.firstIndex(where: { $0.content.terminalSession?.id == session.id }) {
+                    // Temporarily switch to the workspace containing the session
+                    let savedIndex = activeWorkspaceIndex
+                    activeWorkspaceIndex = wsIndex
+                    closeTab(in: area.id, at: tabIndex)
+                    if activeWorkspaceIndex != savedIndex && workspaces.count > savedIndex {
+                        activeWorkspaceIndex = savedIndex
+                    }
+                    return
+                }
+            }
+        }
     }
 
     // MARK: - Helpers
