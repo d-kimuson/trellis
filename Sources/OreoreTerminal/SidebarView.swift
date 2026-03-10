@@ -1,30 +1,24 @@
 import SwiftUI
 
 struct SidebarView: View {
-    @ObservedObject var sessionStore: SessionStore
+    @ObservedObject var store: WorkspaceStore
 
     var body: some View {
         VStack(spacing: 0) {
-            List(selection: $sessionStore.selectedSessionId) {
-                Section("Sessions") {
-                    ForEach(sessionStore.sessions) { session in
-                        HStack {
-                            Image(systemName: "terminal")
-                                .foregroundColor(.secondary)
-                            Text(session.title)
-                                .lineLimit(1)
-                        }
-                        .tag(session.id)
-                        .contextMenu {
-                            Button("Split Horizontal") {
-                                sessionStore.split(session, direction: .horizontal)
-                            }
-                            Button("Split Vertical") {
-                                sessionStore.split(session, direction: .vertical)
-                            }
-                            Divider()
-                            Button("Close") {
-                                sessionStore.closeSession(session)
+            List {
+                ForEach(Array(store.workspaces.enumerated()), id: \.element.id) { _, workspace in
+                    Section(workspace.name) {
+                        ForEach(workspace.allAreas) { area in
+                            ForEach(area.tabs) { tab in
+                                if let session = tab.content.terminalSession {
+                                    HStack {
+                                        Image(systemName: "terminal")
+                                            .foregroundColor(.secondary)
+                                        Text(session.title)
+                                            .lineLimit(1)
+                                    }
+                                    .tag(session.id)
+                                }
                             }
                         }
                     }
@@ -36,21 +30,24 @@ struct SidebarView: View {
 
             // Bottom toolbar
             HStack {
-                Button(action: {
-                    let newSession = sessionStore.createSession()
-                    // Add new session as a split to the right of the current layout
-                    sessionStore.rootPanel = .split(
-                        id: UUID(),
-                        direction: .vertical,
-                        first: sessionStore.rootPanel,
-                        second: .terminal(newSession),
-                        ratio: 0.5
-                    )
-                }) {
-                    Image(systemName: "plus")
-                }
+                Button(
+                    action: {
+                        if let workspace = store.activeWorkspace,
+                           let areaId = workspace.activeAreaId {
+                            store.addTab(to: areaId)
+                        }
+                    },
+                    label: { Image(systemName: "plus") }
+                )
                 .buttonStyle(.borderless)
-                .help("New Terminal")
+                .help("New Terminal Tab")
+
+                Button(
+                    action: { store.addWorkspace() },
+                    label: { Image(systemName: "square.grid.2x2") }
+                )
+                .buttonStyle(.borderless)
+                .help("New Workspace")
 
                 Spacer()
             }

@@ -1,20 +1,18 @@
 import SwiftUI
 
-/// Recursively renders the panel tree as split views with draggable dividers.
-struct PanelView: View {
-    let node: PanelNode
+/// Recursively renders the layout tree as split views with draggable dividers.
+struct AreaLayoutView: View {
+    let node: LayoutNode
     let ghosttyApp: GhosttyAppWrapper
-    @ObservedObject var sessionStore: SessionStore
+    @ObservedObject var store: WorkspaceStore
 
     var body: some View {
         switch node {
-        case .terminal(let session):
-            TerminalPanelWrapper(
-                session: session,
+        case .leaf(let area):
+            AreaPanelView(
+                area: area,
                 ghosttyApp: ghosttyApp,
-                onSplitH: { sessionStore.split(session, direction: .horizontal) },
-                onSplitV: { sessionStore.split(session, direction: .vertical) },
-                onClose: { sessionStore.closeSession(session) }
+                store: store
             )
 
         case .split(let splitId, let direction, let first, let second, let ratio):
@@ -22,19 +20,91 @@ struct PanelView: View {
                 direction: direction,
                 ratio: ratio,
                 onRatioChange: { newRatio in
-                    sessionStore.rootPanel = sessionStore.rootPanel.updatingRatio(
-                        splitId: splitId,
-                        ratio: newRatio
-                    )
+                    store.updateRatio(splitId: splitId, ratio: newRatio)
                 },
                 first: {
-                    PanelView(node: first, ghosttyApp: ghosttyApp, sessionStore: sessionStore)
+                    AreaLayoutView(node: first, ghosttyApp: ghosttyApp, store: store)
                 },
                 second: {
-                    PanelView(node: second, ghosttyApp: ghosttyApp, sessionStore: sessionStore)
+                    AreaLayoutView(node: second, ghosttyApp: ghosttyApp, store: store)
                 }
             )
         }
+    }
+}
+
+/// Renders a single area: tab bar (stub) + active tab's panel content.
+struct AreaPanelView: View {
+    let area: Area
+    let ghosttyApp: GhosttyAppWrapper
+    @ObservedObject var store: WorkspaceStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tab bar (minimal stub)
+            if area.tabs.count > 1 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(Array(area.tabs.enumerated()), id: \.element.id) { index, tab in
+                            tabButton(tab: tab, index: index)
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(Color(nsColor: .controlBackgroundColor))
+            }
+
+            // Active tab content
+            if let activeTab = area.activeTab,
+               let session = activeTab.content.terminalSession {
+                TerminalPanelWrapper(
+                    session: session,
+                    ghosttyApp: ghosttyApp,
+                    areaId: area.id,
+                    store: store
+                )
+            } else {
+                Text("Empty area")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private func tabButton(tab: Tab, index: Int) -> some View {
+        Button(
+            action: { store.selectTab(in: area.id, at: index) },
+            label: {
+                HStack(spacing: 4) {
+                    if let session = tab.content.terminalSession {
+                        Text(session.title)
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+
+                    if area.tabs.count > 1 {
+                        Button(
+                            action: { store.closeTab(in: area.id, at: index) },
+                            label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8))
+                            }
+                        )
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    index == area.activeTabIndex
+                        ? Color.accentColor.opacity(0.2)
+                        : Color.clear
+                )
+                .cornerRadius(4)
+            }
+        )
+        .buttonStyle(.borderless)
     }
 }
 
@@ -42,9 +112,8 @@ struct PanelView: View {
 struct TerminalPanelWrapper: View {
     let session: TerminalSession
     let ghosttyApp: GhosttyAppWrapper
-    let onSplitH: () -> Void
-    let onSplitV: () -> Void
-    let onClose: () -> Void
+    let areaId: UUID
+    @ObservedObject var store: WorkspaceStore
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,24 +126,24 @@ struct TerminalPanelWrapper: View {
 
                 Spacer()
 
-                Button(action: onSplitH) {
-                    Image(systemName: "rectangle.split.1x2")
-                        .font(.caption)
-                }
+                Button(
+                    action: { store.splitArea(areaId: areaId, direction: .horizontal) },
+                    label: { Image(systemName: "rectangle.split.1x2").font(.caption) }
+                )
                 .buttonStyle(.borderless)
                 .help("Split Horizontal")
 
-                Button(action: onSplitV) {
-                    Image(systemName: "rectangle.split.2x1")
-                        .font(.caption)
-                }
+                Button(
+                    action: { store.splitArea(areaId: areaId, direction: .vertical) },
+                    label: { Image(systemName: "rectangle.split.2x1").font(.caption) }
+                )
                 .buttonStyle(.borderless)
                 .help("Split Vertical")
 
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.caption)
-                }
+                Button(
+                    action: { store.closeArea(areaId: areaId) },
+                    label: { Image(systemName: "xmark").font(.caption) }
+                )
                 .buttonStyle(.borderless)
                 .help("Close")
             }

@@ -9,8 +9,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyAppWrapper()
 
-        let sessionStore = SessionStore(ghosttyApp: ghosttyApp)
-        let contentView = ContentView(sessionStore: sessionStore)
+        let store = WorkspaceStore(ghosttyApp: ghosttyApp)
+        let contentView = ContentView(store: store)
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
