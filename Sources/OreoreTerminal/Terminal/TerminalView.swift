@@ -11,10 +11,12 @@ class GhosttyNSView: NSView, NSTextInputClient {
     private var surface: ghostty_surface_t?
 
     // NSTextInputClient state
-    private var pendingKeyEvent: NSEvent?
-    private var pendingInsertText: String?
     private var imMarkedText: NSMutableAttributedString = NSMutableAttributedString()
     private var imSelectedRange: NSRange = NSRange(location: 0, length: 0)
+
+    /// Non-nil while inside keyDown — collects text from insertText calls.
+    /// Matches Ghostty's keyTextAccumulator pattern for proper IME handling.
+    private var keyTextAccumulator: [String]?
 
     init(ghosttyApp: GhosttyAppWrapper, session: TerminalSession) {
         self.ghosttyApp = ghosttyApp
@@ -121,44 +123,56 @@ class GhosttyNSView: NSView, NSTextInputClient {
     }
 
     override func keyDown(with event: NSEvent) {
-        guard surface != nil else {
+        guard let surface else {
             super.keyDown(with: event)
             return
         }
 
-        pendingKeyEvent = event
-        pendingInsertText = nil
-
         // For Ctrl/Cmd combos, skip the input context and send directly to ghostty.
-        // The input context is for text composition (Shift+key, IME) — not modifier combos.
         let hasModifier = event.modifierFlags.contains(.control)
             || event.modifierFlags.contains(.command)
-        if !hasModifier {
-            inputContext?.handleEvent(event)
-        }
-
-        // During IME composition, preedit is already sent via ghostty_surface_preedit
-        // in setMarkedText. Don't also send a key event which would interfere.
-        if hasMarkedText() {
-            pendingKeyEvent = nil
-            pendingInsertText = nil
+        if hasModifier {
+            sendKeyToGhostty(event: event, text: nil, composing: false)
             return
         }
 
-        sendPendingKeyToGhostty()
+        // Track whether we had marked text before this event.
+        // Needed to detect when composition was just cleared (e.g. backspace to cancel).
+        let markedTextBefore = imMarkedText.length > 0
+
+        // Begin accumulating text from insertText calls during this keyDown.
+        keyTextAccumulator = []
+        defer { keyTextAccumulator = nil }
+
+        // This triggers insertText / setMarkedText / doCommand callbacks.
+        interpretKeyEvents([event])
+
+        // Sync preedit state after the input system has processed the event.
+        syncPreedit(clearIfNeeded: markedTextBefore)
+
+        if let accumulated = keyTextAccumulator, !accumulated.isEmpty {
+            // Composition complete — send each accumulated text as a non-composing key.
+            for text in accumulated {
+                sendKeyToGhostty(event: event, text: text, composing: false)
+            }
+        } else {
+            // No text produced — send key with composing flag.
+            // composing is true if we have preedit OR if we just cleared preedit
+            // (e.g. backspace to cancel composition should not delete prior characters).
+            let composing = imMarkedText.length > 0 || markedTextBefore
+            sendKeyToGhostty(event: event, text: event.characters, composing: composing)
+        }
     }
 
-    /// Called after interpretKeyEvents / inputContext?.handleEvent to send the
-    /// collected key event + text to ghostty.
-    private func sendPendingKeyToGhostty() {
-        guard let event = pendingKeyEvent, let surface else { return }
-        pendingKeyEvent = nil
+    /// Send a key event to ghostty with optional text and composing state.
+    private func sendKeyToGhostty(event: NSEvent, text: String?, composing: Bool) {
+        guard let surface else { return }
 
         var key = ghostty_input_key_s()
-        key.action = GHOSTTY_ACTION_PRESS
+        key.action = event.isARepeat ? GHOSTTY_ACTION_REPEAT : GHOSTTY_ACTION_PRESS
         key.mods = Self.convertModifiers(event.modifierFlags)
         key.keycode = UInt32(event.keyCode)
-        key.composing = hasMarkedText()
+        key.composing = composing
 
         // consumed_mods: modifiers that produced the text (exclude control/command)
         let consumedFlags = event.modifierFlags.subtracting([.control, .command])
@@ -173,7 +187,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
             }
         }
 
-        if let text = pendingInsertText, !text.isEmpty {
+        // Only encode text if it's not a control character
+        if let text, !text.isEmpty,
+           let first = text.utf8.first, first >= 0x20
+        {
             text.withCString { cstr in
                 key.text = cstr
                 _ = ghostty_surface_key(surface, key)
@@ -181,7 +198,21 @@ class GhosttyNSView: NSView, NSTextInputClient {
         } else {
             _ = ghostty_surface_key(surface, key)
         }
-        pendingInsertText = nil
+    }
+
+    /// Sync preedit state with ghostty. Matches Ghostty's syncPreedit pattern.
+    private func syncPreedit(clearIfNeeded: Bool = true) {
+        guard let surface else { return }
+        if imMarkedText.length > 0 {
+            let str = imMarkedText.string
+            str.withCString { ptr in
+                let len = str.utf8CString.count
+                // Subtract 1 for the null terminator
+                ghostty_surface_preedit(surface, ptr, UInt(max(len - 1, 0)))
+            }
+        } else if clearIfNeeded {
+            ghostty_surface_preedit(surface, nil, 0)
+        }
     }
 
     override func keyUp(with event: NSEvent) {
@@ -222,13 +253,21 @@ class GhosttyNSView: NSView, NSTextInputClient {
             return
         }
 
-        // Clear marked text and preedit display (IME composition ended)
-        imMarkedText = NSMutableAttributedString()
-        if let surface {
-            ghostty_surface_preedit(surface, nil, 0)
+        // Composition ended — clear preedit
+        unmarkText()
+
+        // If inside keyDown, accumulate text for later processing.
+        if keyTextAccumulator != nil {
+            keyTextAccumulator!.append(text)
+            return
         }
 
-        pendingInsertText = text
+        // Outside keyDown (e.g. external input) — send directly
+        if let surface {
+            text.withCString { cstr in
+                ghostty_surface_text(surface, cstr, UInt(text.utf8.count))
+            }
+        }
     }
 
     /// Called by the input system for non-text key events (Ctrl+C, arrows, Enter, etc.).
@@ -245,26 +284,17 @@ class GhosttyNSView: NSView, NSTextInputClient {
         }
         imSelectedRange = selectedRange
 
-        // Send preedit text to ghostty via the dedicated preedit API
-        // so that composing text is rendered inline in the terminal.
-        if let surface {
-            let text = imMarkedText.string
-            if text.isEmpty {
-                ghostty_surface_preedit(surface, nil, 0)
-            } else {
-                text.withCString { cstr in
-                    ghostty_surface_preedit(surface, cstr, UInt(selectedRange.location))
-                }
-            }
+        // If not inside keyDown, sync preedit immediately (e.g. keyboard layout change).
+        // Inside keyDown, preedit is synced after interpretKeyEvents returns.
+        if keyTextAccumulator == nil {
+            syncPreedit()
         }
     }
 
     func unmarkText() {
-        imMarkedText = NSMutableAttributedString()
-        // Clear preedit display
-        if let surface {
-            ghostty_surface_preedit(surface, nil, 0)
-        }
+        guard imMarkedText.length > 0 else { return }
+        imMarkedText.mutableString.setString("")
+        syncPreedit()
     }
 
     func selectedRange() -> NSRange {
@@ -303,9 +333,9 @@ class GhosttyNSView: NSView, NSTextInputClient {
         // Convert to NSView coordinates (origin bottom-left)
         let cursorRect = NSRect(
             x: x,
-            y: bounds.height - y - h,
-            width: w,
-            height: h
+            y: frame.size.height - y,
+            width: max(w, 1),
+            height: max(h, 1)
         )
         let windowRect = convert(cursorRect, to: nil)
         return window.convertToScreen(windowRect)
