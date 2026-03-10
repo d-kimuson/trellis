@@ -78,6 +78,15 @@ deps/ghostty/             # Cloned ghostty source (gitignored)
 - Files using ghostty C types must `import GhosttyKit`
 - Public types in OreoreTerminal library need `public` access for test/app target access
 
+## Nix + Xcode Pitfalls
+
+Nix devShell と Xcode ツールチェインの衝突がいくつかあり、回避策が組み込まれている:
+
+- **`swift test` は使用禁止**: Xcode 26 の testing plugin バグで壊れる。`make test` (= `xcodebuild test`) を使う
+- **`xcodebuild` は `env -i` 経由で実行**: Nix の LD/LDFLAGS がリンカーを破壊するため、Makefile 内で `env -i` でクリーン環境にしている
+- **SwiftLint は nix develop 内でのみ利用可能**: PATH に入るのは devShell 内だけ
+- **check-changed は `nix develop -c` で実行**: 上記すべてを考慮し、コマンド全体を nix develop 内で実行する
+
 ## Coding Conventions
 
 - Prefer value types (struct/enum) over classes where possible
