@@ -12,32 +12,36 @@ tmux alternative built on libghostty. macOS native app (SwiftUI + AppKit).
 - Quality gate: check-changed (runs lint/build/test on changed files)
 - Task tracking: bd (beads) — see AGENTS.md
 
-## Build & Quality Commands
+## Running Commands
+
+すべてのビルド/品質コマンドは `DEVELOPER_DIR=... nix develop -c` 経由で実行する。インタラクティブシェルには入れないため、必ずワンライナーで実行すること。
 
 ```bash
-# Enter dev shell (required for build/lint)
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop
-
-# Inside dev shell:
-make setup   # Initial: clone ghostty + build libghostty.a
-make build   # Build the app (Makefile swiftc)
-make run     # Build + run
-make test    # Run tests (xcodebuild test)
-make lint    # SwiftLint
-make check   # All checks via check-changed
+# 環境変数プレフィックス (全コマンド共通)
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c <command>
 ```
 
-Note: `make test` uses `xcodebuild test` (not `swift test`) due to Xcode 26 testing plugin bug.
+初回セットアップ:
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c make setup
+```
+
+個別コマンド:
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c make build
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c make test
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c make lint
+```
 
 ## Quality Gate (MUST follow)
 
-After modifying .swift files, run check-changed to verify changes:
+.swift ファイルを変更したら、コミット前に必ず実行:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c npx -y check-changed@0.0.1-beta.4 run
 ```
 
-This runs lint, build, and test against changed files. All checks must pass before committing. If a check fails, fix the issue and re-run until all pass.
+lint, build, test を変更ファイルに対して実行する。全チェック通過が必須。失敗したら修正して再実行。
 
 ## Source Structure
 
@@ -71,21 +75,15 @@ deps/ghostty/             # Cloned ghostty source (gitignored)
 
 ## Architecture Constraints
 
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` must be set (Nix overrides it)
-- swiftc: `/usr/bin/xcrun -sdk macosx swiftc` (Nix's Swift SDK is incompatible)
-- Metal compiler requires Xcode (proprietary, not in nixpkgs)
 - Core logic (models, state) should be GUI-independent for future cross-platform
 - Files using ghostty C types must `import GhosttyKit`
 - Public types in OreoreTerminal library need `public` access for test/app target access
 
 ## Nix + Xcode Pitfalls
 
-Nix devShell と Xcode ツールチェインの衝突がいくつかあり、回避策が組み込まれている:
-
-- **`swift test` は使用禁止**: Xcode 26 の testing plugin バグで壊れる。`make test` (= `xcodebuild test`) を使う
-- **`xcodebuild` は `env -i` 経由で実行**: Nix の LD/LDFLAGS がリンカーを破壊するため、Makefile 内で `env -i` でクリーン環境にしている
+- **`swift test` は使用禁止**: Xcode 26 の testing plugin バグで壊れる。`make test` を使う
+- **`xcodebuild` は Makefile 内で `env -i` 経由実行**: Nix の LD/LDFLAGS がリンカーを破壊するため
 - **SwiftLint は nix develop 内でのみ利用可能**: PATH に入るのは devShell 内だけ
-- **check-changed は `nix develop -c` で実行**: 上記すべてを考慮し、コマンド全体を nix develop 内で実行する
 
 ## Coding Conventions
 
