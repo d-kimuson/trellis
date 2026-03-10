@@ -185,6 +185,98 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(ratio, 0.3)
     }
 
+    // MARK: - Rename Workspace
+
+    func testRenameWorkspaceChangesName() {
+        let store = makeStore()
+        store.renameWorkspace(at: 0, to: "My Workspace")
+        XCTAssertEqual(store.workspaces[0].name, "My Workspace")
+    }
+
+    func testRenameWorkspaceOutOfRangeIsNoOp() {
+        let store = makeStore()
+        store.renameWorkspace(at: 5, to: "Nope")
+        XCTAssertEqual(store.workspaces[0].name, "Workspace 1")
+    }
+
+    // MARK: - Remove Workspace
+
+    func testRemoveWorkspaceRemovesIt() {
+        let store = makeStore()
+        store.addWorkspace()
+        XCTAssertEqual(store.workspaces.count, 2)
+
+        store.removeWorkspace(at: 0)
+        XCTAssertEqual(store.workspaces.count, 1)
+    }
+
+    func testRemoveLastWorkspaceIsNoOp() {
+        let store = makeStore()
+        store.removeWorkspace(at: 0)
+        XCTAssertEqual(store.workspaces.count, 1)
+    }
+
+    func testRemoveWorkspaceAdjustsActiveIndex() {
+        let store = makeStore()
+        store.addWorkspace()
+        store.addWorkspace()
+        // Active is now 2 (last one)
+        store.selectWorkspace(at: 1)
+        // Active is now 1
+        store.removeWorkspace(at: 0)
+        // After removing index 0, active should adjust to 0
+        XCTAssertEqual(store.activeWorkspaceIndex, 0)
+        XCTAssertEqual(store.workspaces.count, 2)
+    }
+
+    func testRemoveActiveWorkspaceSetsActiveToValidIndex() {
+        let store = makeStore()
+        store.addWorkspace()
+        store.addWorkspace()
+        store.selectWorkspace(at: 2)
+        store.removeWorkspace(at: 2)
+        // Active was 2, removed it, should clamp to 1
+        XCTAssertEqual(store.activeWorkspaceIndex, 1)
+    }
+
+    // MARK: - Split / Close Active Area
+
+    func testSplitActiveAreaSplitsCurrentArea() {
+        let store = makeStore()
+        let originalAreaId = store.activeWorkspace?.activeAreaId
+
+        store.splitActiveArea(direction: .horizontal)
+
+        let areas = store.activeWorkspace?.allAreas ?? []
+        XCTAssertEqual(areas.count, 2)
+        // Active area should be the new one (not original)
+        XCTAssertNotEqual(store.activeWorkspace?.activeAreaId, originalAreaId)
+    }
+
+    func testSplitActiveAreaWithNoActiveAreaIsNoOp() {
+        let store = makeStore()
+        // Force invalid state
+        store.workspaces = []
+        store.splitActiveArea(direction: .vertical)
+        // No crash = pass
+    }
+
+    func testCloseActiveAreaClosesCurrentArea() {
+        let store = makeStore()
+        guard let areaId = store.activeWorkspace?.activeAreaId else {
+            XCTFail("Expected active area")
+            return
+        }
+        store.splitArea(areaId: areaId, direction: .vertical)
+        let areasAfterSplit = store.activeWorkspace?.allAreas ?? []
+        XCTAssertEqual(areasAfterSplit.count, 2)
+
+        store.closeActiveArea()
+
+        let areasAfterClose = store.activeWorkspace?.allAreas ?? []
+        XCTAssertEqual(areasAfterClose.count, 1)
+    }
+
     // MARK: - All Sessions
 
     func testAllSessionsReturnsAllTerminals() {

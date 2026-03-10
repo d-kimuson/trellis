@@ -41,8 +41,8 @@ struct AreaPanelView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tab bar (minimal stub)
-            if area.tabs.count > 1 {
+            // Tab bar (always visible)
+            HStack(spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
                         ForEach(Array(area.tabs.enumerated()), id: \.element.id) { index, tab in
@@ -50,10 +50,23 @@ struct AreaPanelView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(Color(nsColor: .controlBackgroundColor))
+
+                // Add tab button
+                Button(
+                    action: { store.addTab(to: area.id) },
+                    label: {
+                        Image(systemName: "plus")
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                    }
+                )
+                .buttonStyle(.borderless)
+                .help("New Tab")
             }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(Color(nsColor: .controlBackgroundColor))
 
             // Active tab content
             if let activeTab = area.activeTab,
@@ -73,7 +86,9 @@ struct AreaPanelView: View {
     }
 
     private func tabButton(tab: Tab, index: Int) -> some View {
-        Button(
+        let isActive = index == area.activeTabIndex
+
+        return Button(
             action: { store.selectTab(in: area.id, at: index) },
             label: {
                 HStack(spacing: 4) {
@@ -83,21 +98,21 @@ struct AreaPanelView: View {
                             .lineLimit(1)
                     }
 
-                    if area.tabs.count > 1 {
-                        Button(
-                            action: { store.closeTab(in: area.id, at: index) },
-                            label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 8))
-                            }
-                        )
-                        .buttonStyle(.borderless)
-                    }
+                    Button(
+                        action: { store.closeTab(in: area.id, at: index) },
+                        label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8))
+                                .foregroundColor(.secondary)
+                        }
+                    )
+                    .buttonStyle(.borderless)
+                    .help("Close Tab")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
-                    index == area.activeTabIndex
+                    isActive
                         ? Color.accentColor.opacity(0.2)
                         : Color.clear
                 )

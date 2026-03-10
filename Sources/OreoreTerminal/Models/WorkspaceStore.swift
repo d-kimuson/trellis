@@ -60,6 +60,53 @@ public final class WorkspaceStore: ObservableObject {
         activeWorkspaceIndex = index
     }
 
+    /// Rename a workspace at the given index.
+    public func renameWorkspace(at index: Int, to name: String) {
+        guard index >= 0, index < workspaces.count else { return }
+        workspaces[index].name = name
+    }
+
+    /// Remove a workspace at the given index. The last workspace cannot be removed.
+    public func removeWorkspace(at index: Int) {
+        guard workspaces.count > 1 else { return }
+        guard index >= 0, index < workspaces.count else { return }
+
+        // Close all sessions in the workspace being removed
+        let workspace = workspaces[index]
+        for area in workspace.allAreas {
+            for tab in area.tabs {
+                if let session = tab.content.terminalSession {
+                    session.close()
+                }
+            }
+        }
+
+        workspaces.remove(at: index)
+
+        // Adjust activeWorkspaceIndex
+        if activeWorkspaceIndex >= workspaces.count {
+            activeWorkspaceIndex = workspaces.count - 1
+        } else if activeWorkspaceIndex > index {
+            activeWorkspaceIndex -= 1
+        }
+    }
+
+    // MARK: - Active Area Operations
+
+    /// Split the active area in the active workspace.
+    public func splitActiveArea(direction: SplitDirection) {
+        guard let workspace = activeWorkspace,
+              let areaId = workspace.activeAreaId else { return }
+        splitArea(areaId: areaId, direction: direction)
+    }
+
+    /// Close the active area in the active workspace.
+    public func closeActiveArea() {
+        guard let workspace = activeWorkspace,
+              let areaId = workspace.activeAreaId else { return }
+        closeArea(areaId: areaId)
+    }
+
     // MARK: - Area Operations
 
     /// Split the area containing the given areaId in the active workspace.

@@ -5,11 +5,12 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var ghosttyApp: GhosttyAppWrapper!
+    var store: WorkspaceStore!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyAppWrapper()
 
-        let store = WorkspaceStore(ghosttyApp: ghosttyApp)
+        store = WorkspaceStore(ghosttyApp: ghosttyApp)
         let contentView = ContentView(store: store)
 
         window = NSWindow(
@@ -33,21 +34,76 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         ghosttyApp?.shutdown()
     }
+
+    // MARK: - Menu Actions
+
+    @objc func splitHorizontal(_ sender: Any?) {
+        store?.splitActiveArea(direction: .horizontal)
+    }
+
+    @objc func splitVertical(_ sender: Any?) {
+        store?.splitActiveArea(direction: .vertical)
+    }
+
+    @objc func closeArea(_ sender: Any?) {
+        store?.closeActiveArea()
+    }
 }
 
 // Entry point
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 
-// Create a minimal menu bar
+let delegate = AppDelegate()
+app.delegate = delegate
+
+// Create menu bar
 let mainMenu = NSMenu()
+
+// App menu
 let appMenuItem = NSMenuItem()
 mainMenu.addItem(appMenuItem)
 let appMenu = NSMenu()
-appMenu.addItem(withTitle: "Quit Oreore Terminal", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+appMenu.addItem(
+    withTitle: "Quit Oreore Terminal",
+    action: #selector(NSApplication.terminate(_:)),
+    keyEquivalent: "q"
+)
 appMenuItem.submenu = appMenu
+
+// View menu
+let viewMenuItem = NSMenuItem()
+mainMenu.addItem(viewMenuItem)
+let viewMenu = NSMenu(title: "View")
+
+let splitHItem = NSMenuItem(
+    title: "Split Horizontal",
+    action: #selector(AppDelegate.splitHorizontal(_:)),
+    keyEquivalent: "d"
+)
+splitHItem.keyEquivalentModifierMask = [.command]
+viewMenu.addItem(splitHItem)
+
+let splitVItem = NSMenuItem(
+    title: "Split Vertical",
+    action: #selector(AppDelegate.splitVertical(_:)),
+    keyEquivalent: "d"
+)
+splitVItem.keyEquivalentModifierMask = [.command, .shift]
+viewMenu.addItem(splitVItem)
+
+viewMenu.addItem(NSMenuItem.separator())
+
+let closeAreaItem = NSMenuItem(
+    title: "Close Area",
+    action: #selector(AppDelegate.closeArea(_:)),
+    keyEquivalent: "w"
+)
+closeAreaItem.keyEquivalentModifierMask = [.command, .shift]
+viewMenu.addItem(closeAreaItem)
+
+viewMenuItem.submenu = viewMenu
+
 app.mainMenu = mainMenu
 
-let delegate = AppDelegate()
-app.delegate = delegate
 app.run()
