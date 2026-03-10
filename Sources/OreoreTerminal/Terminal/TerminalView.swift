@@ -60,14 +60,15 @@ class GhosttyNSView: NSView, NSTextInputClient {
     // MARK: - Surface Management
 
     private func createSurface() {
-        let userdata = Unmanaged.passUnretained(session).toOpaque()
         surface = ghosttyApp.createSurface(
             for: self,
-            userdata: userdata,
             workingDirectory: session.initialWorkingDirectory
         )
         session.surface = surface
         ghosttyApp.focusedSurface = surface
+        if let surface {
+            ghosttyApp.registerSession(surface: surface, session: session)
+        }
 
         if let surface, let window {
             let scale = window.backingScaleFactor
@@ -127,7 +128,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
     }
 
     override func keyDown(with event: NSEvent) {
-        guard let surface else {
+        guard surface != nil else {
             super.keyDown(with: event)
             return
         }
@@ -408,6 +409,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     func destroySurface() {
         if let surface {
+            ghosttyApp.unregisterSession(surface: surface)
             ghostty_surface_free(surface)
         }
         surface = nil

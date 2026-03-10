@@ -37,6 +37,10 @@ public final class GhosttyAppWrapper {
     /// The most recently focused terminal surface, used for clipboard operations.
     var focusedSurface: ghostty_surface_t?
 
+    /// Surface → Session lookup table. Avoids use-after-free risk from raw Unmanaged pointers
+    /// in C callbacks by validating sessions through a managed dictionary instead.
+    private var surfaceSessions: [UnsafeRawPointer: TerminalSession] = [:]
+
     /// Called synchronously on the main thread when OSC 9/777 desktop notification arrives.
     /// Parameters: (title, body)
     public var onDesktopNotification: ((String, String) -> Void)?
@@ -131,9 +135,27 @@ public final class GhosttyAppWrapper {
         return ghostty_surface_new(app, &config)
     }
 
+    // MARK: - Surface Session Registry
+
+    func registerSession(surface: ghostty_surface_t, session: TerminalSession) {
+        let key = UnsafeRawPointer(surface)
+        surfaceSessions[key] = session
+    }
+
+    func unregisterSession(surface: ghostty_surface_t) {
+        let key = UnsafeRawPointer(surface)
+        surfaceSessions.removeValue(forKey: key)
+    }
+
+    func lookupSession(surface: ghostty_surface_t) -> TerminalSession? {
+        let key = UnsafeRawPointer(surface)
+        return surfaceSessions[key]
+    }
+
     public func shutdown() {
         tickTimer?.invalidate()
         tickTimer = nil
+        surfaceSessions.removeAll()
         if let app {
             ghostty_app_free(app)
         }
@@ -178,13 +200,11 @@ public final class GhosttyAppWrapper {
             let setTitle = action.action.set_title
             if let titlePtr = setTitle.title {
                 let title = String(cString: titlePtr)
-                if target.tag == GHOSTTY_TARGET_SURFACE {
-                    let surface = target.target.surface
-                    if let userdata = ghostty_surface_userdata(surface) {
-                        let session = Unmanaged<TerminalSession>.fromOpaque(userdata).takeUnretainedValue()
-                        DispatchQueue.main.async {
-                            session.title = title
-                        }
+                if target.tag == GHOSTTY_TARGET_SURFACE,
+                   let surface = target.target.surface,
+                   let session = current?.lookupSession(surface: surface) {
+                    DispatchQueue.main.async {
+                        session.title = title
                     }
                 }
                 DispatchQueue.main.async {
@@ -205,15 +225,13 @@ public final class GhosttyAppWrapper {
             let pwdAction = action.action.pwd
             if let pwdPtr = pwdAction.pwd {
                 let pwd = String(cString: pwdPtr)
-                if target.tag == GHOSTTY_TARGET_SURFACE {
-                    let surface = target.target.surface
-                    if let userdata = ghostty_surface_userdata(surface) {
-                        let session = Unmanaged<TerminalSession>.fromOpaque(userdata).takeUnretainedValue()
-                        DispatchQueue.main.async {
-                            session.pwd = pwd
-                        }
-                        session.updateGitBranch(at: pwd)
+                if target.tag == GHOSTTY_TARGET_SURFACE,
+                   let surface = target.target.surface,
+                   let session = current?.lookupSession(surface: surface) {
+                    DispatchQueue.main.async {
+                        session.pwd = pwd
                     }
+                    session.updateGitBranch(at: pwd)
                 }
             }
         case GHOSTTY_ACTION_CLOSE_TAB:
@@ -232,10 +250,9 @@ public final class GhosttyAppWrapper {
 
     /// Extract the TerminalSession from a surface target and notify it to close.
     private static func notifySessionClose(target: ghostty_target_s) {
-        guard target.tag == GHOSTTY_TARGET_SURFACE else { return }
-        let surface = target.target.surface
-        guard let userdata = ghostty_surface_userdata(surface) else { return }
-        let session = Unmanaged<TerminalSession>.fromOpaque(userdata).takeUnretainedValue()
+        guard target.tag == GHOSTTY_TARGET_SURFACE,
+              let surface = target.target.surface,
+              let session = current?.lookupSession(surface: surface) else { return }
         DispatchQueue.main.async {
             session.onProcessExited?()
         }
