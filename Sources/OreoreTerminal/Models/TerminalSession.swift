@@ -8,6 +8,12 @@ public final class TerminalSession: Identifiable, ObservableObject {
     @Published public var title: String
     @Published public var isActive: Bool
 
+    /// Current working directory reported by the shell (via OSC 7).
+    @Published public var pwd: String?
+
+    /// Working directory to use when creating the ghostty surface.
+    public let initialWorkingDirectory: String?
+
     // Opaque pointer to ghostty surface - managed by GhosttyNSView
     var surface: ghostty_surface_t?
 
@@ -21,10 +27,11 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Called when the shell process exits and the surface should be closed.
     var onProcessExited: (() -> Void)?
 
-    public init(title: String = "Terminal") {
+    public init(title: String = "Terminal", workingDirectory: String? = nil) {
         self.id = UUID()
         self.title = title
         self.isActive = true
+        self.initialWorkingDirectory = workingDirectory
     }
 
     /// Mark session as inactive and free the surface.

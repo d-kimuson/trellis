@@ -115,7 +115,8 @@ public final class WorkspaceStore: ObservableObject {
     /// Split the area containing the given areaId in the active workspace.
     public func splitArea(areaId: UUID, direction: SplitDirection) {
         guard var workspace = activeWorkspace else { return }
-        let session = TerminalSession(title: "Terminal \(nextTerminalNumber())")
+        let cwd = activeTerminalPwd(in: areaId, workspace: workspace)
+        let session = TerminalSession(title: "Terminal \(nextTerminalNumber())", workingDirectory: cwd)
         let tab = Tab(content: .terminal(session))
         let newArea = Area(tabs: [tab])
 
@@ -168,7 +169,8 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Add a terminal tab to the given area.
     public func addTerminalTab(to areaId: UUID) {
-        let session = TerminalSession(title: "Terminal \(nextTerminalNumber())")
+        let cwd = activeTerminalPwd(in: areaId, workspace: activeWorkspace)
+        let session = TerminalSession(title: "Terminal \(nextTerminalNumber())", workingDirectory: cwd)
         addTabWithContent(to: areaId, content: .terminal(session))
     }
 
@@ -394,6 +396,13 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    /// Returns the pwd of the active terminal in the given area, if available.
+    private func activeTerminalPwd(in areaId: UUID, workspace: Workspace?) -> String? {
+        guard let area = workspace?.layout.findArea(id: areaId),
+              let session = area.activeTab?.content.terminalSession else { return nil }
+        return session.pwd
+    }
 
     private func nextTerminalNumber() -> Int {
         allSessions.count + 1

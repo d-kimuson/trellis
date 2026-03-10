@@ -61,7 +61,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     private func createSurface() {
         let userdata = Unmanaged.passUnretained(session).toOpaque()
-        surface = ghosttyApp.createSurface(for: self, userdata: userdata)
+        surface = ghosttyApp.createSurface(
+            for: self,
+            userdata: userdata,
+            workingDirectory: session.initialWorkingDirectory
+        )
         session.surface = surface
         ghosttyApp.focusedSurface = surface
 

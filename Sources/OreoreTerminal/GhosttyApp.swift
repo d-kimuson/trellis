@@ -91,13 +91,25 @@ public final class GhosttyAppWrapper {
         ghostty_app_tick(app)
     }
 
-    func createSurface(for view: NSView, userdata: UnsafeMutableRawPointer? = nil) -> ghostty_surface_t? {
+    func createSurface(
+        for view: NSView,
+        userdata: UnsafeMutableRawPointer? = nil,
+        workingDirectory: String? = nil
+    ) -> ghostty_surface_t? {
         guard let app else { return nil }
 
         var config = ghostty_surface_config_new()
         config.platform_tag = GHOSTTY_PLATFORM_MACOS
         config.platform.macos.nsview = Unmanaged.passUnretained(view).toOpaque()
         config.userdata = userdata
+
+        if let workingDirectory {
+            // working_directory must remain valid until ghostty_surface_new returns.
+            return workingDirectory.withCString { cstr in
+                config.working_directory = cstr
+                return ghostty_surface_new(app, &config)
+            }
+        }
 
         return ghostty_surface_new(app, &config)
     }
@@ -137,6 +149,20 @@ public final class GhosttyAppWrapper {
             let body = notif.body.map { String(cString: $0) } ?? ""
             // Call directly — no DispatchQueue.main.async to avoid Metal render delays
             current?.onDesktopNotification?(title, body)
+        case GHOSTTY_ACTION_PWD:
+            let pwdAction = action.action.pwd
+            if let pwdPtr = pwdAction.pwd {
+                let pwd = String(cString: pwdPtr)
+                if target.tag == GHOSTTY_TARGET_SURFACE {
+                    let surface = target.target.surface
+                    if let userdata = ghostty_surface_userdata(surface) {
+                        let session = Unmanaged<TerminalSession>.fromOpaque(userdata).takeUnretainedValue()
+                        DispatchQueue.main.async {
+                            session.pwd = pwd
+                        }
+                    }
+                }
+            }
         case GHOSTTY_ACTION_CLOSE_TAB:
             notifySessionClose(target: target)
         case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
