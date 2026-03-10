@@ -58,6 +58,25 @@ LayoutNode
 - PanelView → AreaLayoutView: LayoutNode を描画
 - TerminalPanelWrapper: タブバーの仮表示（詳細は 3ur タスク）
 
+## 7. Notification Detection Approach
+
+**Decision**: ターミナルタイトル変更（SET_TITLE アクション）をフックして通知を判定する。タイトルが変わった＝コマンドの状態が変わった、という間接的な検知。
+
+**Limitation**: libghostty の PTY 出力を直接監視する API がないため、タイトル変更に依存。これはシェルが `PROMPT_COMMAND` や precmd でタイトルを更新する場合にのみ機能する。全てのシェル設定で動作するわけではない。
+
+**Mitigation**:
+- パターンを緩めに設定（一般的なシェルプロンプトパターン）
+- クールダウン（3秒）でスパム防止
+- 前回タイトルと比較して変化があった場合のみ発火
+
+**将来改善**: ghostty の output callback を追加するか、PTY の出力をミラーして直接パターンマッチする方式に移行。
+
+## 8. Sidebar Layout
+
+**Decision**: NavigationSplitView を HStack ベースのカスタムレイアウトに変更。
+
+**Rationale**: NavigationSplitView のサイドバートグルボタンが開閉時にレイアウトシフトする（開いている時は左、閉じると右に移動）。カスタム実装ではトグルボタンの位置を固定。
+
 ## Open Questions (相談事項)
 
 ### Q1: ワークスペース永続化

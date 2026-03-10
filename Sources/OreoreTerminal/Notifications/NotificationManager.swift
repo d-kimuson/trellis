@@ -7,7 +7,7 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     /// Parameters: workspaceIndex, areaId
     public var onNotificationClicked: ((Int, UUID) -> Void)?
 
-    public override init() {
+    override public init() {
         super.init()
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -42,7 +42,7 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         content.body = body
         content.userInfo = [
             "workspaceIndex": workspaceIndex,
-            "areaId": areaId.uuidString,
+            "areaId": areaId.uuidString
         ]
 
         let request = UNNotificationRequest(

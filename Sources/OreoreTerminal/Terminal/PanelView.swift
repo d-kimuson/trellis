@@ -52,24 +52,20 @@ struct AreaPanelView: View {
     @State private var dropEdge: DropEdge?
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                // Tab bar (always visible)
-                tabBar
+        VStack(spacing: 0) {
+            // Tab bar (always visible)
+            tabBar
 
-                // Active tab content
-                if let activeTab = area.activeTab {
-                    panelContent(for: activeTab.content)
-                } else {
-                    Text("Empty area")
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+            // Active tab content
+            if let activeTab = area.activeTab {
+                panelContent(for: activeTab.content)
+            } else {
+                Text("Empty area")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            // Edge drop zone overlay
-            edgeDropOverlay
         }
+        .overlay { edgeDropOverlay }
     }
 
     // MARK: - Panel Content
@@ -215,7 +211,7 @@ struct AreaPanelView: View {
                     .position(x: geo.size.width - edgeSize / 2, y: geo.size.height / 2)
             }
         }
-        .allowsHitTesting(true)
+        .allowsHitTesting(false)
     }
 
     private func edgeDropZone(edge: DropEdge) -> some View {

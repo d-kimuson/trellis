@@ -6,21 +6,34 @@ final class TerminalOutputMonitorTests: XCTestCase {
 
     // MARK: - Pattern Matching
 
-    func testMatchesDefaultProcessCompletionPattern() {
+    func testMatchesShellPromptPattern() {
         let monitor = TerminalOutputMonitor()
-        // Typical shell prompt after command completes: "user@host:~/dir$"
-        let result = monitor.matchingPattern(for: "kaito@mac:~/repos$")
+        // Typical shell prompt title: "user@host:~/dir"
+        let result = monitor.matchingPattern(for: "kaito@mac:~/repos")
         XCTAssertNotNil(result)
     }
 
-    func testMatchesClaudeCodeCompletionPattern() {
+    func testMatchesHomeDirPattern() {
         let monitor = TerminalOutputMonitor()
-        let result = monitor.matchingPattern(for: "Claude Code completed")
+        let result = monitor.matchingPattern(for: "~/projects/myapp")
         XCTAssertNotNil(result)
     }
 
-    func testNoMatchForRandomTitle() {
+    func testMatchesAbsolutePathPattern() {
         let monitor = TerminalOutputMonitor()
+        let result = monitor.matchingPattern(for: "/usr/local/bin")
+        XCTAssertNotNil(result)
+    }
+
+    func testMatchesBashTitle() {
+        let monitor = TerminalOutputMonitor()
+        let result = monitor.matchingPattern(for: "bash")
+        XCTAssertNotNil(result)
+    }
+
+    func testNoMatchForRunningCommand() {
+        let monitor = TerminalOutputMonitor()
+        // A running command name (no path separators, not a shell name)
         let result = monitor.matchingPattern(for: "vim main.swift")
         XCTAssertNil(result)
     }
@@ -52,7 +65,7 @@ final class TerminalOutputMonitorTests: XCTestCase {
     func testShouldNotNotifyWhenAppIsActive() {
         let monitor = TerminalOutputMonitor()
         let shouldNotify = monitor.shouldNotify(
-            title: "kaito@mac:~/repos$",
+            title: "kaito@mac:~/repos",
             isAppActive: true
         )
         XCTAssertFalse(shouldNotify)
@@ -61,7 +74,7 @@ final class TerminalOutputMonitorTests: XCTestCase {
     func testShouldNotifyWhenAppIsInactiveAndPatternMatches() {
         let monitor = TerminalOutputMonitor()
         let shouldNotify = monitor.shouldNotify(
-            title: "kaito@mac:~/repos$",
+            title: "kaito@mac:~/repos",
             isAppActive: false
         )
         XCTAssertTrue(shouldNotify)
@@ -76,37 +89,56 @@ final class TerminalOutputMonitorTests: XCTestCase {
         XCTAssertFalse(shouldNotify)
     }
 
+    func testShouldNotNotifyWhenTitleUnchanged() {
+        var monitor = TerminalOutputMonitor()
+        monitor.recordTitle("kaito@mac:~/repos")
+        let shouldNotify = monitor.shouldNotify(
+            title: "kaito@mac:~/repos",
+            isAppActive: false
+        )
+        XCTAssertFalse(shouldNotify)
+    }
+
+    func testShouldNotifyWhenTitleChanges() {
+        var monitor = TerminalOutputMonitor()
+        monitor.recordTitle("running: claude-code")
+        let shouldNotify = monitor.shouldNotify(
+            title: "kaito@mac:~/repos",
+            isAppActive: false
+        )
+        XCTAssertTrue(shouldNotify)
+    }
+
+    func testCooldownPreventsSpam() {
+        var monitor = TerminalOutputMonitor()
+        monitor.recordNotificationSent()
+        // Immediately after a notification, cooldown should prevent another
+        let shouldNotify = monitor.shouldNotify(
+            title: "kaito@mac:~/repos",
+            isAppActive: false
+        )
+        XCTAssertFalse(shouldNotify)
+    }
+
     // MARK: - Build Notification Info
 
     func testBuildNotificationInfoReturnsMatchedPatternTitle() {
         let monitor = TerminalOutputMonitor()
-        let info = monitor.buildNotificationInfo(for: "kaito@mac:~/repos$")
+        let info = monitor.buildNotificationInfo(for: "kaito@mac:~/repos")
         XCTAssertNotNil(info)
-        XCTAssertEqual(info?.title, "Process Completed")
-    }
-
-    func testBuildNotificationInfoIncludesTerminalTitle() {
-        let monitor = TerminalOutputMonitor()
-        let info = monitor.buildNotificationInfo(for: "Claude Code completed")
-        XCTAssertNotNil(info)
-        XCTAssertEqual(info?.body, "Claude Code completed")
+        XCTAssertEqual(info?.title, "Command Completed")
     }
 
     // MARK: - Invalid Regex
 
-    func testAddPatternWithInvalidRegexIsIgnored() {
+    func testAddPatternWithInvalidRegexDoesNotCrash() {
         var monitor = TerminalOutputMonitor()
-        let countBefore = monitor.patterns.count
         monitor.addPattern(NotificationPattern(
             name: "bad",
             regex: "[invalid",
             notificationTitle: "Bad"
         ))
-        // Invalid regex pattern should still be added (validation at match time)
-        // or could be rejected - implementation decides
-        // Just verify no crash
         let result = monitor.matchingPattern(for: "test")
-        _ = result // no crash
-        _ = countBefore
+        XCTAssertNil(result)
     }
 }

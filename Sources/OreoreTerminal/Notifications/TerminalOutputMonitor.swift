@@ -36,6 +36,15 @@ public struct NotificationInfo {
 public struct TerminalOutputMonitor {
     public private(set) var patterns: [NotificationPattern]
 
+    /// Tracks the previous title to detect transitions (command running → prompt return).
+    public var previousTitle: String?
+
+    /// Minimum interval between notifications (seconds) to avoid spam.
+    public var cooldownInterval: TimeInterval = 3.0
+
+    /// Last notification timestamp.
+    public var lastNotificationTime: Date?
+
     public init() {
         self.patterns = Self.defaultPatterns
     }
@@ -44,16 +53,13 @@ public struct TerminalOutputMonitor {
 
     private static var defaultPatterns: [NotificationPattern] {
         [
+            // Shell prompt return — indicates a command finished.
+            // Matches common formats: "user@host:~/dir", "~/dir", "bash", "zsh"
             NotificationPattern(
-                name: "Process Completed",
-                regex: #"[^\s]+@[^\s]+:.+[\$#%]$"#,
-                notificationTitle: "Process Completed"
-            ),
-            NotificationPattern(
-                name: "Claude Code Completed",
-                regex: #"Claude Code completed"#,
-                notificationTitle: "Claude Code Completed"
-            ),
+                name: "Shell Prompt",
+                regex: #"([\w.-]+@[\w.-]+:|~|/|bash|zsh)"#,
+                notificationTitle: "Command Completed"
+            )
         ]
     }
 
@@ -81,8 +87,15 @@ public struct TerminalOutputMonitor {
     }
 
     /// Determines whether a notification should be sent.
+    /// Fires when: app is inactive, title changed from previous, pattern matches,
+    /// and cooldown has elapsed.
     public func shouldNotify(title: String, isAppActive: Bool) -> Bool {
         guard !isAppActive else { return false }
+        guard title != previousTitle else { return false }
+        if let lastTime = lastNotificationTime,
+           Date().timeIntervalSince(lastTime) < cooldownInterval {
+            return false
+        }
         return matchingPattern(for: title) != nil
     }
 
@@ -93,5 +106,15 @@ public struct TerminalOutputMonitor {
             title: pattern.notificationTitle,
             body: title
         )
+    }
+
+    /// Record that a title was observed (call after processing).
+    public mutating func recordTitle(_ title: String) {
+        previousTitle = title
+    }
+
+    /// Record that a notification was sent.
+    public mutating func recordNotificationSent() {
+        lastNotificationTime = Date()
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @ObservedObject var store: WorkspaceStore
+    @State private var renamingIndex: Int?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,6 +19,12 @@ struct SidebarView: View {
                         WorkspaceRow(
                             workspace: workspace,
                             isActive: index == store.activeWorkspaceIndex,
+                            isEditing: Binding(
+                                get: { renamingIndex == index },
+                                set: { editing in
+                                    renamingIndex = editing ? index : nil
+                                }
+                            ),
                             onRename: { newName in
                                 store.renameWorkspace(at: index, to: newName)
                             }
@@ -25,21 +32,12 @@ struct SidebarView: View {
                         .tag(index)
                         .contextMenu {
                             Button("Rename") {
-                                // Rename is handled by double-click inline editing
-                                // This is a placeholder for discoverability
+                                renamingIndex = index
                             }
                             Button("Delete", role: .destructive) {
                                 store.removeWorkspace(at: index)
                             }
                             .disabled(store.workspaces.count <= 1)
-                        }
-                    }
-                }
-
-                if let workspace = store.activeWorkspace {
-                    Section("Areas & Tabs") {
-                        ForEach(workspace.allAreas) { area in
-                            AreaSidebarRow(area: area, isActiveArea: area.id == workspace.activeAreaId)
                         }
                     }
                 }
@@ -81,9 +79,9 @@ struct SidebarView: View {
 private struct WorkspaceRow: View {
     let workspace: Workspace
     let isActive: Bool
+    @Binding var isEditing: Bool
     let onRename: (String) -> Void
 
-    @State private var isEditing = false
     @State private var editingName: String = ""
 
     var body: some View {
@@ -103,42 +101,13 @@ private struct WorkspaceRow: View {
                 .onExitCommand {
                     isEditing = false
                 }
+                .onAppear {
+                    editingName = workspace.name
+                }
             } else {
                 Text(workspace.name)
                     .lineLimit(1)
                     .fontWeight(isActive ? .semibold : .regular)
-                    .onTapGesture(count: 2) {
-                        editingName = workspace.name
-                        isEditing = true
-                    }
-            }
-        }
-    }
-}
-
-// MARK: - Area Sidebar Row
-
-private struct AreaSidebarRow: View {
-    let area: Area
-    let isActiveArea: Bool
-
-    var body: some View {
-        DisclosureGroup {
-            ForEach(area.tabs) { tab in
-                HStack {
-                    Image(systemName: tab.content.iconName)
-                        .foregroundColor(.secondary)
-                    Text(tab.content.tabTitle)
-                        .lineLimit(1)
-                }
-            }
-        } label: {
-            HStack {
-                Image(systemName: "rectangle")
-                    .foregroundColor(isActiveArea ? .accentColor : .secondary)
-                Text("Area (\(area.tabs.count) tab\(area.tabs.count == 1 ? "" : "s"))")
-                    .lineLimit(1)
-                    .fontWeight(isActiveArea ? .semibold : .regular)
             }
         }
     }

@@ -54,8 +54,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleTitleChange(_ title: String) {
         let isActive = NSApp.isActive
-        guard outputMonitor.shouldNotify(title: title, isAppActive: isActive) else { return }
-        guard let info = outputMonitor.buildNotificationInfo(for: title) else { return }
+        guard outputMonitor.shouldNotify(title: title, isAppActive: isActive) else {
+            outputMonitor.recordTitle(title)
+            return
+        }
+        guard let info = outputMonitor.buildNotificationInfo(for: title) else {
+            outputMonitor.recordTitle(title)
+            return
+        }
 
         let workspaceIndex = store.activeWorkspaceIndex
         let areaId = store.activeWorkspace?.activeAreaId ?? UUID()
@@ -66,6 +72,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             workspaceIndex: workspaceIndex,
             areaId: areaId
         )
+        outputMonitor.recordTitle(title)
+        outputMonitor.recordNotificationSent()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
