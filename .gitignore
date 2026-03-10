@@ -8,3 +8,4 @@ result
 .swiftpm/
 node_modules/
 Package.resolved
+docs/tmp/
