@@ -311,6 +311,7 @@ struct SplitContainer<First: View, Second: View>: View {
     @ViewBuilder let second: () -> Second
 
     @State private var isDragging = false
+    @State private var localRatio: Double?
 
     private let dividerThickness: CGFloat = 4
     private let minRatio: Double = 0.15
@@ -318,9 +319,10 @@ struct SplitContainer<First: View, Second: View>: View {
 
     var body: some View {
         GeometryReader { geo in
+            let activeRatio = localRatio ?? ratio
             let totalSize = direction == .horizontal ? geo.size.height : geo.size.width
-            let firstSize = totalSize * ratio
-            let secondSize = totalSize * (1 - ratio) - dividerThickness
+            let firstSize = totalSize * activeRatio
+            let secondSize = totalSize * (1 - activeRatio) - dividerThickness
 
             if direction == .horizontal {
                 VStack(spacing: 0) {
@@ -359,12 +361,16 @@ struct SplitContainer<First: View, Second: View>: View {
                     .onChanged { value in
                         isDragging = true
                         let offset = isHorizontal ? value.location.y : value.location.x
-                        let currentFirstSize = totalSize * ratio
+                        let currentFirstSize = totalSize * (localRatio ?? ratio)
                         let newFirstSize = currentFirstSize + offset - (dividerThickness / 2)
                         let newRatio = Double(newFirstSize / totalSize)
-                        onRatioChange(min(maxRatio, max(minRatio, newRatio)))
+                        localRatio = min(maxRatio, max(minRatio, newRatio))
                     }
                     .onEnded { _ in
+                        if let localRatio {
+                            onRatioChange(localRatio)
+                        }
+                        localRatio = nil
                         isDragging = false
                     }
             )
