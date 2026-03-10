@@ -11,28 +11,31 @@ public struct ContentView: View {
 
     public var body: some View {
         HStack(spacing: 0) {
-            // Sidebar toggle button (fixed position)
+            // Sidebar toggle column
             VStack {
-                Button(
-                    action: { withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() } },
-                    label: {
-                        Image(systemName: "sidebar.leading")
-                            .font(.system(size: 14))
+                Spacer().frame(height: 8)
+                Image(systemName: "sidebar.leading")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() }
                     }
-                )
-                .buttonStyle(.borderless)
-                .padding(8)
+                    .help("Toggle Sidebar")
+                    .padding(.horizontal, 4)
 
                 Spacer()
             }
             .frame(width: 32)
             .background(Color(nsColor: .windowBackgroundColor))
 
-            if showSidebar {
-                SidebarView(store: store)
-                    .frame(width: sidebarWidth)
-                    .transition(.move(edge: .leading))
+            // Sidebar — always in tree, animated width to avoid view destruction issues
+            SidebarView(store: store)
+                .frame(width: showSidebar ? sidebarWidth : 0)
+                .clipped()
 
+            if showSidebar {
                 Divider()
             }
 
@@ -50,5 +53,8 @@ public struct ContentView: View {
             }
         }
         .frame(minWidth: 800, minHeight: 500)
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() }
+        }
     }
 }

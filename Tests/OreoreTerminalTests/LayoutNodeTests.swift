@@ -308,12 +308,14 @@ final class AreaTests: XCTestCase {
         XCTAssertEqual(updated.activeTab?.id, t2.id)
     }
 
-    func testRemovingTabReturnsNilWhenLastTabRemoved() {
+    func testRemovingTabReturnsEmptyAreaWhenLastTabRemoved() {
         let t1 = makeTab("t1")
         let area = Area(tabs: [t1])
 
         let result = area.removingTab(at: 0)
-        XCTAssertNil(result)
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.tabs.count, 0)
+        XCTAssertEqual(result?.id, area.id)
     }
 
     func testRemovingTabAdjustsActiveIndex() {
@@ -414,12 +416,13 @@ final class AreaTests: XCTestCase {
         XCTAssertEqual(removedTab?.id, t2.id)
     }
 
-    func testRemovingTabByIdReturnsNilAreaWhenLastTab() {
+    func testRemovingTabByIdReturnsEmptyAreaWhenLastTab() {
         let t1 = makeTab("t1")
         let area = Area(tabs: [t1])
 
         let (updatedArea, removedTab) = area.removingTabById(t1.id)
-        XCTAssertNil(updatedArea)
+        XCTAssertNotNil(updatedArea)
+        XCTAssertEqual(updatedArea?.tabs.count, 0)
         XCTAssertEqual(removedTab?.id, t1.id)
     }
 

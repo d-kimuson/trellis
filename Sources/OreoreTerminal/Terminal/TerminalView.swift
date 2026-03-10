@@ -4,10 +4,17 @@ import SwiftUI
 
 /// NSView subclass that hosts a libghostty terminal surface.
 /// Handles input forwarding, resize, and Metal rendering.
-class GhosttyNSView: NSView {
+/// Implements NSTextInputClient for proper keyboard handling (IME, Shift+key, Ctrl+key, arrows).
+class GhosttyNSView: NSView, NSTextInputClient {
     private let ghosttyApp: GhosttyAppWrapper
     private let session: TerminalSession
     private var surface: ghostty_surface_t?
+
+    // NSTextInputClient state
+    private var pendingKeyEvent: NSEvent?
+    private var pendingInsertText: String?
+    private var imMarkedText: NSMutableAttributedString = NSMutableAttributedString()
+    private var imSelectedRange: NSRange = NSRange(location: 0, length: 0)
 
     init(ghosttyApp: GhosttyAppWrapper, session: TerminalSession) {
         self.ghosttyApp = ghosttyApp
@@ -53,6 +60,7 @@ class GhosttyNSView: NSView {
     private func createSurface() {
         surface = ghosttyApp.createSurface(for: self)
         session.surface = surface
+        ghosttyApp.focusedSurface = surface
 
         if let surface, let window {
             let scale = window.backingScaleFactor
@@ -76,28 +84,95 @@ class GhosttyNSView: NSView {
         )
     }
 
-    // MARK: - Keyboard Input
+    // MARK: - Keyboard Input (via NSTextInputClient)
+
+    /// Intercept Cmd+key combos before the menu system consumes them.
+    /// macOS does NOT call keyDown for Cmd+key — only performKeyEquivalent.
+    /// Let app menu shortcuts (Cmd+Q/W/B/D) pass through; forward the rest to ghostty.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard let surface else { return super.performKeyEquivalent(with: event) }
+
+        if event.modifierFlags.contains(.command) {
+            let char = event.charactersIgnoringModifiers?.lowercased() ?? ""
+            // Let these pass to the app menu bar
+            let menuKeys: Set<String> = ["q", "w", "d", "b"]
+            if menuKeys.contains(char) {
+                return super.performKeyEquivalent(with: event)
+            }
+
+            // Handle Cmd+V paste directly via ghostty_surface_text
+            // (ghostty's keybinding system doesn't trigger read_clipboard_cb)
+            if char == "v" {
+                let pasteboard = NSPasteboard.general
+                if let content = pasteboard.string(forType: .string), !content.isEmpty {
+                    content.withCString { cstr in
+                        ghostty_surface_text(surface, cstr, UInt(content.utf8.count))
+                    }
+                }
+                return true
+            }
+
+            // Forward Cmd+C, Cmd+A, etc. to ghostty
+            keyDown(with: event)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 
     override func keyDown(with event: NSEvent) {
-        guard let surface else {
+        guard surface != nil else {
             super.keyDown(with: event)
             return
         }
+
+        pendingKeyEvent = event
+        pendingInsertText = nil
+
+        // For Ctrl/Cmd combos, skip the input context and send directly to ghostty.
+        // The input context is for text composition (Shift+key, IME) — not modifier combos.
+        let hasModifier = event.modifierFlags.contains(.control)
+            || event.modifierFlags.contains(.command)
+        if !hasModifier {
+            inputContext?.handleEvent(event)
+        }
+
+        sendPendingKeyToGhostty()
+    }
+
+    /// Called after interpretKeyEvents / inputContext?.handleEvent to send the
+    /// collected key event + text to ghostty.
+    private func sendPendingKeyToGhostty() {
+        guard let event = pendingKeyEvent, let surface else { return }
+        pendingKeyEvent = nil
 
         var key = ghostty_input_key_s()
         key.action = GHOSTTY_ACTION_PRESS
         key.mods = Self.convertModifiers(event.modifierFlags)
         key.keycode = UInt32(event.keyCode)
-        key.composing = false
+        key.composing = hasMarkedText()
 
-        if let chars = event.characters {
-            chars.withCString { cstr in
+        // consumed_mods: modifiers that produced the text (exclude control/command)
+        let consumedFlags = event.modifierFlags.subtracting([.control, .command])
+        key.consumed_mods = Self.convertModifiers(consumedFlags)
+
+        // unshifted_codepoint: the character without any modifiers applied
+        if event.type == .keyDown || event.type == .keyUp {
+            if let chars = event.characters(byApplyingModifiers: []),
+               let scalar = chars.unicodeScalars.first
+            {
+                key.unshifted_codepoint = scalar.value
+            }
+        }
+
+        if let text = pendingInsertText, !text.isEmpty {
+            text.withCString { cstr in
                 key.text = cstr
                 _ = ghostty_surface_key(surface, key)
             }
         } else {
             _ = ghostty_surface_key(surface, key)
         }
+        pendingInsertText = nil
     }
 
     override func keyUp(with event: NSEvent) {
@@ -125,7 +200,90 @@ class GhosttyNSView: NSView {
         _ = ghostty_surface_key(surface, key)
     }
 
+    // MARK: - NSTextInputClient
+
+    /// Called by the input system when text is ready to be inserted (regular typing, Shift+key, etc.).
+    func insertText(_ string: Any, replacementRange: NSRange) {
+        let text: String
+        if let attrStr = string as? NSAttributedString {
+            text = attrStr.string
+        } else if let str = string as? String {
+            text = str
+        } else {
+            return
+        }
+
+        // Clear marked text (IME composition ended)
+        imMarkedText = NSMutableAttributedString()
+
+        pendingInsertText = text
+    }
+
+    /// Called by the input system for non-text key events (Ctrl+C, arrows, Enter, etc.).
+    override func doCommand(by selector: Selector) {
+        // pendingInsertText stays nil — ghostty handles these via keycode + modifiers
+    }
+
+    /// Called by the input system for IME composition (e.g. Japanese input).
+    func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        if let attrStr = string as? NSAttributedString {
+            imMarkedText = NSMutableAttributedString(attributedString: attrStr)
+        } else if let str = string as? String {
+            imMarkedText = NSMutableAttributedString(string: str)
+        }
+        imSelectedRange = selectedRange
+
+        // Send composing text to ghostty
+        pendingInsertText = imMarkedText.string
+    }
+
+    func unmarkText() {
+        imMarkedText = NSMutableAttributedString()
+    }
+
+    func selectedRange() -> NSRange {
+        imSelectedRange
+    }
+
+    func markedRange() -> NSRange {
+        if imMarkedText.length == 0 {
+            return NSRange(location: NSNotFound, length: 0)
+        }
+        return NSRange(location: 0, length: imMarkedText.length)
+    }
+
+    func hasMarkedText() -> Bool {
+        imMarkedText.length > 0
+    }
+
+    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+        nil
+    }
+
+    func validAttributesForMarkedText() -> [NSAttributedString.Key] {
+        []
+    }
+
+    func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+        // Return the view's position for IME candidate window placement
+        guard let window else { return .zero }
+        let viewRect = convert(bounds, to: nil)
+        return window.convertToScreen(viewRect)
+    }
+
+    func characterIndex(for point: NSPoint) -> Int {
+        0
+    }
+
     // MARK: - Mouse Input
+
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        if result, let surface {
+            ghosttyApp.focusedSurface = surface
+        }
+        return result
+    }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)

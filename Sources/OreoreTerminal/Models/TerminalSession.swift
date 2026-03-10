@@ -16,11 +16,8 @@ public final class TerminalSession: Identifiable, ObservableObject {
         self.isActive = true
     }
 
+    /// Mark session as inactive. Surface free is handled by GhosttyNSView only.
     func close() {
-        if let surface {
-            ghostty_surface_free(surface)
-        }
-        surface = nil
         isActive = false
     }
 

@@ -46,15 +46,21 @@ public enum FileNode: Identifiable, Equatable {
         }
     }
 
+    /// Maximum depth to traverse to prevent runaway recursion.
+    private static let maxDepth = 5
+
     /// Build a FileNode tree from a directory path.
     /// Filters entries matching basic .gitignore patterns.
+    /// Uses stable IDs derived from file path to preserve SwiftUI identity across reloads.
     public static func buildTree(
         at path: String,
         ignoredPatterns: [String] = [],
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        depth: Int = 0
     ) -> FileNode? {
         let url = URL(fileURLWithPath: path)
         let name = url.lastPathComponent
+        let stableId = stableUUID(for: path)
 
         var isDir: ObjCBool = false
         guard fileManager.fileExists(atPath: path, isDirectory: &isDir) else {
@@ -62,14 +68,19 @@ public enum FileNode: Identifiable, Equatable {
         }
 
         if !isDir.boolValue {
-            return .file(id: UUID(), name: name, path: path)
+            return .file(id: stableId, name: name, path: path)
+        }
+
+        // Stop recursion at max depth
+        guard depth < maxDepth else {
+            return .directory(id: stableId, name: name, path: path, children: [])
         }
 
         let contents: [String]
         do {
             contents = try fileManager.contentsOfDirectory(atPath: path)
         } catch {
-            return .directory(id: UUID(), name: name, path: path, children: [])
+            return .directory(id: stableId, name: name, path: path, children: [])
         }
 
         let children = contents
@@ -92,11 +103,28 @@ public enum FileNode: Identifiable, Equatable {
                 return buildTree(
                     at: childPath,
                     ignoredPatterns: ignoredPatterns,
-                    fileManager: fileManager
+                    fileManager: fileManager,
+                    depth: depth + 1
                 )
             }
 
-        return .directory(id: UUID(), name: name, path: path, children: children)
+        return .directory(id: stableId, name: name, path: path, children: children)
+    }
+
+    /// Generate a stable UUID from a file path so SwiftUI identity is preserved across reloads.
+    private static func stableUUID(for path: String) -> UUID {
+        let data = Data(path.utf8)
+        // Use a simple hash-based approach for deterministic UUID
+        var hash = [UInt8](repeating: 0, count: 16)
+        let bytes = [UInt8](data)
+        for (index, byte) in bytes.enumerated() {
+            hash[index % 16] ^= byte
+        }
+        // Set UUID version 5 bits
+        hash[6] = (hash[6] & 0x0F) | 0x50
+        hash[8] = (hash[8] & 0x3F) | 0x80
+        let uuid = NSUUID(uuidBytes: hash) as UUID
+        return uuid
     }
 
     /// Parse a .gitignore file and return basic patterns.

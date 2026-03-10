@@ -10,6 +10,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
 
     private var watcherSource: DispatchSourceFileSystemObject?
     private var fileDescriptor: Int32 = -1
+    private var debounceWork: DispatchWorkItem?
 
     public init(
         id: UUID = UUID(),
@@ -60,7 +61,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
         )
 
         source.setEventHandler { [weak self] in
-            self?.reload()
+            self?.debouncedReload()
         }
 
         source.setCancelHandler { [weak self] in
@@ -73,7 +74,19 @@ public final class FileTreeState: ObservableObject, Identifiable {
         watcherSource = source
     }
 
+    /// Debounce FS events to avoid reload storms.
+    private func debouncedReload() {
+        debounceWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.reload()
+        }
+        debounceWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
     private func stopWatching() {
+        debounceWork?.cancel()
+        debounceWork = nil
         watcherSource?.cancel()
         watcherSource = nil
     }

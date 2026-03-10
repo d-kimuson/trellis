@@ -87,7 +87,10 @@ public struct Area: Identifiable {
         guard index >= 0, index < tabs.count else { return nil }
         var newTabs = tabs
         newTabs.remove(at: index)
-        if newTabs.isEmpty { return nil }
+        if newTabs.isEmpty {
+            // Return empty area (no tabs) instead of nil
+            return Area(id: id, tabs: [], activeTabIndex: 0)
+        }
         let newActiveIndex = min(activeTabIndex, newTabs.count - 1)
         return Area(id: id, tabs: newTabs, activeTabIndex: newActiveIndex)
     }

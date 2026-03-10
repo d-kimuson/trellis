@@ -2,7 +2,7 @@ import AppKit
 import OreoreTerminal  // SPM build only; ignored in Makefile build (same module)
 import SwiftUI
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var ghosttyApp: GhosttyAppWrapper!
     var store: WorkspaceStore!
@@ -45,6 +45,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.title = "Oreore Terminal"
+        window.delegate = self
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -84,6 +85,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ghosttyApp?.shutdown()
     }
 
+    // MARK: - Window Delegate
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        true
+    }
+
     // MARK: - Menu Actions
 
     @objc func splitHorizontal(_ sender: Any?) {
@@ -96,6 +103,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func closeArea(_ sender: Any?) {
         store?.closeActiveArea()
+    }
+
+    @objc func closeTab(_ sender: Any?) {
+        guard let workspace = store?.activeWorkspace,
+              let areaId = workspace.activeAreaId,
+              let area = workspace.layout.findArea(id: areaId) else { return }
+        store?.closeTab(in: areaId, at: area.activeTabIndex)
+    }
+
+    @objc func toggleSidebar(_ sender: Any?) {
+        // Post notification for ContentView to handle
+        NotificationCenter.default.post(name: .toggleSidebar, object: nil)
     }
 }
 
@@ -143,6 +162,14 @@ viewMenu.addItem(splitVItem)
 
 viewMenu.addItem(NSMenuItem.separator())
 
+let closeTabItem = NSMenuItem(
+    title: "Close Tab",
+    action: #selector(AppDelegate.closeTab(_:)),
+    keyEquivalent: "w"
+)
+closeTabItem.keyEquivalentModifierMask = [.command]
+viewMenu.addItem(closeTabItem)
+
 let closeAreaItem = NSMenuItem(
     title: "Close Area",
     action: #selector(AppDelegate.closeArea(_:)),
@@ -150,6 +177,16 @@ let closeAreaItem = NSMenuItem(
 )
 closeAreaItem.keyEquivalentModifierMask = [.command, .shift]
 viewMenu.addItem(closeAreaItem)
+
+viewMenu.addItem(NSMenuItem.separator())
+
+let toggleSidebarItem = NSMenuItem(
+    title: "Toggle Sidebar",
+    action: #selector(AppDelegate.toggleSidebar(_:)),
+    keyEquivalent: "b"
+)
+toggleSidebarItem.keyEquivalentModifierMask = [.command]
+viewMenu.addItem(toggleSidebarItem)
 
 viewMenuItem.submenu = viewMenu
 

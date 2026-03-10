@@ -5,6 +5,11 @@ import GhosttyKit
 /// userInfo contains "title" (String).
 extension Notification.Name {
     public static let ghosttyTitleChanged = Notification.Name("ghosttyTitleChanged")
+    /// Posted when ghostty receives an OSC 9/777 desktop notification request.
+    /// userInfo contains "title" (String) and "body" (String).
+    public static let ghosttyDesktopNotification = Notification.Name("ghosttyDesktopNotification")
+    /// Toggle sidebar visibility.
+    public static let toggleSidebar = Notification.Name("toggleSidebar")
 }
 
 /// Wrapper around the libghostty app instance.
@@ -12,6 +17,8 @@ extension Notification.Name {
 public final class GhosttyAppWrapper {
     private(set) var app: ghostty_app_t?
     private var tickTimer: Timer?
+    /// The most recently focused terminal surface, used for clipboard operations.
+    var focusedSurface: ghostty_surface_t?
 
     public init() {
         // Initialize ghostty global state
@@ -42,9 +49,12 @@ public final class GhosttyAppWrapper {
         runtimeConfig.read_clipboard_cb = { userdata, location, state in
             GhosttyAppWrapper.readClipboard(userdata: userdata, location: location, state: state)
         }
-        runtimeConfig.confirm_read_clipboard_cb = { _, _, state, _ in
-            // Auto-confirm clipboard reads for PoC
-            guard state != nil else { return }
+        runtimeConfig.confirm_read_clipboard_cb = { userdata, content, state, _ in
+            // Auto-confirm all clipboard reads
+            guard let userdata, let state else { return }
+            let wrapper = Unmanaged<GhosttyAppWrapper>.fromOpaque(userdata).takeUnretainedValue()
+            guard let surface = wrapper.focusedSurface else { return }
+            ghostty_surface_complete_clipboard_request(surface, content, state, true)
         }
         runtimeConfig.write_clipboard_cb = { userdata, str, location, confirm in
             GhosttyAppWrapper.writeClipboard(userdata: userdata, string: str, location: location, confirm: confirm)
@@ -110,6 +120,17 @@ public final class GhosttyAppWrapper {
                     )
                 }
             }
+        case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
+            let notif = action.action.desktop_notification
+            let title = notif.title.map { String(cString: $0) } ?? "Notification"
+            let body = notif.body.map { String(cString: $0) } ?? ""
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: .ghosttyDesktopNotification,
+                    object: nil,
+                    userInfo: ["title": title, "body": body]
+                )
+            }
         case GHOSTTY_ACTION_RENDER:
             break
         case GHOSTTY_ACTION_CELL_SIZE:
@@ -125,7 +146,16 @@ public final class GhosttyAppWrapper {
         location: ghostty_clipboard_e,
         state: UnsafeMutableRawPointer?
     ) {
-        // For now, do nothing - clipboard integration can be added later
+        guard let userdata, let state else { return }
+        let wrapper = Unmanaged<GhosttyAppWrapper>.fromOpaque(userdata).takeUnretainedValue()
+        guard let surface = wrapper.focusedSurface else { return }
+
+        let pasteboard = NSPasteboard.general
+        guard let content = pasteboard.string(forType: .string) else { return }
+
+        content.withCString { cstr in
+            ghostty_surface_complete_clipboard_request(surface, cstr, state, true)
+        }
     }
 
     private static func writeClipboard(

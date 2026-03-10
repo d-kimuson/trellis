@@ -49,20 +49,8 @@ struct SidebarView: View {
             // Bottom toolbar
             HStack {
                 Button(
-                    action: {
-                        if let workspace = store.activeWorkspace,
-                           let areaId = workspace.activeAreaId {
-                            store.addTab(to: areaId)
-                        }
-                    },
-                    label: { Image(systemName: "plus") }
-                )
-                .buttonStyle(.borderless)
-                .help("New Terminal Tab")
-
-                Button(
                     action: { store.addWorkspace() },
-                    label: { Image(systemName: "square.grid.2x2") }
+                    label: { Image(systemName: "plus") }
                 )
                 .buttonStyle(.borderless)
                 .help("New Workspace")

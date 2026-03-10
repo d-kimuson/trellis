@@ -46,18 +46,22 @@ public indirect enum LayoutNode: Identifiable {
     // MARK: - Transformations
 
     /// Returns a new tree with the given area split into two areas.
+    /// When `insertBefore` is true, newArea is placed first (left/top).
     public func splittingArea(
         areaId: UUID,
         direction: SplitDirection,
-        newArea: Area
+        newArea: Area,
+        insertBefore: Bool = false
     ) -> LayoutNode {
         switch self {
         case .leaf(let area) where area.id == areaId:
+            let existing = LayoutNode.leaf(area)
+            let new = LayoutNode.leaf(newArea)
             return .split(
                 id: UUID(),
                 direction: direction,
-                first: .leaf(area),
-                second: .leaf(newArea),
+                first: insertBefore ? new : existing,
+                second: insertBefore ? existing : new,
                 ratio: 0.5
             )
         case .leaf:
@@ -66,8 +70,12 @@ public indirect enum LayoutNode: Identifiable {
             return .split(
                 id: id,
                 direction: dir,
-                first: first.splittingArea(areaId: areaId, direction: direction, newArea: newArea),
-                second: second.splittingArea(areaId: areaId, direction: direction, newArea: newArea),
+                first: first.splittingArea(
+                    areaId: areaId, direction: direction, newArea: newArea, insertBefore: insertBefore
+                ),
+                second: second.splittingArea(
+                    areaId: areaId, direction: direction, newArea: newArea, insertBefore: insertBefore
+                ),
                 ratio: ratio
             )
         }

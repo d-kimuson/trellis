@@ -56,16 +56,81 @@ struct AreaPanelView: View {
             // Tab bar (always visible)
             tabBar
 
-            // Active tab content
+            // Active tab content with drop-to-split support
             if let activeTab = area.activeTab {
-                panelContent(for: activeTab.content)
+                GeometryReader { geo in
+                    panelContent(for: activeTab.content)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .overlay { splitPreview(size: geo.size) }
+                        .onDrop(
+                            of: [.tabDragData],
+                            delegate: SplitDropDelegate(
+                                area: area,
+                                store: store,
+                                viewSize: geo.size,
+                                onEdgeChanged: { dropEdge = $0 }
+                            )
+                        )
+                }
             } else {
-                Text("Empty area")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) {
+                    Text("Empty")
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Button("Terminal") { store.addTerminalTab(to: area.id) }
+                        Button("Browser") { store.addBrowserTab(to: area.id) }
+                        Button("File Tree") { store.addFileTreeTab(to: area.id) }
+                        Button("Git") { store.addGitTab(to: area.id) }
+                    }
+                    .font(.caption)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             }
         }
-        .overlay { edgeDropOverlay }
+    }
+
+    // MARK: - Drop Edge Detection
+
+    /// Determine which edge the cursor is closest to.
+    static func determineEdge(location: CGPoint, size: CGSize) -> DropEdge {
+        let relX = size.width > 0 ? location.x / size.width : 0.5
+        let relY = size.height > 0 ? location.y / size.height : 0.5
+
+        let distances: [(DropEdge, CGFloat)] = [
+            (.leading, relX),
+            (.trailing, 1 - relX),
+            (.top, relY),
+            (.bottom, 1 - relY)
+        ]
+        return distances.min(by: { $0.1 < $1.1 })!.0
+    }
+
+    /// Half-area preview overlay showing where the split will occur.
+    @ViewBuilder
+    private func splitPreview(size: CGSize) -> some View {
+        if let edge = dropEdge {
+            let isVertical = (edge == .leading || edge == .trailing)
+            let alignment = Self.edgeAlignment(edge)
+
+            Color.accentColor.opacity(0.2)
+                .frame(
+                    width: isVertical ? size.width / 2 : nil,
+                    height: isVertical ? nil : size.height / 2
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+                .allowsHitTesting(false)
+                .animation(.easeInOut(duration: 0.1), value: dropEdge)
+        }
+    }
+
+    private static func edgeAlignment(_ edge: DropEdge) -> Alignment {
+        switch edge {
+        case .leading: return .leading
+        case .trailing: return .trailing
+        case .top: return .top
+        case .bottom: return .bottom
+        }
     }
 
     // MARK: - Panel Content
@@ -143,34 +208,27 @@ struct AreaPanelView: View {
     private func tabButton(tab: Tab, index: Int) -> some View {
         let isActive = index == area.activeTabIndex
         let dragData = TabDragData(tabId: tab.id, sourceAreaId: area.id)
-        return Button(
-            action: { store.selectTab(in: area.id, at: index) },
-            label: {
-                HStack(spacing: 4) {
-                    if dropInsertIndex == index {
-                        Rectangle().fill(Color.accentColor).frame(width: 2, height: 16)
-                    }
-                    Image(systemName: tab.content.iconName)
-                        .font(.system(size: 10)).foregroundColor(.secondary)
-                    Text(tab.content.tabTitle).font(.caption).lineLimit(1)
-                    Button(
-                        action: { store.closeTab(in: area.id, at: index) },
-                        label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 8)).foregroundColor(.secondary)
-                        }
-                    )
-                    .buttonStyle(.borderless).help("Close Tab")
-                }
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
-                .cornerRadius(4)
+        // Use plain view + onTapGesture instead of Button to allow .draggable() to work.
+        // Button consumes the drag gesture, preventing tab dragging.
+        return HStack(spacing: 4) {
+            if dropInsertIndex == index {
+                Rectangle().fill(Color.accentColor).frame(width: 2, height: 16)
             }
-        )
-        .buttonStyle(.borderless)
+            Image(systemName: tab.content.iconName)
+                .font(.system(size: 10)).foregroundColor(.secondary)
+            Text(tab.content.tabTitle).font(.caption).lineLimit(1)
+            Image(systemName: "xmark")
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+                .onTapGesture { store.closeTab(in: area.id, at: index) }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
+        .cornerRadius(4)
+        .contentShape(Rectangle())
+        .onTapGesture { store.selectTab(in: area.id, at: index) }
         .draggable(dragData)
         .onDrop(of: [.tabDragData], isTargeted: .none) { _ in
-            // This handles the per-tab drop target for insert position
             false
         }
         .onContinuousHover { phase in
@@ -181,69 +239,6 @@ struct AreaPanelView: View {
                 break
             }
         }
-    }
-
-    // MARK: - Edge Drop Zones
-
-    private var edgeDropOverlay: some View {
-        GeometryReader { geo in
-            let edgeSize: CGFloat = 40
-
-            ZStack {
-                // Top edge
-                edgeDropZone(edge: .top)
-                    .frame(width: geo.size.width, height: edgeSize)
-                    .position(x: geo.size.width / 2, y: edgeSize / 2)
-
-                // Bottom edge
-                edgeDropZone(edge: .bottom)
-                    .frame(width: geo.size.width, height: edgeSize)
-                    .position(x: geo.size.width / 2, y: geo.size.height - edgeSize / 2)
-
-                // Leading edge
-                edgeDropZone(edge: .leading)
-                    .frame(width: edgeSize, height: geo.size.height)
-                    .position(x: edgeSize / 2, y: geo.size.height / 2)
-
-                // Trailing edge
-                edgeDropZone(edge: .trailing)
-                    .frame(width: edgeSize, height: geo.size.height)
-                    .position(x: geo.size.width - edgeSize / 2, y: geo.size.height / 2)
-            }
-        }
-        .allowsHitTesting(false)
-    }
-
-    private func edgeDropZone(edge: DropEdge) -> some View {
-        let direction: SplitDirection = (edge == .top || edge == .bottom)
-            ? .horizontal
-            : .vertical
-
-        return Color.clear
-            .contentShape(Rectangle())
-            .dropDestination(for: TabDragData.self) { items, _ in
-                guard let dragData = items.first else { return false }
-                // Don't split if dragging within same area and it's the only tab
-                if dragData.sourceAreaId == area.id && area.tabs.count <= 1 {
-                    return false
-                }
-                store.moveTabToNewArea(
-                    tabId: dragData.tabId,
-                    from: dragData.sourceAreaId,
-                    adjacentTo: area.id,
-                    direction: direction
-                )
-                dropEdge = nil
-                return true
-            } isTargeted: { isTargeted in
-                dropEdge = isTargeted ? edge : (dropEdge == edge ? nil : dropEdge)
-            }
-            .overlay(
-                dropEdge == edge
-                    ? Color.accentColor.opacity(0.3)
-                    : Color.clear
-            )
-            .animation(.easeInOut(duration: 0.15), value: dropEdge)
     }
 }
 
@@ -257,7 +252,7 @@ struct TerminalPanelWrapper: View {
     var body: some View {
         VStack(spacing: 0) {
             // Mini toolbar
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 Text(session.title)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -265,26 +260,18 @@ struct TerminalPanelWrapper: View {
 
                 Spacer()
 
-                Button(
-                    action: { store.splitArea(areaId: areaId, direction: .horizontal) },
-                    label: { Image(systemName: "rectangle.split.1x2").font(.caption) }
-                )
-                .buttonStyle(.borderless)
-                .help("Split Horizontal")
+                toolbarIcon("rectangle.split.1x2", help: "Split Horizontal") {
+                    store.splitArea(areaId: areaId, direction: .horizontal)
+                }
+                toolbarIcon("rectangle.split.2x1", help: "Split Vertical") {
+                    store.splitArea(areaId: areaId, direction: .vertical)
+                }
 
-                Button(
-                    action: { store.splitArea(areaId: areaId, direction: .vertical) },
-                    label: { Image(systemName: "rectangle.split.2x1").font(.caption) }
-                )
-                .buttonStyle(.borderless)
-                .help("Split Vertical")
-
-                Button(
-                    action: { store.closeArea(areaId: areaId) },
-                    label: { Image(systemName: "xmark").font(.caption) }
-                )
-                .buttonStyle(.borderless)
-                .help("Close")
+                toolbarIcon("xmark", help: "Close Tab") {
+                    guard let workspace = store.activeWorkspace,
+                          let area = workspace.layout.findArea(id: areaId) else { return }
+                    store.closeTab(in: areaId, at: area.activeTabIndex)
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -292,8 +279,23 @@ struct TerminalPanelWrapper: View {
 
             // Terminal surface
             TerminalView(ghosttyApp: ghosttyApp, session: session)
+                .id(session.id)
         }
         .border(Color(nsColor: .separatorColor), width: 0.5)
+    }
+
+    private func toolbarIcon(
+        _ systemName: String,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Image(systemName: systemName)
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .frame(width: 20, height: 20)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .help(help)
     }
 }
 
@@ -374,5 +376,84 @@ struct SplitContainer<First: View, Second: View>: View {
                     NSCursor.pop()
                 }
             }
+    }
+}
+
+// MARK: - Split Drop Delegate
+
+/// DropDelegate that tracks cursor position during drag to show edge-based split preview.
+/// Uses dropUpdated for real-time position tracking (onContinuousHover doesn't fire during drag).
+struct SplitDropDelegate: DropDelegate {
+    let area: Area
+    let store: WorkspaceStore
+    let viewSize: CGSize
+    let onEdgeChanged: (DropEdge?) -> Void
+
+    func dropEntered(info: DropInfo) {
+        updateEdge(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateEdge(info: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        onEdgeChanged(nil)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        let edge = AreaPanelView.determineEdge(location: info.location, size: viewSize)
+        onEdgeChanged(nil)
+
+        let providers = info.itemProviders(for: [.tabDragData])
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: TabDragTransfer.self) { object, _ in
+            guard let transfer = object as? TabDragTransfer else { return }
+            let dragData = transfer.data
+            DispatchQueue.main.async {
+                if dragData.sourceAreaId == area.id && area.tabs.count <= 1 { return }
+                let direction: SplitDirection =
+                    (edge == .top || edge == .bottom) ? .horizontal : .vertical
+                let insertBefore = (edge == .leading || edge == .top)
+                store.moveTabToNewArea(
+                    tabId: dragData.tabId,
+                    from: dragData.sourceAreaId,
+                    adjacentTo: area.id,
+                    direction: direction,
+                    insertBefore: insertBefore
+                )
+            }
+        }
+        return true
+    }
+
+    private func updateEdge(info: DropInfo) {
+        let edge = AreaPanelView.determineEdge(location: info.location, size: viewSize)
+        onEdgeChanged(edge)
+    }
+}
+
+/// NSItemProviderReading wrapper for TabDragData to work with .onDrop(of:delegate:).
+final class TabDragTransfer: NSObject, NSItemProviderReading {
+    let data: TabDragData
+
+    init(data: TabDragData) {
+        self.data = data
+        super.init()
+    }
+
+    static var readableTypeIdentifiersForItemProvider: [String] {
+        [UTType.tabDragData.identifier]
+    }
+
+    static func object(
+        withItemProviderData data: Data,
+        typeIdentifier: String
+    ) throws -> Self {
+        let decoded = try JSONDecoder().decode(TabDragData.self, from: data)
+        // swiftlint:disable:next force_cast
+        return TabDragTransfer(data: decoded) as! Self
     }
 }

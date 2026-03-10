@@ -201,7 +201,8 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     /// Close a tab at the given index in the given area.
-    /// If it's the last tab, close the area.
+    /// If it's the last tab in a multi-area layout, close the area.
+    /// If it's the last tab in the last area, do nothing (keep the tab).
     public func closeTab(in areaId: UUID, at tabIndex: Int) {
         guard var workspace = activeWorkspace else { return }
         guard let area = workspace.layout.findArea(id: areaId) else { return }
@@ -213,13 +214,25 @@ public final class WorkspaceStore: ObservableObject {
         }
 
         if let updatedArea = area.removingTab(at: tabIndex) {
-            workspace.layout = workspace.layout.updatingArea(areaId: areaId) { _ in
-                updatedArea
+            if updatedArea.tabs.isEmpty {
+                // Last tab removed
+                let allAreas = workspace.layout.allAreas
+                if allAreas.count > 1 {
+                    // Multi-area: remove the empty area entirely
+                    closeArea(areaId: areaId)
+                } else {
+                    // Single area: keep the empty area visible
+                    workspace.layout = workspace.layout.updatingArea(areaId: areaId) { _ in
+                        updatedArea
+                    }
+                    workspaces[activeWorkspaceIndex] = workspace
+                }
+            } else {
+                workspace.layout = workspace.layout.updatingArea(areaId: areaId) { _ in
+                    updatedArea
+                }
+                workspaces[activeWorkspaceIndex] = workspace
             }
-            workspaces[activeWorkspaceIndex] = workspace
-        } else {
-            // Last tab removed — close the area
-            closeArea(areaId: areaId)
         }
     }
 
@@ -262,7 +275,7 @@ public final class WorkspaceStore: ObservableObject {
         let updatedTarget = targetArea.insertingTab(tab, at: insertIndex)
         workspace.layout = workspace.layout.updatingArea(areaId: targetAreaId) { _ in updatedTarget }
 
-        if let updatedSource = remainingSource {
+        if let updatedSource = remainingSource, !updatedSource.tabs.isEmpty {
             // Source area still has tabs
             workspace.layout = workspace.layout.updatingArea(areaId: sourceAreaId) { _ in updatedSource }
         } else {
@@ -285,7 +298,8 @@ public final class WorkspaceStore: ObservableObject {
         tabId: UUID,
         from sourceAreaId: UUID,
         adjacentTo targetAreaId: UUID,
-        direction: SplitDirection
+        direction: SplitDirection,
+        insertBefore: Bool = false
     ) {
         guard var workspace = activeWorkspace else { return }
         guard let sourceArea = workspace.layout.findArea(id: sourceAreaId) else { return }
@@ -300,10 +314,11 @@ public final class WorkspaceStore: ObservableObject {
         workspace.layout = workspace.layout.splittingArea(
             areaId: targetAreaId,
             direction: direction,
-            newArea: newArea
+            newArea: newArea,
+            insertBefore: insertBefore
         )
 
-        if let updatedSource = remainingSource {
+        if let updatedSource = remainingSource, !updatedSource.tabs.isEmpty {
             // Source still has tabs
             workspace.layout = workspace.layout.updatingArea(areaId: sourceAreaId) { _ in updatedSource }
         } else {
