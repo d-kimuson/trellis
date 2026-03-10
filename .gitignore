@@ -1,0 +1,7 @@
+.build/
+deps/
+result
+.direnv/
+*.o
+*.a
+*.dylib

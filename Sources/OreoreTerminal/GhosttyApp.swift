@@ -1,0 +1,133 @@
+import AppKit
+
+/// Wrapper around the libghostty app instance.
+/// Manages the global ghostty state and provides surface creation.
+final class GhosttyAppWrapper {
+    private(set) var app: ghostty_app_t?
+    private var tickTimer: Timer?
+
+    init() {
+        // Initialize ghostty global state
+        guard ghostty_init(0, nil) == GHOSTTY_SUCCESS else {
+            fatalError("Failed to initialize ghostty")
+        }
+
+        // Create and configure config
+        let config = ghostty_config_new()!
+        ghostty_config_load_default_files(config)
+        ghostty_config_finalize(config)
+
+        // Set up runtime callbacks
+        var runtimeConfig = ghostty_runtime_config_s()
+        runtimeConfig.userdata = Unmanaged.passUnretained(self).toOpaque()
+        runtimeConfig.supports_selection_clipboard = false
+        runtimeConfig.wakeup_cb = { userdata in
+            guard let userdata else { return }
+            let wrapper = Unmanaged<GhosttyAppWrapper>.fromOpaque(userdata).takeUnretainedValue()
+            DispatchQueue.main.async {
+                wrapper.tick()
+            }
+        }
+        runtimeConfig.action_cb = { app, target, action in
+            guard let app else { return false }
+            return GhosttyAppWrapper.handleAction(app: app, target: target, action: action)
+        }
+        runtimeConfig.read_clipboard_cb = { userdata, location, state in
+            GhosttyAppWrapper.readClipboard(userdata: userdata, location: location, state: state)
+        }
+        runtimeConfig.confirm_read_clipboard_cb = { userdata, str, state, request in
+            // Auto-confirm clipboard reads for PoC
+            guard let state else { return }
+            let pasteboard = NSPasteboard.general
+            if let string = pasteboard.string(forType: .string) {
+                // For now, just complete the request
+            }
+        }
+        runtimeConfig.write_clipboard_cb = { userdata, str, location, confirm in
+            GhosttyAppWrapper.writeClipboard(userdata: userdata, string: str, location: location, confirm: confirm)
+        }
+        runtimeConfig.close_surface_cb = { userdata, processAlive in
+            // Surface close requested - handle in UI layer
+        }
+
+        app = ghostty_app_new(&runtimeConfig, config)
+        ghostty_config_free(config)
+
+        guard app != nil else {
+            fatalError("Failed to create ghostty app")
+        }
+
+        // Start tick timer for the event loop
+        tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+    }
+
+    func tick() {
+        guard let app else { return }
+        ghostty_app_tick(app)
+    }
+
+    func createSurface(for view: NSView) -> ghostty_surface_t? {
+        guard let app else { return nil }
+
+        var config = ghostty_surface_config_new()
+        config.platform_tag = GHOSTTY_PLATFORM_MACOS
+        config.platform.macos.nsview = Unmanaged.passUnretained(view).toOpaque()
+
+        return ghostty_surface_new(app, &config)
+    }
+
+    func shutdown() {
+        tickTimer?.invalidate()
+        tickTimer = nil
+        if let app {
+            ghostty_app_free(app)
+        }
+        app = nil
+    }
+
+    // MARK: - Static Callbacks
+
+    private static func handleAction(
+        app: ghostty_app_t,
+        target: ghostty_target_s,
+        action: ghostty_action_s
+    ) -> Bool {
+        switch action.tag {
+        case GHOSTTY_ACTION_SET_TITLE:
+            break
+        case GHOSTTY_ACTION_RENDER:
+            break
+        case GHOSTTY_ACTION_CELL_SIZE:
+            break
+        default:
+            break
+        }
+        return true
+    }
+
+    private static func readClipboard(
+        userdata: UnsafeMutableRawPointer?,
+        location: ghostty_clipboard_e,
+        state: UnsafeMutableRawPointer?
+    ) {
+        // For now, do nothing - clipboard integration can be added later
+    }
+
+    private static func writeClipboard(
+        userdata: UnsafeMutableRawPointer?,
+        string: UnsafePointer<CChar>?,
+        location: ghostty_clipboard_e,
+        confirm: Bool
+    ) {
+        guard let string else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(String(cString: string), forType: .string)
+    }
+
+    deinit {
+        shutdown()
+    }
+}

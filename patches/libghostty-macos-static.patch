@@ -1,0 +1,72 @@
+diff --git a/build.zig b/build.zig
+index a2fb25e..045331d 100644
+--- a/build.zig
++++ b/build.zig
+@@ -104,32 +104,27 @@ pub fn build(b: *std.Build) !void {
+         // As such, these build steps are lacking. For example, the Darwin
+         // build only produces an xcframework.
+ 
+-        // We shouldn't have this guard but we don't currently
+-        // build on macOS this way ironically so we need to fix that.
+-        if (!config.target.result.os.tag.isDarwin()) {
+-            libghostty_shared.installHeader(); // Only need one header
++        // Patched: allow building static lib on macOS directly
++        libghostty_shared.installHeader(); // Only need one header
++        if (config.target.result.os.tag.isDarwin()) {
++            libghostty_static.install("libghostty.a");
++        } else {
+             libghostty_shared.install("libghostty.so");
+             libghostty_static.install("libghostty.a");
+         }
+     }
+ 
+-    // macOS only artifacts. These will error if they're initialized for
+-    // other targets.
+-    if (config.target.result.os.tag.isDarwin()) {
++    // macOS only artifacts (patched: guarded behind emit_xcframework)
++    if (config.target.result.os.tag.isDarwin() and config.emit_xcframework) {
+         // Ghostty xcframework
+         const xcframework = try buildpkg.GhosttyXCFramework.init(
+             b,
+             &deps,
+             config.xcframework_target,
+         );
+-        if (config.emit_xcframework) {
+-            xcframework.install();
+-
+-            // The xcframework build always installs resources because our
+-            // macOS xcode project contains references to them.
+-            resources.install();
+-            if (i18n) |v| v.install();
+-        }
++        xcframework.install();
++        resources.install();
++        if (i18n) |v| v.install();
+ 
+         // Ghostty macOS app
+         const macos_app = try buildpkg.GhosttyXcodebuild.init(
+@@ -170,7 +165,8 @@ pub fn build(b: *std.Build) !void {
+ 
+         // On macOS we can run the macOS app. For "run" we always force
+         // a native-only build so that we can run as quickly as possible.
+-        if (config.target.result.os.tag.isDarwin()) {
++        // Patched: skip when building libghostty only
++        if (config.target.result.os.tag.isDarwin() and config.emit_xcframework) {
+             const xcframework_native = try buildpkg.GhosttyXCFramework.init(
+                 b,
+                 &deps,
+diff --git a/build.zig.zon b/build.zig.zon
+index eee3f65..58316bf 100644
+--- a/build.zig.zon
++++ b/build.zig.zon
+@@ -113,8 +113,8 @@
+         // Other
+         .apple_sdk = .{ .path = "./pkg/apple-sdk" },
+         .iterm2_themes = .{
+-            .url = "https://github.com/mbadolato/iTerm2-Color-Schemes/releases/download/release-20251002-142451-4a5043e/ghostty-themes.tgz",
+-            .hash = "N-V-__8AALIsAwDyo88G5mGJGN2lSVmmFMx4YePfUvp_2o3Y",
++            .url = "https://github.com/mbadolato/iTerm2-Color-Schemes/releases/download/release-20260216-151611-fc73ce3/ghostty-themes.tgz",
++            .hash = "N-V-__8AABVbAwBwDRyZONfx553tvMW8_A2OKUoLzPUSRiLF",
+             .lazy = true,
+         },
+     },
