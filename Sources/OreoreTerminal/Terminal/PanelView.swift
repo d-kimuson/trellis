@@ -182,25 +182,41 @@ struct AreaPanelView: View {
                 }
             }
 
-            // Add tab menu
-            Menu {
-                Button("Terminal") { store.addTerminalTab(to: area.id) }
-                Button("Browser") { store.addBrowserTab(to: area.id) }
-                Button("File Tree") { store.addFileTreeTab(to: area.id) }
-                Button("Git") { store.addGitTab(to: area.id) }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.caption)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
+            // Add tab icons
+            HStack(spacing: 2) {
+                tabBarIcon("terminal", help: "New Terminal") {
+                    store.addTerminalTab(to: area.id)
+                }
+                tabBarIcon("globe", help: "New Browser") {
+                    store.addBrowserTab(to: area.id)
+                }
+                tabBarIcon("folder", help: "New File Tree") {
+                    store.addFileTreeTab(to: area.id)
+                }
+                tabBarIcon("arrow.triangle.branch", help: "New Git") {
+                    store.addGitTab(to: area.id)
+                }
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("New Tab")
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    // MARK: - Tab Bar Icon
+
+    private func tabBarIcon(
+        _ systemName: String,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 10))
+            .foregroundColor(.secondary)
+            .frame(width: 22, height: 22)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .help(help)
     }
 
     // MARK: - Tab Button
@@ -242,7 +258,7 @@ struct AreaPanelView: View {
     }
 }
 
-/// Wraps a terminal view with a thin toolbar for split/close actions.
+/// Wraps a terminal view for embedding in an area panel.
 struct TerminalPanelWrapper: View {
     let session: TerminalSession
     let ghosttyApp: GhosttyAppWrapper
@@ -250,52 +266,9 @@ struct TerminalPanelWrapper: View {
     @ObservedObject var store: WorkspaceStore
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Mini toolbar
-            HStack(spacing: 8) {
-                Text(session.title)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-
-                Spacer()
-
-                toolbarIcon("rectangle.split.1x2", help: "Split Horizontal") {
-                    store.splitArea(areaId: areaId, direction: .horizontal)
-                }
-                toolbarIcon("rectangle.split.2x1", help: "Split Vertical") {
-                    store.splitArea(areaId: areaId, direction: .vertical)
-                }
-
-                toolbarIcon("xmark", help: "Close Tab") {
-                    guard let workspace = store.activeWorkspace,
-                          let area = workspace.layout.findArea(id: areaId) else { return }
-                    store.closeTab(in: areaId, at: area.activeTabIndex)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
-
-            // Terminal surface
-            TerminalView(ghosttyApp: ghosttyApp, session: session)
-                .id(session.id)
-        }
-        .border(Color(nsColor: .separatorColor), width: 0.5)
-    }
-
-    private func toolbarIcon(
-        _ systemName: String,
-        help: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Image(systemName: systemName)
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .frame(width: 20, height: 20)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: action)
-            .help(help)
+        TerminalView(ghosttyApp: ghosttyApp, session: session)
+            .id(session.id)
+            .border(Color(nsColor: .separatorColor), width: 0.5)
     }
 }
 
