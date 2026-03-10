@@ -6,61 +6,65 @@ struct SidebarView: View {
     @State private var renamingIndex: Int?
 
     var body: some View {
-        VStack(spacing: 0) {
-            List(selection: Binding<Int?>(
-                get: { store.activeWorkspaceIndex },
-                set: { index in
-                    if let index {
-                        store.selectWorkspace(at: index)
-                    }
+        List(selection: Binding<Int?>(
+            get: { store.activeWorkspaceIndex },
+            set: { index in
+                if let index {
+                    store.selectWorkspace(at: index)
                 }
-            )) {
-                Section("Workspaces") {
-                    ForEach(Array(store.workspaces.enumerated()), id: \.element.id) { index, workspace in
-                        WorkspaceRow(
-                            workspace: workspace,
-                            isActive: index == store.activeWorkspaceIndex,
-                            unreadCount: notificationStore.unreadCount(forWorkspace: index),
-                            isEditing: Binding(
-                                get: { renamingIndex == index },
-                                set: { editing in
-                                    renamingIndex = editing ? index : nil
-                                }
-                            ),
-                            onRename: { newName in
-                                store.renameWorkspace(at: index, to: newName)
+            }
+        )) {
+            Section {
+                ForEach(Array(store.workspaces.enumerated()), id: \.element.id) { index, workspace in
+                    WorkspaceRow(
+                        workspace: workspace,
+                        isActive: index == store.activeWorkspaceIndex,
+                        unreadCount: notificationStore.unreadCount(forWorkspace: index),
+                        isEditing: Binding(
+                            get: { renamingIndex == index },
+                            set: { editing in
+                                renamingIndex = editing ? index : nil
                             }
-                        )
-                        .tag(index)
-                        .contextMenu {
-                            Button("Rename") {
-                                renamingIndex = index
-                            }
-                            Button("Delete", role: .destructive) {
-                                store.removeWorkspace(at: index)
-                            }
-                            .disabled(store.workspaces.count <= 1)
+                        ),
+                        onRename: { newName in
+                            store.renameWorkspace(at: index, to: newName)
                         }
+                    )
+                    .tag(index)
+                    .contextMenu {
+                        Button("Rename") {
+                            renamingIndex = index
+                        }
+                        Button("Delete", role: .destructive) {
+                            store.removeWorkspace(at: index)
+                        }
+                        .disabled(store.workspaces.count <= 1)
                     }
                 }
+            } header: {
+                HStack {
+                    Text("Workspaces")
+                        .font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                    Button(action: { store.addWorkspace() }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 20, height: 20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(Color.primary.opacity(0.08))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("New Workspace")
+                }
+                .padding(.trailing, 4)
+                .padding(.bottom, 4)
             }
-            .listStyle(.sidebar)
-
-            Divider()
-
-            // Bottom toolbar
-            HStack {
-                Button(
-                    action: { store.addWorkspace() },
-                    label: { Image(systemName: "plus") }
-                )
-                .buttonStyle(.borderless)
-                .help("New Workspace")
-
-                Spacer()
-            }
-            .padding(8)
+            .collapsible(false)
         }
+        .listStyle(.sidebar)
     }
 }
 
