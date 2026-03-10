@@ -291,6 +291,14 @@ struct TerminalPanelWrapper: View {
         TerminalView(ghosttyApp: ghosttyApp, session: session)
             .id(session.id)
             .border(Color(nsColor: .separatorColor), width: 0.5)
+            .onAppear {
+                session.onFocused = { [weak store] in
+                    store?.activateArea(areaId)
+                }
+                session.onProcessExited = { [weak store] in
+                    store?.closeTerminalSession(session)
+                }
+            }
     }
 }
 

@@ -65,8 +65,8 @@ public final class GhosttyAppWrapper {
         runtimeConfig.write_clipboard_cb = { userdata, str, location, confirm in
             GhosttyAppWrapper.writeClipboard(userdata: userdata, string: str, location: location, confirm: confirm)
         }
-        runtimeConfig.close_surface_cb = { userdata, processAlive in
-            // Surface close requested - handle in UI layer
+        runtimeConfig.close_surface_cb = { _, _ in
+            // Handled via GHOSTTY_ACTION_CLOSE_TAB / SHOW_CHILD_EXITED in action_cb
         }
 
         app = ghostty_app_new(&runtimeConfig, config)
@@ -91,12 +91,13 @@ public final class GhosttyAppWrapper {
         ghostty_app_tick(app)
     }
 
-    func createSurface(for view: NSView) -> ghostty_surface_t? {
+    func createSurface(for view: NSView, userdata: UnsafeMutableRawPointer? = nil) -> ghostty_surface_t? {
         guard let app else { return nil }
 
         var config = ghostty_surface_config_new()
         config.platform_tag = GHOSTTY_PLATFORM_MACOS
         config.platform.macos.nsview = Unmanaged.passUnretained(view).toOpaque()
+        config.userdata = userdata
 
         return ghostty_surface_new(app, &config)
     }
@@ -136,6 +137,10 @@ public final class GhosttyAppWrapper {
             let body = notif.body.map { String(cString: $0) } ?? ""
             // Call directly — no DispatchQueue.main.async to avoid Metal render delays
             current?.onDesktopNotification?(title, body)
+        case GHOSTTY_ACTION_CLOSE_TAB:
+            notifySessionClose(target: target)
+        case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
+            notifySessionClose(target: target)
         case GHOSTTY_ACTION_RENDER:
             break
         case GHOSTTY_ACTION_CELL_SIZE:
@@ -144,6 +149,17 @@ public final class GhosttyAppWrapper {
             break
         }
         return true
+    }
+
+    /// Extract the TerminalSession from a surface target and notify it to close.
+    private static func notifySessionClose(target: ghostty_target_s) {
+        guard target.tag == GHOSTTY_TARGET_SURFACE else { return }
+        let surface = target.target.surface
+        guard let userdata = ghostty_surface_userdata(surface) else { return }
+        let session = Unmanaged<TerminalSession>.fromOpaque(userdata).takeUnretainedValue()
+        DispatchQueue.main.async {
+            session.onProcessExited?()
+        }
     }
 
     private static func readClipboard(

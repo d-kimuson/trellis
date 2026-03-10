@@ -15,6 +15,12 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Stored here so SwiftUI layout changes don't destroy and recreate it.
     var nsView: GhosttyNSView?
 
+    /// Called when the terminal view receives mouse focus (clicked).
+    var onFocused: (() -> Void)?
+
+    /// Called when the shell process exits and the surface should be closed.
+    var onProcessExited: (() -> Void)?
+
     public init(title: String = "Terminal") {
         self.id = UUID()
         self.title = title
