@@ -20,6 +20,10 @@ public enum PanelContent {
     public var tabTitle: String {
         switch self {
         case .terminal(let session):
+            if let pwd = session.pwd {
+                let lastComponent = URL(fileURLWithPath: pwd).lastPathComponent
+                return lastComponent.isEmpty ? "/" : lastComponent
+            }
             return session.title
         case .browser(let state):
             return state.currentURL.host ?? "Browser"

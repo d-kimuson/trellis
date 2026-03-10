@@ -254,7 +254,7 @@ struct AreaPanelView: View {
             }
             Image(systemName: tab.content.iconName)
                 .font(.system(size: 10)).foregroundColor(.secondary)
-            Text(tab.content.tabTitle).font(.caption).lineLimit(1)
+            TabTitleLabel(content: tab.content)
             Image(systemName: "xmark")
                 .font(.system(size: 8))
                 .foregroundColor(.secondary)
@@ -458,5 +458,39 @@ final class TabDragTransfer: NSObject, NSItemProviderReading {
         let decoded = try JSONDecoder().decode(TabDragData.self, from: data)
         // swiftlint:disable:next force_cast
         return TabDragTransfer(data: decoded) as! Self
+    }
+}
+
+// MARK: - Tab Title Label
+
+/// Reactively displays tab title. For terminal tabs, observes the session
+/// to update when pwd changes (since TerminalSession is ObservableObject).
+struct TabTitleLabel: View {
+    let content: PanelContent
+
+    var body: some View {
+        switch content {
+        case .terminal(let session):
+            TerminalTabTitle(session: session)
+        default:
+            Text(content.tabTitle).font(.caption).lineLimit(1)
+        }
+    }
+}
+
+/// Observes a terminal session to reactively update the tab title when pwd changes.
+private struct TerminalTabTitle: View {
+    @ObservedObject var session: TerminalSession
+
+    var body: some View {
+        Text(tabTitle).font(.caption).lineLimit(1)
+    }
+
+    private var tabTitle: String {
+        if let pwd = session.pwd {
+            let lastComponent = URL(fileURLWithPath: pwd).lastPathComponent
+            return lastComponent.isEmpty ? "/" : lastComponent
+        }
+        return session.title
     }
 }

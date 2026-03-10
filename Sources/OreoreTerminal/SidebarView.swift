@@ -16,7 +16,7 @@ struct SidebarView: View {
         )) {
             Section {
                 ForEach(Array(store.workspaces.enumerated()), id: \.element.id) { index, workspace in
-                    WorkspaceRow(
+                    WorkspaceCard(
                         workspace: workspace,
                         isActive: index == store.activeWorkspaceIndex,
                         unreadCount: notificationStore.unreadCount(forWorkspace: index),
@@ -68,9 +68,9 @@ struct SidebarView: View {
     }
 }
 
-// MARK: - Workspace Row
+// MARK: - Workspace Card
 
-private struct WorkspaceRow: View {
+private struct WorkspaceCard: View {
     let workspace: Workspace
     let isActive: Bool
     let unreadCount: Int
@@ -80,40 +80,73 @@ private struct WorkspaceRow: View {
     @State private var editingName: String = ""
 
     var body: some View {
-        HStack {
-            Image(systemName: "square.grid.2x2")
-                .foregroundColor(isActive ? .accentColor : .secondary)
-
-            if isEditing {
-                TextField("Workspace name", text: $editingName, onCommit: {
-                    let trimmed = editingName.trimmingCharacters(in: .whitespaces)
-                    if !trimmed.isEmpty {
-                        onRename(trimmed)
+        VStack(alignment: .leading, spacing: 4) {
+            // Title row
+            HStack {
+                if isEditing {
+                    TextField("Workspace name", text: $editingName, onCommit: {
+                        let trimmed = editingName.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty {
+                            onRename(trimmed)
+                        }
+                        isEditing = false
+                    })
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .medium))
+                    .onExitCommand {
+                        isEditing = false
                     }
-                    isEditing = false
-                })
-                .textFieldStyle(.plain)
-                .onExitCommand {
-                    isEditing = false
+                    .onAppear {
+                        editingName = workspace.name
+                    }
+                } else {
+                    Text(workspace.name)
+                        .font(.system(size: 13, weight: isActive ? .semibold : .medium))
+                        .lineLimit(1)
                 }
-                .onAppear {
-                    editingName = workspace.name
+
+                Spacer()
+
+                if unreadCount > 0 {
+                    Text("\(unreadCount)")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.accentColor))
                 }
-            } else {
-                Text(workspace.name)
-                    .lineLimit(1)
-                    .fontWeight(isActive ? .semibold : .regular)
             }
 
-            Spacer()
+            // Session info (branch, cwd)
+            if let session = workspace.representativeSession {
+                WorkspaceSessionInfo(session: session)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
 
-            if unreadCount > 0 {
-                Text("\(unreadCount)")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Color.accentColor))
+// MARK: - Workspace Session Info
+
+/// Observes the representative terminal session to reactively show branch/cwd.
+private struct WorkspaceSessionInfo: View {
+    @ObservedObject var session: TerminalSession
+
+    var body: some View {
+        if session.pwd != nil || session.gitBranch != nil {
+            VStack(alignment: .leading, spacing: 2) {
+                if let branch = session.gitBranch {
+                    Label(branch, systemImage: "arrow.triangle.branch")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                if let shortPwd = session.shortPwd {
+                    Label(shortPwd, systemImage: "folder")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
         }
     }

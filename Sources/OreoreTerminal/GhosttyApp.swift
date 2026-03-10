@@ -135,6 +135,15 @@ public final class GhosttyAppWrapper {
             let setTitle = action.action.set_title
             if let titlePtr = setTitle.title {
                 let title = String(cString: titlePtr)
+                if target.tag == GHOSTTY_TARGET_SURFACE {
+                    let surface = target.target.surface
+                    if let userdata = ghostty_surface_userdata(surface) {
+                        let session = Unmanaged<TerminalSession>.fromOpaque(userdata).takeUnretainedValue()
+                        DispatchQueue.main.async {
+                            session.title = title
+                        }
+                    }
+                }
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: .ghosttyTitleChanged,
@@ -160,6 +169,7 @@ public final class GhosttyAppWrapper {
                         DispatchQueue.main.async {
                             session.pwd = pwd
                         }
+                        session.updateGitBranch(at: pwd)
                     }
                 }
             }

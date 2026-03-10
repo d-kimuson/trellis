@@ -11,6 +11,9 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Current working directory reported by the shell (via OSC 7).
     @Published public var pwd: String?
 
+    /// Git branch name at the current working directory (detected automatically).
+    @Published public var gitBranch: String?
+
     /// Working directory to use when creating the ghostty surface.
     public let initialWorkingDirectory: String?
 
@@ -32,6 +35,36 @@ public final class TerminalSession: Identifiable, ObservableObject {
         self.title = title
         self.isActive = true
         self.initialWorkingDirectory = workingDirectory
+    }
+
+    /// Detect the git branch at the given directory in background.
+    func updateGitBranch(at directory: String) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let runner = GitRunner(repositoryPath: directory)
+            let branch: String?
+            switch runner.currentBranch() {
+            case .success(let name):
+                branch = name
+            case .failure:
+                branch = nil
+            }
+            DispatchQueue.main.async {
+                self?.gitBranch = branch
+            }
+        }
+    }
+
+    /// Shortened display name of the current working directory.
+    public var shortPwd: String? {
+        guard let pwd else { return nil }
+        let home = NSHomeDirectory()
+        if pwd == home {
+            return "~"
+        }
+        if pwd.hasPrefix(home + "/") {
+            return "~/" + String(pwd.dropFirst(home.count + 1))
+        }
+        return pwd
     }
 
     /// Mark session as inactive and free the surface.

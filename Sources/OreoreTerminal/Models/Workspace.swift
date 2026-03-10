@@ -24,4 +24,20 @@ public struct Workspace: Identifiable {
     public var allAreas: [Area] {
         layout.allAreas
     }
+
+    /// The representative terminal session for this workspace.
+    /// Prefers the active area's active tab, falling back to the first terminal session found.
+    public var representativeSession: TerminalSession? {
+        if let session = activeArea?.activeTab?.content.terminalSession {
+            return session
+        }
+        for area in allAreas {
+            for tab in area.tabs {
+                if let session = tab.content.terminalSession {
+                    return session
+                }
+            }
+        }
+        return nil
+    }
 }
