@@ -340,11 +340,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
     }
 
     deinit {
-        if let surface {
-            ghostty_surface_free(surface)
-        }
-        surface = nil
-        session.surface = nil
+        destroySurface()
     }
 }
 
@@ -358,17 +354,25 @@ extension NSScreen {
 }
 
 /// SwiftUI wrapper for the ghostty terminal NSView.
+/// Reuses the NSView stored on TerminalSession so that layout changes
+/// (split, tab switch) don't destroy the terminal surface.
 struct TerminalView: NSViewRepresentable {
     let ghosttyApp: GhosttyAppWrapper
     let session: TerminalSession
 
     func makeNSView(context: Context) -> GhosttyNSView {
-        GhosttyNSView(ghosttyApp: ghosttyApp, session: session)
+        if let existing = session.nsView {
+            return existing
+        }
+        let view = GhosttyNSView(ghosttyApp: ghosttyApp, session: session)
+        session.nsView = view
+        return view
     }
 
     func updateNSView(_ nsView: GhosttyNSView, context: Context) {}
 
     static func dismantleNSView(_ nsView: GhosttyNSView, coordinator: ()) {
-        nsView.destroySurface()
+        // Don't destroy the surface — the session owns the view's lifecycle.
+        // Surface cleanup happens in TerminalSession.close() or deinit.
     }
 }

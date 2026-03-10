@@ -58,21 +58,27 @@ struct AreaPanelView: View {
             // Tab bar (always visible)
             tabBar
 
-            // Active tab content with drop-to-split support
-            if let activeTab = area.activeTab {
+            // All tab contents stacked — keeps surfaces alive across tab switches
+            if !area.tabs.isEmpty {
                 GeometryReader { geo in
-                    panelContent(for: activeTab.content)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .overlay { splitPreview(size: geo.size) }
-                        .onDrop(
-                            of: [.tabDragData],
-                            delegate: SplitDropDelegate(
-                                area: area,
-                                store: store,
-                                viewSize: geo.size,
-                                onEdgeChanged: { dropEdge = $0 }
-                            )
+                    ZStack {
+                        ForEach(Array(area.tabs.enumerated()), id: \.element.id) { index, tab in
+                            panelContent(for: tab.content)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .opacity(index == area.activeTabIndex ? 1 : 0)
+                                .allowsHitTesting(index == area.activeTabIndex)
+                        }
+                    }
+                    .overlay { splitPreview(size: geo.size) }
+                    .onDrop(
+                        of: [.tabDragData],
+                        delegate: SplitDropDelegate(
+                            area: area,
+                            store: store,
+                            viewSize: geo.size,
+                            onEdgeChanged: { dropEdge = $0 }
                         )
+                    )
                 }
             } else {
                 VStack(spacing: 12) {
@@ -189,7 +195,7 @@ struct AreaPanelView: View {
                 }
             }
 
-            // Add tab icons
+            // Tab bar action icons
             HStack(spacing: 2) {
                 tabBarIcon("terminal", help: "New Terminal") {
                     store.addTerminalTab(to: area.id)
@@ -202,6 +208,15 @@ struct AreaPanelView: View {
                 }
                 tabBarIcon("arrow.triangle.branch", help: "New Git") {
                     store.addGitTab(to: area.id)
+                }
+
+                Divider().frame(height: 14).padding(.horizontal, 2)
+
+                tabBarIcon("rectangle.split.2x1", help: "Split Vertical") {
+                    store.splitArea(areaId: area.id, direction: .vertical)
+                }
+                tabBarIcon("rectangle.split.1x2", help: "Split Horizontal") {
+                    store.splitArea(areaId: area.id, direction: .horizontal)
                 }
             }
         }
