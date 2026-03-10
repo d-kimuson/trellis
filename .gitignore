@@ -5,3 +5,6 @@ result
 *.o
 *.a
 *.dylib
+.swiftpm/
+node_modules/
+Package.resolved

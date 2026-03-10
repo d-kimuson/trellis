@@ -1,13 +1,13 @@
 import SwiftUI
 
 /// Manages all terminal sessions and the panel layout.
-final class SessionStore: ObservableObject {
-    let ghosttyApp: GhosttyAppWrapper
-    @Published var sessions: [TerminalSession] = []
-    @Published var rootPanel: PanelNode
-    @Published var selectedSessionId: UUID?
+public final class SessionStore: ObservableObject {
+    public let ghosttyApp: GhosttyAppWrapper
+    @Published public var sessions: [TerminalSession] = []
+    @Published public var rootPanel: PanelNode
+    @Published public var selectedSessionId: UUID?
 
-    init(ghosttyApp: GhosttyAppWrapper) {
+    public init(ghosttyApp: GhosttyAppWrapper) {
         self.ghosttyApp = ghosttyApp
 
         // Start with one session

@@ -1,15 +1,16 @@
 import Foundation
+import GhosttyKit
 
 /// Represents a single terminal session with an associated libghostty surface.
-final class TerminalSession: Identifiable, ObservableObject {
-    let id: UUID
-    @Published var title: String
-    @Published var isActive: Bool
+public final class TerminalSession: Identifiable, ObservableObject {
+    public let id: UUID
+    @Published public var title: String
+    @Published public var isActive: Bool
 
     // Opaque pointer to ghostty surface - managed by GhosttyNSView
     var surface: ghostty_surface_t?
 
-    init(title: String = "Terminal") {
+    public init(title: String = "Terminal") {
         self.id = UUID()
         self.title = title
         self.isActive = true

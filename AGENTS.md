@@ -1,40 +1,68 @@
-# Agent Instructions
+## Task Tracking (bd)
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **bd** (beads) for issue tracking. Issues are stored locally in `.beads/`.
 
-## Quick Reference
+### Workflow
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+bd ready                              # Find available work (no blockers)
+bd show <id>                          # View issue details + dependencies
+bd update <id> --status=in_progress   # Claim work
+bd close <id>                         # Mark complete
+bd close <id1> <id2> ...              # Close multiple at once
 ```
 
-## Landing the Plane (Session Completion)
+### Creating Issues
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+```bash
+bd create --title="..." --type=task|bug|feature|epic --priority=2
+bd create --title="..." --type=task --priority=1 --description="..."
+bd dep add <issue> <depends-on>       # issue depends on depends-on
+```
 
-**MANDATORY WORKFLOW:**
+Priority: 0 (critical) to 4 (backlog). Use numbers, not words.
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+### Sync
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+```bash
+bd sync --from-main    # Pull beads updates from main branch
+bd sync --status       # Check sync status
+```
 
+## Quality Gate (MUST follow)
+
+After modifying .swift files, you MUST run check-changed before committing:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c npx -y check-changed@0.0.1-beta.4 run
+```
+
+This runs swiftlint, build, and test against changed files. All checks must pass. If a check fails, fix the issue and re-run.
+
+Individual commands (inside nix develop shell):
+
+```bash
+make lint    # SwiftLint on all sources
+make build   # Full app build
+make test    # XCTest via xcodebuild
+```
+
+## Session Completion
+
+When ending a work session:
+
+1. Create bd issues for remaining/discovered work
+2. Run `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c npx -y check-changed@0.0.1-beta.4 run` — all checks must pass
+3. Close completed bd issues
+4. Commit changes: `bd sync --from-main && git add <files> && git commit`
+5. Provide context for next session
+
+Note: This repo has no remote. Do not attempt `git push`.
+
+## Key Constraints
+
+- Read `CLAUDE.md` for architecture details and build setup
+- Core models must remain GUI-independent (future Linux/GTK support)
+- libghostty patches are in `patches/` — do not modify `deps/ghostty/` directly
+- When adding source files, update both Makefile and Package.swift
+- Files using ghostty C types must `import GhosttyKit`

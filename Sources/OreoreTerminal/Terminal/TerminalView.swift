@@ -1,4 +1,5 @@
 import AppKit
+import GhosttyKit
 import SwiftUI
 
 /// NSView subclass that hosts a libghostty terminal surface.
@@ -181,7 +182,11 @@ class GhosttyNSView: NSView {
     }
 
     deinit {
-        destroySurface()
+        if let surface {
+            ghostty_surface_free(surface)
+        }
+        surface = nil
+        session.surface = nil
     }
 }
 

@@ -5,14 +5,14 @@ GHOSTTY_STATIC_LIB = $(GHOSTTY_LIB)/libghostty.a
 GHOSTTY_HEADERS = $(GHOSTTY_INCLUDE)
 BUILD_DIR = .build
 APP_BUNDLE = $(BUILD_DIR)/OreoreTerminal.app
-SWIFT_FILES = $(shell find Sources/OreoreTerminal -name '*.swift')
+SWIFT_FILES = $(shell find Sources/OreoreTerminal Sources/OreoreTerminalApp -name '*.swift')
 
 # Ensure Xcode's tools (especially `metal`) are found via /usr/bin/xcrun.
 # Nix's stdenv sets DEVELOPER_DIR to its own apple-sdk, which lacks proprietary
 # tools like the Metal shader compiler. See flake.nix comments for details.
 export DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
 
-.PHONY: all setup build run clean distclean
+.PHONY: all setup build run clean distclean test lint check
 
 all: build
 
@@ -43,7 +43,6 @@ SWIFTC = /usr/bin/xcrun -sdk macosx swiftc
 $(BUILD_DIR)/OreoreTerminal: $(SWIFT_FILES) $(GHOSTTY_STATIC_LIB)
 	@mkdir -p $(BUILD_DIR)
 	$(SWIFTC) \
-		-import-objc-header Sources/Bridging-Header.h \
 		-I$(GHOSTTY_HEADERS) \
 		-L$(GHOSTTY_LIB) \
 		-lghostty \
@@ -76,6 +75,23 @@ app: $(BUILD_DIR)/OreoreTerminal
 
 run: app
 	open $(APP_BUNDLE)
+
+# Testing (via xcodebuild + SPM package)
+# Note: `swift test` has a known bug with Xcode 26 testing plugin.
+# Using xcodebuild as workaround.
+# xcodebuild requires a clean environment — Nix's linker flags break it.
+# env -i strips Nix's LD/LDFLAGS contamination.
+test: $(GHOSTTY_STATIC_LIB)
+	env -i HOME=$(HOME) PATH=/usr/bin:/bin:/usr/sbin DEVELOPER_DIR=$(DEVELOPER_DIR) \
+		/usr/bin/xcodebuild test -scheme OreoreTerminal -destination 'platform=macOS' -quiet
+
+# Linting
+lint:
+	swiftlint lint --quiet Sources/
+
+# Run all checks via check-changed
+check:
+	npx -y check-changed@0.0.1-beta.4 run
 
 clean:
 	rm -rf $(BUILD_DIR)

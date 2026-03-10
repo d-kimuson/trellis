@@ -1,4 +1,5 @@
 import AppKit
+import OreoreTerminal  // SPM build only; ignored in Makefile build (same module)
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {

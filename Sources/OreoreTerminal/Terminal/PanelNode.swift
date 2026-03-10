@@ -1,17 +1,17 @@
 import Foundation
 
-enum SplitDirection {
+public enum SplitDirection {
     case horizontal
     case vertical
 }
 
 /// A recursive tree structure representing the terminal panel layout.
 /// Each node is either a single terminal or a split containing two children.
-indirect enum PanelNode: Identifiable {
+public indirect enum PanelNode: Identifiable {
     case terminal(TerminalSession)
     case split(id: UUID, direction: SplitDirection, first: PanelNode, second: PanelNode, ratio: Double)
 
-    var id: UUID {
+    public var id: UUID {
         switch self {
         case .terminal(let session):
             return session.id
@@ -21,7 +21,7 @@ indirect enum PanelNode: Identifiable {
     }
 
     /// Returns a new tree with the given session's panel split
-    func splitting(sessionId: UUID, direction: SplitDirection, newSession: TerminalSession) -> PanelNode {
+    public func splitting(sessionId: UUID, direction: SplitDirection, newSession: TerminalSession) -> PanelNode {
         switch self {
         case .terminal(let session) where session.id == sessionId:
             return .split(
@@ -46,7 +46,7 @@ indirect enum PanelNode: Identifiable {
 
     /// Returns a new tree with the given session removed.
     /// When a split loses one child, the remaining child is promoted.
-    func removing(sessionId: UUID) -> PanelNode {
+    public func removing(sessionId: UUID) -> PanelNode {
         switch self {
         case .terminal(let session) where session.id == sessionId:
             // This shouldn't happen at root level; handled by parent split
@@ -73,7 +73,7 @@ indirect enum PanelNode: Identifiable {
     }
 
     /// Update the split ratio for a specific split node
-    func updatingRatio(splitId: UUID, ratio: Double) -> PanelNode {
+    public func updatingRatio(splitId: UUID, ratio: Double) -> PanelNode {
         switch self {
         case .terminal:
             return self

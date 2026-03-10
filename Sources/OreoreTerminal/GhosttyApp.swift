@@ -1,12 +1,13 @@
 import AppKit
+import GhosttyKit
 
 /// Wrapper around the libghostty app instance.
 /// Manages the global ghostty state and provides surface creation.
-final class GhosttyAppWrapper {
+public final class GhosttyAppWrapper {
     private(set) var app: ghostty_app_t?
     private var tickTimer: Timer?
 
-    init() {
+    public init() {
         // Initialize ghostty global state
         guard ghostty_init(0, nil) == GHOSTTY_SUCCESS else {
             fatalError("Failed to initialize ghostty")
@@ -35,13 +36,9 @@ final class GhosttyAppWrapper {
         runtimeConfig.read_clipboard_cb = { userdata, location, state in
             GhosttyAppWrapper.readClipboard(userdata: userdata, location: location, state: state)
         }
-        runtimeConfig.confirm_read_clipboard_cb = { userdata, str, state, request in
+        runtimeConfig.confirm_read_clipboard_cb = { _, _, state, _ in
             // Auto-confirm clipboard reads for PoC
-            guard let state else { return }
-            let pasteboard = NSPasteboard.general
-            if let string = pasteboard.string(forType: .string) {
-                // For now, just complete the request
-            }
+            guard state != nil else { return }
         }
         runtimeConfig.write_clipboard_cb = { userdata, str, location, confirm in
             GhosttyAppWrapper.writeClipboard(userdata: userdata, string: str, location: location, confirm: confirm)
@@ -78,7 +75,7 @@ final class GhosttyAppWrapper {
         return ghostty_surface_new(app, &config)
     }
 
-    func shutdown() {
+    public func shutdown() {
         tickTimer?.invalidate()
         tickTimer = nil
         if let app {

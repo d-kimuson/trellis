@@ -23,6 +23,8 @@
             freetype
             fontconfig
             libxml2
+            # Code quality
+            swiftlint
           ];
 
           # Prerequisites (not manageable via Nix):
