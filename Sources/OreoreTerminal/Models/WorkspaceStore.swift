@@ -203,6 +203,91 @@ public final class WorkspaceStore: ObservableObject {
         workspaces[activeWorkspaceIndex] = workspace
     }
 
+    // MARK: - Drag & Drop Operations
+
+    /// Move a tab from one area to another at a specific insertion index.
+    /// If the source area becomes empty, it is automatically removed.
+    public func moveTab(tabId: UUID, from sourceAreaId: UUID, to targetAreaId: UUID, at insertIndex: Int) {
+        guard var workspace = activeWorkspace else { return }
+
+        // Same-area reorder: remove then insert
+        if sourceAreaId == targetAreaId {
+            guard let area = workspace.layout.findArea(id: sourceAreaId) else { return }
+            let (remaining, removedTab) = area.removingTabById(tabId)
+            guard let tab = removedTab, let updatedArea = remaining else { return }
+            let finalArea = updatedArea.insertingTab(tab, at: insertIndex)
+            workspace.layout = workspace.layout.updatingArea(areaId: sourceAreaId) { _ in finalArea }
+            workspaces[activeWorkspaceIndex] = workspace
+            return
+        }
+
+        // Cross-area move
+        guard let sourceArea = workspace.layout.findArea(id: sourceAreaId),
+              let targetArea = workspace.layout.findArea(id: targetAreaId) else { return }
+
+        let (remainingSource, removedTab) = sourceArea.removingTabById(tabId)
+        guard let tab = removedTab else { return }
+
+        // Insert into target
+        let updatedTarget = targetArea.insertingTab(tab, at: insertIndex)
+        workspace.layout = workspace.layout.updatingArea(areaId: targetAreaId) { _ in updatedTarget }
+
+        if let updatedSource = remainingSource {
+            // Source area still has tabs
+            workspace.layout = workspace.layout.updatingArea(areaId: sourceAreaId) { _ in updatedSource }
+        } else {
+            // Source area is empty — remove it
+            let allAreas = workspace.layout.allAreas
+            if allAreas.count > 1 {
+                workspace.layout = workspace.layout.removingArea(areaId: sourceAreaId)
+            }
+            if workspace.activeAreaId == sourceAreaId {
+                workspace.activeAreaId = targetAreaId
+            }
+        }
+
+        workspaces[activeWorkspaceIndex] = workspace
+    }
+
+    /// Move a tab to a new area adjacent to a target area, creating a split.
+    /// If the source area becomes empty, it is automatically removed.
+    public func moveTabToNewArea(
+        tabId: UUID,
+        from sourceAreaId: UUID,
+        adjacentTo targetAreaId: UUID,
+        direction: SplitDirection
+    ) {
+        guard var workspace = activeWorkspace else { return }
+        guard let sourceArea = workspace.layout.findArea(id: sourceAreaId) else { return }
+
+        let (remainingSource, removedTab) = sourceArea.removingTabById(tabId)
+        guard let tab = removedTab else { return }
+
+        // Create a new area with just the moved tab
+        let newArea = Area(tabs: [tab])
+
+        // Split the target area to place the new area adjacent
+        workspace.layout = workspace.layout.splittingArea(
+            areaId: targetAreaId,
+            direction: direction,
+            newArea: newArea
+        )
+
+        if let updatedSource = remainingSource {
+            // Source still has tabs
+            workspace.layout = workspace.layout.updatingArea(areaId: sourceAreaId) { _ in updatedSource }
+        } else {
+            // Source is empty — remove it
+            workspace.layout = workspace.layout.removingArea(areaId: sourceAreaId)
+            if workspace.activeAreaId == sourceAreaId {
+                workspace.activeAreaId = newArea.id
+            }
+        }
+
+        workspace.activeAreaId = newArea.id
+        workspaces[activeWorkspaceIndex] = workspace
+    }
+
     // MARK: - Layout Operations
 
     /// Update split ratio.

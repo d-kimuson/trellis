@@ -64,4 +64,25 @@ public struct Area: Identifiable {
         guard index >= 0, index < tabs.count else { return self }
         return Area(id: id, tabs: tabs, activeTabIndex: index)
     }
+
+    /// Returns a new Area with a tab inserted at the given index (clamped to bounds).
+    /// The inserted tab becomes the active tab.
+    public func insertingTab(_ tab: Tab, at index: Int) -> Area {
+        var newTabs = tabs
+        let clampedIndex = min(max(index, 0), newTabs.count)
+        newTabs.insert(tab, at: clampedIndex)
+        return Area(id: id, tabs: newTabs, activeTabIndex: clampedIndex)
+    }
+
+    /// Removes a tab by its ID.
+    /// Returns (updatedArea, removedTab). updatedArea is nil if the area becomes empty
+    /// or the tab was not found. removedTab is nil if the tab was not found.
+    public func removingTabById(_ tabId: UUID) -> (area: Area?, removedTab: Tab?) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabId }) else {
+            return (nil, nil)
+        }
+        let removedTab = tabs[index]
+        let updatedArea = removingTab(at: index)
+        return (updatedArea, removedTab)
+    }
 }

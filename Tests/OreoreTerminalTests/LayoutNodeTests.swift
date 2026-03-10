@@ -364,4 +364,71 @@ final class AreaTests: XCTestCase {
         XCTAssertNil(area.removingTab(at: -1))
         XCTAssertNil(area.removingTab(at: 1))
     }
+
+    // MARK: - insertingTab
+
+    func testInsertingTabAtBeginning() {
+        let t1 = makeTab("t1")
+        let t2 = makeTab("t2")
+        let area = Area(tabs: [t1])
+
+        let updated = area.insertingTab(t2, at: 0)
+        XCTAssertEqual(updated.tabs.count, 2)
+        XCTAssertEqual(updated.tabs[0].id, t2.id)
+        XCTAssertEqual(updated.tabs[1].id, t1.id)
+        XCTAssertEqual(updated.activeTabIndex, 0) // inserted tab becomes active
+    }
+
+    func testInsertingTabAtEnd() {
+        let t1 = makeTab("t1")
+        let t2 = makeTab("t2")
+        let area = Area(tabs: [t1])
+
+        let updated = area.insertingTab(t2, at: 1)
+        XCTAssertEqual(updated.tabs.count, 2)
+        XCTAssertEqual(updated.tabs[1].id, t2.id)
+        XCTAssertEqual(updated.activeTabIndex, 1)
+    }
+
+    func testInsertingTabClampedIndex() {
+        let t1 = makeTab("t1")
+        let t2 = makeTab("t2")
+        let area = Area(tabs: [t1])
+
+        let updated = area.insertingTab(t2, at: 100)
+        XCTAssertEqual(updated.tabs.count, 2)
+        XCTAssertEqual(updated.tabs[1].id, t2.id)
+    }
+
+    // MARK: - removingTabById
+
+    func testRemovingTabByIdRemovesCorrectTab() {
+        let t1 = makeTab("t1")
+        let t2 = makeTab("t2")
+        let t3 = makeTab("t3")
+        let area = Area(tabs: [t1, t2, t3], activeTabIndex: 0)
+
+        let (updatedArea, removedTab) = area.removingTabById(t2.id)
+        XCTAssertNotNil(updatedArea)
+        XCTAssertEqual(updatedArea?.tabs.count, 2)
+        XCTAssertEqual(removedTab?.id, t2.id)
+    }
+
+    func testRemovingTabByIdReturnsNilAreaWhenLastTab() {
+        let t1 = makeTab("t1")
+        let area = Area(tabs: [t1])
+
+        let (updatedArea, removedTab) = area.removingTabById(t1.id)
+        XCTAssertNil(updatedArea)
+        XCTAssertEqual(removedTab?.id, t1.id)
+    }
+
+    func testRemovingTabByIdWithUnknownIdReturnsNil() {
+        let t1 = makeTab("t1")
+        let area = Area(tabs: [t1])
+
+        let (updatedArea, removedTab) = area.removingTabById(UUID())
+        XCTAssertNil(updatedArea)
+        XCTAssertNil(removedTab)
+    }
 }
