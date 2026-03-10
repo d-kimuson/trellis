@@ -58,7 +58,8 @@ class GhosttyNSView: NSView, NSTextInputClient {
     // MARK: - Surface Management
 
     private func createSurface() {
-        surface = ghosttyApp.createSurface(for: self)
+        let userdata = Unmanaged.passUnretained(session).toOpaque()
+        surface = ghosttyApp.createSurface(for: self, userdata: userdata)
         session.surface = surface
         ghosttyApp.focusedSurface = surface
 
@@ -134,6 +135,14 @@ class GhosttyNSView: NSView, NSTextInputClient {
             || event.modifierFlags.contains(.command)
         if !hasModifier {
             inputContext?.handleEvent(event)
+        }
+
+        // During IME composition, preedit is already sent via ghostty_surface_preedit
+        // in setMarkedText. Don't also send a key event which would interfere.
+        if hasMarkedText() {
+            pendingKeyEvent = nil
+            pendingInsertText = nil
+            return
         }
 
         sendPendingKeyToGhostty()
@@ -213,8 +222,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
             return
         }
 
-        // Clear marked text (IME composition ended)
+        // Clear marked text and preedit display (IME composition ended)
         imMarkedText = NSMutableAttributedString()
+        if let surface {
+            ghostty_surface_preedit(surface, nil, 0)
+        }
 
         pendingInsertText = text
     }
@@ -233,12 +245,26 @@ class GhosttyNSView: NSView, NSTextInputClient {
         }
         imSelectedRange = selectedRange
 
-        // Send composing text to ghostty
-        pendingInsertText = imMarkedText.string
+        // Send preedit text to ghostty via the dedicated preedit API
+        // so that composing text is rendered inline in the terminal.
+        if let surface {
+            let text = imMarkedText.string
+            if text.isEmpty {
+                ghostty_surface_preedit(surface, nil, 0)
+            } else {
+                text.withCString { cstr in
+                    ghostty_surface_preedit(surface, cstr, UInt(selectedRange.location))
+                }
+            }
+        }
     }
 
     func unmarkText() {
         imMarkedText = NSMutableAttributedString()
+        // Clear preedit display
+        if let surface {
+            ghostty_surface_preedit(surface, nil, 0)
+        }
     }
 
     func selectedRange() -> NSRange {
@@ -265,10 +291,24 @@ class GhosttyNSView: NSView, NSTextInputClient {
     }
 
     func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
-        // Return the view's position for IME candidate window placement
-        guard let window else { return .zero }
-        let viewRect = convert(bounds, to: nil)
-        return window.convertToScreen(viewRect)
+        // Query ghostty for the cursor position to place the IME candidate window
+        guard let surface, let window else { return .zero }
+        var x: Double = 0
+        var y: Double = 0
+        var w: Double = 0
+        var h: Double = 0
+        ghostty_surface_ime_point(surface, &x, &y, &w, &h)
+
+        // ghostty returns coordinates in the view's coordinate system (origin top-left)
+        // Convert to NSView coordinates (origin bottom-left)
+        let cursorRect = NSRect(
+            x: x,
+            y: bounds.height - y - h,
+            width: w,
+            height: h
+        )
+        let windowRect = convert(cursorRect, to: nil)
+        return window.convertToScreen(windowRect)
     }
 
     func characterIndex(for point: NSPoint) -> Int {
@@ -287,6 +327,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        session.onFocused?()
         guard let surface else { return }
         let pos = convertMousePosition(event)
         let mods = Self.convertModifiers(event.modifierFlags)
