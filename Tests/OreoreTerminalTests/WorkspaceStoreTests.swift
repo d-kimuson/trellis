@@ -17,7 +17,7 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(store.activeWorkspaceIndex, 0)
     }
 
-    func testInitialWorkspaceHasOneAreaWithOneTab() {
+    func testInitialWorkspaceHasOneEmptyArea() {
         let store = makeStore()
         guard let workspace = store.activeWorkspace else {
             XCTFail("Expected active workspace")
@@ -25,8 +25,8 @@ final class WorkspaceStoreTests: XCTestCase {
         }
         let areas = workspace.allAreas
         XCTAssertEqual(areas.count, 1)
-        XCTAssertEqual(areas.first?.tabs.count, 1)
-        XCTAssertNotNil(areas.first?.activeTab?.content.terminalSession)
+        XCTAssertEqual(areas.first?.tabs.count, 0)
+        XCTAssertNil(areas.first?.activeTab)
     }
 
     // MARK: - Workspace Operations
@@ -111,8 +111,8 @@ final class WorkspaceStoreTests: XCTestCase {
         store.addTab(to: areaId)
 
         let area = store.activeWorkspace?.layout.findArea(id: areaId)
-        XCTAssertEqual(area?.tabs.count, 2)
-        XCTAssertEqual(area?.activeTabIndex, 1)
+        XCTAssertEqual(area?.tabs.count, 1)
+        XCTAssertEqual(area?.activeTabIndex, 0)
     }
 
     func testCloseTabRemovesTab() {
@@ -122,6 +122,7 @@ final class WorkspaceStoreTests: XCTestCase {
             return
         }
 
+        store.addTab(to: areaId)
         store.addTab(to: areaId)
         store.closeTab(in: areaId, at: 0)
 
@@ -136,6 +137,7 @@ final class WorkspaceStoreTests: XCTestCase {
             return
         }
 
+        store.addTab(to: areaId)
         // Add a split first so closing the area doesn't recreate
         store.splitArea(areaId: areaId, direction: .vertical)
         store.closeTab(in: areaId, at: 0)
@@ -153,6 +155,7 @@ final class WorkspaceStoreTests: XCTestCase {
             return
         }
 
+        store.addTab(to: areaId)
         store.addTab(to: areaId)
         store.selectTab(in: areaId, at: 0)
 
@@ -288,6 +291,7 @@ final class WorkspaceStoreTests: XCTestCase {
 
         // Add a second tab to area1 so it survives losing one tab
         store.addTab(to: area1Id)
+        store.addTab(to: area1Id)
 
         // Split to create area2
         store.splitArea(areaId: area1Id, direction: .vertical)
@@ -318,6 +322,7 @@ final class WorkspaceStoreTests: XCTestCase {
             return
         }
 
+        store.addTab(to: area1Id)
         // Split to create area2
         store.splitArea(areaId: area1Id, direction: .vertical)
         let areas = store.activeWorkspace?.allAreas ?? []
@@ -346,6 +351,7 @@ final class WorkspaceStoreTests: XCTestCase {
             return
         }
         store.addTab(to: areaId)
+        store.addTab(to: areaId)
 
         let area = store.activeWorkspace!.layout.findArea(id: areaId)!
         let tabId = area.tabs[0].id
@@ -367,6 +373,7 @@ final class WorkspaceStoreTests: XCTestCase {
         }
 
         // Add second tab so area1 survives
+        store.addTab(to: area1Id)
         store.addTab(to: area1Id)
 
         // Split to create area2
@@ -406,6 +413,7 @@ final class WorkspaceStoreTests: XCTestCase {
             return
         }
 
+        store.addTab(to: area1Id)
         // Split to create area2
         store.splitArea(areaId: area1Id, direction: .vertical)
         let areas = store.activeWorkspace?.allAreas ?? []
@@ -437,10 +445,64 @@ final class WorkspaceStoreTests: XCTestCase {
         }
 
         store.addTab(to: areaId)
+        store.addTab(to: areaId)
         store.splitArea(areaId: areaId, direction: .vertical)
 
-        // 1 original + 1 added tab + 1 from split = 3
+        // 2 added tabs + 1 from split = 3
         XCTAssertEqual(store.allSessions.count, 3)
+    }
+
+    func testTerminalNumbersDoNotReuseClosedTabs() {
+        let store = makeStore()
+        guard let areaId = store.activeWorkspace?.activeAreaId else {
+            XCTFail("Expected active area")
+            return
+        }
+
+        store.addTerminalTab(to: areaId)
+        store.addTerminalTab(to: areaId)
+        store.addTerminalTab(to: areaId)
+        store.closeTab(in: areaId, at: 2)
+        store.addTerminalTab(to: areaId)
+
+        let titles = store.activeWorkspace?
+            .layout
+            .findArea(id: areaId)?
+            .tabs
+            .compactMap { $0.content.terminalSession?.title }
+
+        XCTAssertEqual(titles, ["Terminal 1", "Terminal 2", "Terminal 4"])
+    }
+
+    func testCloseTerminalSessionInInactiveWorkspacePreservesActiveWorkspace() {
+        let store = makeStore()
+        guard let firstAreaId = store.activeWorkspace?.activeAreaId else {
+            XCTFail("Expected active area")
+            return
+        }
+
+        store.addTerminalTab(to: firstAreaId)
+        store.addWorkspace()
+
+        let secondWorkspaceIndex = 1
+        guard let secondAreaId = store.workspaces[secondWorkspaceIndex].activeAreaId,
+              let session = store.workspaces[secondWorkspaceIndex]
+              .layout
+              .findArea(id: secondAreaId)?
+              .tabs
+              .first?
+              .content
+              .terminalSession else {
+            XCTFail("Expected terminal session in second workspace")
+            return
+        }
+
+        store.selectWorkspace(at: 0)
+        store.closeTerminalSession(session)
+
+        XCTAssertEqual(store.activeWorkspaceIndex, 0)
+        XCTAssertEqual(store.workspaces[secondWorkspaceIndex].layout.findArea(id: secondAreaId)?.tabs.count, 0)
+        XCTAssertFalse(session.isActive)
     }
 
     // MARK: - Focus Area (Notification Click)
