@@ -297,6 +297,20 @@ public final class WorkspaceStore: ObservableObject {
         workspaces[activeWorkspaceIndex] = workspace
     }
 
+    // MARK: - Focus (Notification Click)
+
+    /// Switch to the specified workspace and activate the specified area.
+    /// Returns true if the workspace and area were found and focused.
+    @discardableResult
+    public func focusArea(workspaceIndex: Int, areaId: UUID) -> Bool {
+        guard workspaceIndex >= 0, workspaceIndex < workspaces.count else { return false }
+        guard workspaces[workspaceIndex].layout.findArea(id: areaId) != nil else { return false }
+
+        activeWorkspaceIndex = workspaceIndex
+        workspaces[workspaceIndex].activeAreaId = areaId
+        return true
+    }
+
     // MARK: - Helpers
 
     private func nextTerminalNumber() -> Int {

@@ -1,6 +1,12 @@
 import AppKit
 import GhosttyKit
 
+/// Notification posted when a ghostty surface title changes.
+/// userInfo contains "title" (String).
+extension Notification.Name {
+    public static let ghosttyTitleChanged = Notification.Name("ghosttyTitleChanged")
+}
+
 /// Wrapper around the libghostty app instance.
 /// Manages the global ghostty state and provides surface creation.
 public final class GhosttyAppWrapper {
@@ -93,7 +99,17 @@ public final class GhosttyAppWrapper {
     ) -> Bool {
         switch action.tag {
         case GHOSTTY_ACTION_SET_TITLE:
-            break
+            let setTitle = action.action.set_title
+            if let titlePtr = setTitle.title {
+                let title = String(cString: titlePtr)
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .ghosttyTitleChanged,
+                        object: nil,
+                        userInfo: ["title": title]
+                    )
+                }
+            }
         case GHOSTTY_ACTION_RENDER:
             break
         case GHOSTTY_ACTION_CELL_SIZE:

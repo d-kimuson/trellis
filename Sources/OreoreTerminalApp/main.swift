@@ -6,11 +6,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var ghosttyApp: GhosttyAppWrapper!
     var store: WorkspaceStore!
+    var notificationManager: NotificationManager!
+    var outputMonitor = TerminalOutputMonitor()
+    private var titleObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyAppWrapper()
 
         store = WorkspaceStore(ghosttyApp: ghosttyApp)
+
+        // Set up notification manager
+        notificationManager = NotificationManager()
+        notificationManager.requestAuthorization()
+        notificationManager.onNotificationClicked = { [weak self] workspaceIndex, areaId in
+            guard let self else { return }
+            self.store.focusArea(workspaceIndex: workspaceIndex, areaId: areaId)
+            NSApp.activate(ignoringOtherApps: true)
+            self.window?.makeKeyAndOrderFront(nil)
+        }
+
+        // Observe terminal title changes for notification triggers
+        titleObserver = NotificationCenter.default.addObserver(
+            forName: .ghosttyTitleChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let title = notification.userInfo?["title"] as? String else { return }
+            self.handleTitleChange(title)
+        }
+
         let contentView = ContentView(store: store)
 
         window = NSWindow(
@@ -25,6 +50,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
 
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func handleTitleChange(_ title: String) {
+        let isActive = NSApp.isActive
+        guard outputMonitor.shouldNotify(title: title, isAppActive: isActive) else { return }
+        guard let info = outputMonitor.buildNotificationInfo(for: title) else { return }
+
+        let workspaceIndex = store.activeWorkspaceIndex
+        let areaId = store.activeWorkspace?.activeAreaId ?? UUID()
+
+        notificationManager.sendNotification(
+            title: info.title,
+            body: info.body,
+            workspaceIndex: workspaceIndex,
+            areaId: areaId
+        )
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
