@@ -5,9 +5,6 @@ import GhosttyKit
 /// userInfo contains "title" (String).
 extension Notification.Name {
     public static let ghosttyTitleChanged = Notification.Name("ghosttyTitleChanged")
-    /// Posted when ghostty receives an OSC 9/777 desktop notification request.
-    /// userInfo contains "title" (String) and "body" (String).
-    public static let ghosttyDesktopNotification = Notification.Name("ghosttyDesktopNotification")
     /// Toggle sidebar visibility.
     public static let toggleSidebar = Notification.Name("toggleSidebar")
 }
@@ -15,12 +12,21 @@ extension Notification.Name {
 /// Wrapper around the libghostty app instance.
 /// Manages the global ghostty state and provides surface creation.
 public final class GhosttyAppWrapper {
+    /// Singleton reference for C callback access (C function pointers can't capture context).
+    static weak var current: GhosttyAppWrapper?
+
     private(set) var app: ghostty_app_t?
     private var tickTimer: Timer?
     /// The most recently focused terminal surface, used for clipboard operations.
     var focusedSurface: ghostty_surface_t?
 
+    /// Called synchronously on the main thread when OSC 9/777 desktop notification arrives.
+    /// Parameters: (title, body)
+    public var onDesktopNotification: ((String, String) -> Void)?
+
     public init() {
+        GhosttyAppWrapper.current = self
+
         // Initialize ghostty global state
         guard ghostty_init(0, nil) == GHOSTTY_SUCCESS else {
             fatalError("Failed to initialize ghostty")
@@ -70,10 +76,14 @@ public final class GhosttyAppWrapper {
             fatalError("Failed to create ghostty app")
         }
 
-        // Start tick timer for the event loop
-        tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        // Start tick timer for the event loop.
+        // Must run in .common mode so it fires during event tracking / modal panels,
+        // otherwise ghostty_app_tick() stalls and IO (including OSC notifications) is delayed.
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.tick()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        tickTimer = timer
     }
 
     func tick() {
@@ -124,13 +134,8 @@ public final class GhosttyAppWrapper {
             let notif = action.action.desktop_notification
             let title = notif.title.map { String(cString: $0) } ?? "Notification"
             let body = notif.body.map { String(cString: $0) } ?? ""
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: .ghosttyDesktopNotification,
-                    object: nil,
-                    userInfo: ["title": title, "body": body]
-                )
-            }
+            // Call directly — no DispatchQueue.main.async to avoid Metal render delays
+            current?.onDesktopNotification?(title, body)
         case GHOSTTY_ACTION_RENDER:
             break
         case GHOSTTY_ACTION_CELL_SIZE:

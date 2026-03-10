@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject var notificationStore: NotificationStore
     @State private var renamingIndex: Int?
 
     var body: some View {
@@ -19,6 +20,7 @@ struct SidebarView: View {
                         WorkspaceRow(
                             workspace: workspace,
                             isActive: index == store.activeWorkspaceIndex,
+                            unreadCount: notificationStore.unreadCount(forWorkspace: index),
                             isEditing: Binding(
                                 get: { renamingIndex == index },
                                 set: { editing in
@@ -67,6 +69,7 @@ struct SidebarView: View {
 private struct WorkspaceRow: View {
     let workspace: Workspace
     let isActive: Bool
+    let unreadCount: Int
     @Binding var isEditing: Bool
     let onRename: (String) -> Void
 
@@ -96,6 +99,17 @@ private struct WorkspaceRow: View {
                 Text(workspace.name)
                     .lineLimit(1)
                     .fontWeight(isActive ? .semibold : .regular)
+            }
+
+            Spacer()
+
+            if unreadCount > 0 {
+                Text("\(unreadCount)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.accentColor))
             }
         }
     }

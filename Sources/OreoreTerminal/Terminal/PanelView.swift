@@ -15,7 +15,8 @@ struct AreaLayoutView: View {
             AreaPanelView(
                 area: area,
                 ghosttyApp: ghosttyApp,
-                store: store
+                store: store,
+                isActiveArea: store.activeWorkspace?.activeAreaId == area.id
             )
 
         case .split(let splitId, let direction, let first, let second, let ratio):
@@ -47,6 +48,7 @@ struct AreaPanelView: View {
     let area: Area
     let ghosttyApp: GhosttyAppWrapper
     @ObservedObject var store: WorkspaceStore
+    var isActiveArea: Bool = false
 
     @State private var dropInsertIndex: Int?
     @State private var dropEdge: DropEdge?
@@ -88,6 +90,11 @@ struct AreaPanelView: View {
                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             }
         }
+        .overlay(
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(Color.accentColor, lineWidth: isActiveArea ? 2 : 0)
+                .allowsHitTesting(false)
+        )
     }
 
     // MARK: - Drop Edge Detection

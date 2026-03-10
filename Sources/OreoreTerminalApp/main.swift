@@ -7,13 +7,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var ghosttyApp: GhosttyAppWrapper!
     var store: WorkspaceStore!
     var notificationManager: NotificationManager!
-    var outputMonitor = TerminalOutputMonitor()
-    private var titleObserver: NSObjectProtocol?
+    var notificationStore: NotificationStore!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyAppWrapper()
 
         store = WorkspaceStore(ghosttyApp: ghosttyApp)
+        notificationStore = NotificationStore()
+        store.notificationStore = notificationStore
 
         // Set up notification manager
         notificationManager = NotificationManager()
@@ -21,22 +22,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         notificationManager.onNotificationClicked = { [weak self] workspaceIndex, areaId in
             guard let self else { return }
             self.store.focusArea(workspaceIndex: workspaceIndex, areaId: areaId)
+            self.notificationStore.markAsRead(areaId: areaId)
             NSApp.activate(ignoringOtherApps: true)
             self.window?.makeKeyAndOrderFront(nil)
         }
 
-        // Observe terminal title changes for notification triggers
-        titleObserver = NotificationCenter.default.addObserver(
-            forName: .ghosttyTitleChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self,
-                  let title = notification.userInfo?["title"] as? String else { return }
-            self.handleTitleChange(title)
+        // OSC 9/777 desktop notification — direct callback (no async dispatch)
+        ghosttyApp.onDesktopNotification = { [weak self] title, body in
+            self?.handleDesktopNotification(title: title, body: body)
         }
 
-        let contentView = ContentView(store: store)
+        let contentView = ContentView(store: store, notificationStore: notificationStore)
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
@@ -53,28 +49,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func handleTitleChange(_ title: String) {
-        let isActive = NSApp.isActive
-        guard outputMonitor.shouldNotify(title: title, isAppActive: isActive) else {
-            outputMonitor.recordTitle(title)
-            return
-        }
-        guard let info = outputMonitor.buildNotificationInfo(for: title) else {
-            outputMonitor.recordTitle(title)
-            return
-        }
-
+    private func handleDesktopNotification(title: String, body: String) {
         let workspaceIndex = store.activeWorkspaceIndex
         let areaId = store.activeWorkspace?.activeAreaId ?? UUID()
 
-        notificationManager.sendNotification(
-            title: info.title,
-            body: info.body,
+        notificationStore.add(
+            title: title,
+            body: body,
             workspaceIndex: workspaceIndex,
             areaId: areaId
         )
-        outputMonitor.recordTitle(title)
-        outputMonitor.recordNotificationSent()
+
+        // Desktop notification only when app is inactive
+        if !NSApp.isActive {
+            notificationManager.sendNotification(
+                title: title,
+                body: body,
+                workspaceIndex: workspaceIndex,
+                areaId: areaId
+            )
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

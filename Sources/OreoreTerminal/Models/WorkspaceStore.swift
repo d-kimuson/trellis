@@ -7,6 +7,9 @@ public final class WorkspaceStore: ObservableObject {
     @Published public var workspaces: [Workspace]
     @Published public var activeWorkspaceIndex: Int
 
+    /// Optional reference to the in-app notification store for marking read on focus.
+    public weak var notificationStore: NotificationStore?
+
     public init(ghosttyApp: GhosttyAppWrapper) {
         self.ghosttyApp = ghosttyApp
 
@@ -244,6 +247,7 @@ public final class WorkspaceStore: ObservableObject {
         }
         workspace.activeAreaId = areaId
         workspaces[activeWorkspaceIndex] = workspace
+        notificationStore?.markAsRead(areaId: areaId)
     }
 
     // MARK: - Drag & Drop Operations
@@ -353,6 +357,7 @@ public final class WorkspaceStore: ObservableObject {
 
         activeWorkspaceIndex = workspaceIndex
         workspaces[workspaceIndex].activeAreaId = areaId
+        notificationStore?.markAsRead(areaId: areaId)
         return true
     }
 
