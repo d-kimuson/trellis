@@ -125,13 +125,11 @@ private struct AreaSidebarRow: View {
     var body: some View {
         DisclosureGroup {
             ForEach(area.tabs) { tab in
-                if let session = tab.content.terminalSession {
-                    HStack {
-                        Image(systemName: "terminal")
-                            .foregroundColor(.secondary)
-                        Text(session.title)
-                            .lineLimit(1)
-                    }
+                HStack {
+                    Image(systemName: tab.content.iconName)
+                        .foregroundColor(.secondary)
+                    Text(tab.content.tabTitle)
+                        .lineLimit(1)
                 }
             }
         } label: {

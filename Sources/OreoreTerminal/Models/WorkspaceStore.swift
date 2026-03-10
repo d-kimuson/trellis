@@ -160,9 +160,39 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Add a new terminal tab to the given area.
     public func addTab(to areaId: UUID) {
-        guard var workspace = activeWorkspace else { return }
+        addTerminalTab(to: areaId)
+    }
+
+    /// Add a terminal tab to the given area.
+    public func addTerminalTab(to areaId: UUID) {
         let session = TerminalSession(title: "Terminal \(nextTerminalNumber())")
-        let newTab = Tab(content: .terminal(session))
+        addTabWithContent(to: areaId, content: .terminal(session))
+    }
+
+    /// Add a browser tab to the given area.
+    public func addBrowserTab(to areaId: UUID, url: URL? = nil) {
+        let state = BrowserState(url: url ?? URL(string: "https://www.google.com")!)
+        addTabWithContent(to: areaId, content: .browser(state))
+    }
+
+    /// Add a file tree tab to the given area.
+    public func addFileTreeTab(to areaId: UUID, path: String? = nil) {
+        let rootPath = path ?? FileManager.default.currentDirectoryPath
+        let state = FileTreeState(rootPath: rootPath)
+        addTabWithContent(to: areaId, content: .fileTree(state))
+    }
+
+    /// Add a git client tab to the given area.
+    public func addGitTab(to areaId: UUID, path: String? = nil) {
+        let repoPath = path ?? FileManager.default.currentDirectoryPath
+        let state = GitClientState(repositoryPath: repoPath)
+        addTabWithContent(to: areaId, content: .gitClient(state))
+    }
+
+    /// Add a tab with the given content to the specified area.
+    private func addTabWithContent(to areaId: UUID, content: PanelContent) {
+        guard var workspace = activeWorkspace else { return }
+        let newTab = Tab(content: content)
 
         workspace.layout = workspace.layout.updatingArea(areaId: areaId) { area in
             area.addingTab(newTab)

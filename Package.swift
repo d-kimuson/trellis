@@ -39,6 +39,7 @@ let package = Package(
                 .linkedFramework("IOKit"),
                 .linkedFramework("IOSurface"),
                 .linkedFramework("UniformTypeIdentifiers"),
+                .linkedFramework("WebKit"),
             ]
         ),
         .executableTarget(

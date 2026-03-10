@@ -1,6 +1,7 @@
 import CoreTransferable
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 /// Recursively renders the layout tree as split views with draggable dividers.
 struct AreaLayoutView: View {
@@ -57,14 +58,8 @@ struct AreaPanelView: View {
                 tabBar
 
                 // Active tab content
-                if let activeTab = area.activeTab,
-                   let session = activeTab.content.terminalSession {
-                    TerminalPanelWrapper(
-                        session: session,
-                        ghosttyApp: ghosttyApp,
-                        areaId: area.id,
-                        store: store
-                    )
+                if let activeTab = area.activeTab {
+                    panelContent(for: activeTab.content)
                 } else {
                     Text("Empty area")
                         .foregroundColor(.secondary)
@@ -74,6 +69,27 @@ struct AreaPanelView: View {
 
             // Edge drop zone overlay
             edgeDropOverlay
+        }
+    }
+
+    // MARK: - Panel Content
+
+    @ViewBuilder
+    private func panelContent(for content: PanelContent) -> some View {
+        switch content {
+        case .terminal(let session):
+            TerminalPanelWrapper(
+                session: session,
+                ghosttyApp: ghosttyApp,
+                areaId: area.id,
+                store: store
+            )
+        case .browser(let state):
+            BrowserPanelView(state: state)
+        case .fileTree(let state):
+            FileTreePanelView(state: state)
+        case .gitClient(let state):
+            GitPanelView(state: state)
         }
     }
 
@@ -105,17 +121,20 @@ struct AreaPanelView: View {
                 }
             }
 
-            // Add tab button
-            Button(
-                action: { store.addTab(to: area.id) },
-                label: {
-                    Image(systemName: "plus")
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                }
-            )
-            .buttonStyle(.borderless)
+            // Add tab menu
+            Menu {
+                Button("Terminal") { store.addTerminalTab(to: area.id) }
+                Button("Browser") { store.addBrowserTab(to: area.id) }
+                Button("File Tree") { store.addFileTreeTab(to: area.id) }
+                Button("Git") { store.addGitTab(to: area.id) }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.caption)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
             .help("New Tab")
         }
         .padding(.horizontal, 4)
@@ -128,42 +147,27 @@ struct AreaPanelView: View {
     private func tabButton(tab: Tab, index: Int) -> some View {
         let isActive = index == area.activeTabIndex
         let dragData = TabDragData(tabId: tab.id, sourceAreaId: area.id)
-
         return Button(
             action: { store.selectTab(in: area.id, at: index) },
             label: {
                 HStack(spacing: 4) {
-                    // Drop insert indicator (left side)
                     if dropInsertIndex == index {
-                        Rectangle()
-                            .fill(Color.accentColor)
-                            .frame(width: 2, height: 16)
+                        Rectangle().fill(Color.accentColor).frame(width: 2, height: 16)
                     }
-
-                    if let session = tab.content.terminalSession {
-                        Text(session.title)
-                            .font(.caption)
-                            .lineLimit(1)
-                    }
-
+                    Image(systemName: tab.content.iconName)
+                        .font(.system(size: 10)).foregroundColor(.secondary)
+                    Text(tab.content.tabTitle).font(.caption).lineLimit(1)
                     Button(
                         action: { store.closeTab(in: area.id, at: index) },
                         label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 8))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 8)).foregroundColor(.secondary)
                         }
                     )
-                    .buttonStyle(.borderless)
-                    .help("Close Tab")
+                    .buttonStyle(.borderless).help("Close Tab")
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    isActive
-                        ? Color.accentColor.opacity(0.2)
-                        : Color.clear
-                )
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
                 .cornerRadius(4)
             }
         )

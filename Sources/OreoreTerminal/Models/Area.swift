@@ -1,13 +1,46 @@
 import Foundation
 
-/// The content type displayed in a panel. Phase 1 supports terminal only.
+/// The content type displayed in a panel.
 public enum PanelContent {
     case terminal(TerminalSession)
+    case browser(BrowserState)
+    case fileTree(FileTreeState)
+    case gitClient(GitClientState)
 
     public var terminalSession: TerminalSession? {
         switch self {
         case .terminal(let session):
             return session
+        case .browser, .fileTree, .gitClient:
+            return nil
+        }
+    }
+
+    /// Display title for tab bar.
+    public var tabTitle: String {
+        switch self {
+        case .terminal(let session):
+            return session.title
+        case .browser(let state):
+            return state.currentURL.host ?? "Browser"
+        case .fileTree(let state):
+            return URL(fileURLWithPath: state.rootPath).lastPathComponent
+        case .gitClient(let state):
+            return state.status?.branch ?? "Git"
+        }
+    }
+
+    /// SF Symbol name for the panel type.
+    public var iconName: String {
+        switch self {
+        case .terminal:
+            return "terminal"
+        case .browser:
+            return "globe"
+        case .fileTree:
+            return "folder"
+        case .gitClient:
+            return "arrow.triangle.branch"
         }
     }
 }

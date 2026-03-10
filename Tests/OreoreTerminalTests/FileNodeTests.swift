@@ -1,0 +1,142 @@
+import Foundation
+import XCTest
+@testable import OreoreTerminal
+
+final class FileNodeTests: XCTestCase {
+
+    // MARK: - shouldIgnore
+
+    func testShouldIgnoreHiddenFiles() {
+        XCTAssertTrue(FileNode.shouldIgnore(name: ".git", patterns: []))
+        XCTAssertTrue(FileNode.shouldIgnore(name: ".DS_Store", patterns: []))
+    }
+
+    func testShouldIgnoreExactMatch() {
+        XCTAssertTrue(FileNode.shouldIgnore(name: "node_modules", patterns: ["node_modules"]))
+        XCTAssertFalse(FileNode.shouldIgnore(name: "src", patterns: ["node_modules"]))
+    }
+
+    func testShouldIgnoreDirectoryPattern() {
+        XCTAssertTrue(FileNode.shouldIgnore(name: "build", patterns: ["build/"]))
+        XCTAssertFalse(FileNode.shouldIgnore(name: "building", patterns: ["build/"]))
+    }
+
+    func testShouldIgnoreWildcardExtension() {
+        XCTAssertTrue(FileNode.shouldIgnore(name: "file.o", patterns: ["*.o"]))
+        XCTAssertTrue(FileNode.shouldIgnore(name: "test.log", patterns: ["*.log"]))
+        XCTAssertFalse(FileNode.shouldIgnore(name: "file.swift", patterns: ["*.o"]))
+    }
+
+    func testShouldNotIgnoreNormalFiles() {
+        XCTAssertFalse(FileNode.shouldIgnore(name: "main.swift", patterns: []))
+        XCTAssertFalse(FileNode.shouldIgnore(name: "README.md", patterns: ["*.o"]))
+    }
+
+    // MARK: - parseGitignore
+
+    func testParseGitignoreSkipsCommentsAndEmptyLines() {
+        let tempDir = NSTemporaryDirectory()
+        let gitignorePath = (tempDir as NSString).appendingPathComponent("test_gitignore_\(UUID().uuidString)")
+        let content = """
+        # Comment
+        node_modules
+
+        *.o
+        build/
+
+        # Another comment
+        """
+        try? content.write(toFile: gitignorePath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: gitignorePath) }
+
+        let patterns = FileNode.parseGitignore(at: gitignorePath)
+        XCTAssertEqual(patterns, ["node_modules", "*.o", "build/"])
+    }
+
+    func testParseGitignoreNonexistentFileReturnsEmpty() {
+        let patterns = FileNode.parseGitignore(at: "/nonexistent/path/.gitignore")
+        XCTAssertEqual(patterns, [])
+    }
+
+    // MARK: - FileNode properties
+
+    func testFileNodeProperties() {
+        let fileNode = FileNode.file(id: UUID(), name: "test.swift", path: "/tmp/test.swift")
+        XCTAssertEqual(fileNode.name, "test.swift")
+        XCTAssertEqual(fileNode.path, "/tmp/test.swift")
+        XCTAssertFalse(fileNode.isDirectory)
+        XCTAssertEqual(fileNode.children.count, 0)
+    }
+
+    func testDirectoryNodeProperties() {
+        let child = FileNode.file(id: UUID(), name: "a.txt", path: "/tmp/dir/a.txt")
+        let dirNode = FileNode.directory(id: UUID(), name: "dir", path: "/tmp/dir", children: [child])
+        XCTAssertEqual(dirNode.name, "dir")
+        XCTAssertTrue(dirNode.isDirectory)
+        XCTAssertEqual(dirNode.children.count, 1)
+    }
+
+    // MARK: - buildTree
+
+    func testBuildTreeFromDirectory() {
+        let tempDir = NSTemporaryDirectory()
+        let testDir = (tempDir as NSString).appendingPathComponent("filetree_test_\(UUID().uuidString)")
+        let fileManager = FileManager.default
+
+        // Create test structure
+        try? fileManager.createDirectory(atPath: testDir, withIntermediateDirectories: true)
+        try? "hello".write(
+            toFile: (testDir as NSString).appendingPathComponent("file.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let subDir = (testDir as NSString).appendingPathComponent("subdir")
+        try? fileManager.createDirectory(atPath: subDir, withIntermediateDirectories: true)
+        try? "world".write(
+            toFile: (subDir as NSString).appendingPathComponent("nested.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        defer { try? fileManager.removeItem(atPath: testDir) }
+
+        let node = FileNode.buildTree(at: testDir, ignoredPatterns: [])
+        XCTAssertNotNil(node)
+        XCTAssertTrue(node!.isDirectory)
+        // Should have 2 children: subdir and file.txt
+        XCTAssertEqual(node!.children.count, 2)
+        // Directories should come first
+        XCTAssertTrue(node!.children[0].isDirectory)
+        XCTAssertFalse(node!.children[1].isDirectory)
+    }
+
+    func testBuildTreeFiltersIgnoredPatterns() {
+        let tempDir = NSTemporaryDirectory()
+        let testDir = (tempDir as NSString).appendingPathComponent("filetree_ignore_\(UUID().uuidString)")
+        let fileManager = FileManager.default
+
+        try? fileManager.createDirectory(atPath: testDir, withIntermediateDirectories: true)
+        try? "a".write(
+            toFile: (testDir as NSString).appendingPathComponent("keep.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try? "b".write(
+            toFile: (testDir as NSString).appendingPathComponent("remove.o"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        defer { try? fileManager.removeItem(atPath: testDir) }
+
+        let node = FileNode.buildTree(at: testDir, ignoredPatterns: ["*.o"])
+        XCTAssertNotNil(node)
+        XCTAssertEqual(node!.children.count, 1)
+        XCTAssertEqual(node!.children[0].name, "keep.txt")
+    }
+
+    func testBuildTreeNonexistentPathReturnsNil() {
+        let node = FileNode.buildTree(at: "/nonexistent/path/\(UUID().uuidString)")
+        XCTAssertNil(node)
+    }
+}

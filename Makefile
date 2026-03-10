@@ -59,6 +59,7 @@ $(BUILD_DIR)/OreoreTerminal: $(SWIFT_FILES) $(GHOSTTY_STATIC_LIB)
 		-framework IOKit \
 		-framework IOSurface \
 		-framework UniformTypeIdentifiers \
+		-framework WebKit \
 		-o $(BUILD_DIR)/OreoreTerminal \
 		$(SWIFT_FILES)
 
