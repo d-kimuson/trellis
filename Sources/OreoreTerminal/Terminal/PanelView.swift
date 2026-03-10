@@ -62,10 +62,19 @@ struct AreaPanelView: View {
                 GeometryReader { geo in
                     ZStack {
                         ForEach(Array(area.tabs.enumerated()), id: \.element.id) { index, tab in
-                            panelContent(for: tab.content)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .opacity(index == area.activeTabIndex ? 1 : 0)
-                                .allowsHitTesting(index == area.activeTabIndex)
+                            let isActive = index == area.activeTabIndex
+                            switch tab.content {
+                            case .terminal:
+                                panelContent(for: tab.content)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .opacity(isActive ? 1 : 0)
+                                    .allowsHitTesting(isActive)
+                            case .browser, .fileTree:
+                                if isActive {
+                                    panelContent(for: tab.content)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                            }
                         }
                     }
                     .overlay { splitPreview(size: geo.size) }
