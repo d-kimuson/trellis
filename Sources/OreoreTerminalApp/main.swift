@@ -110,6 +110,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Post notification for ContentView to handle
         NotificationCenter.default.post(name: .toggleSidebar, object: nil)
     }
+
+    @objc func increaseFontSize(_ sender: Any?) {
+        ghosttyApp?.increaseFontSize()
+    }
+
+    @objc func decreaseFontSize(_ sender: Any?) {
+        ghosttyApp?.decreaseFontSize()
+    }
+
+    @objc func resetFontSize(_ sender: Any?) {
+        ghosttyApp?.resetFontSize()
+    }
 }
 
 // Entry point
@@ -137,6 +149,32 @@ appMenuItem.submenu = appMenu
 let viewMenuItem = NSMenuItem()
 mainMenu.addItem(viewMenuItem)
 let viewMenu = NSMenu(title: "View")
+
+let resetFontSizeItem = NSMenuItem(
+    title: "Reset Font Size",
+    action: #selector(AppDelegate.resetFontSize(_:)),
+    keyEquivalent: "0"
+)
+resetFontSizeItem.keyEquivalentModifierMask = [.command]
+viewMenu.addItem(resetFontSizeItem)
+
+let increaseFontSizeItem = NSMenuItem(
+    title: "Increase Font Size",
+    action: #selector(AppDelegate.increaseFontSize(_:)),
+    keyEquivalent: "="
+)
+increaseFontSizeItem.keyEquivalentModifierMask = [.command, .shift]
+viewMenu.addItem(increaseFontSizeItem)
+
+let decreaseFontSizeItem = NSMenuItem(
+    title: "Decrease Font Size",
+    action: #selector(AppDelegate.decreaseFontSize(_:)),
+    keyEquivalent: "-"
+)
+decreaseFontSizeItem.keyEquivalentModifierMask = [.command, .shift]
+viewMenu.addItem(decreaseFontSizeItem)
+
+viewMenu.addItem(NSMenuItem.separator())
 
 let splitHItem = NSMenuItem(
     title: "Split Horizontal",

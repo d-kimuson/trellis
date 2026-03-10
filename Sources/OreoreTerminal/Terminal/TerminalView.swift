@@ -95,14 +95,14 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     /// Intercept Cmd+key combos before the menu system consumes them.
     /// macOS does NOT call keyDown for Cmd+key — only performKeyEquivalent.
-    /// Let app menu shortcuts (Cmd+Q/W/B/D) pass through; forward the rest to ghostty.
+    /// Let app menu shortcuts pass through; forward the rest to ghostty.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard let surface else { return super.performKeyEquivalent(with: event) }
 
         if event.modifierFlags.contains(.command) {
             let char = event.charactersIgnoringModifiers?.lowercased() ?? ""
             // Let these pass to the app menu bar
-            let menuKeys: Set<String> = ["q", "w", "d", "b"]
+            let menuKeys: Set<String> = ["q", "w", "d", "b", "=", "-", "0"]
             if menuKeys.contains(char) {
                 return super.performKeyEquivalent(with: event)
             }

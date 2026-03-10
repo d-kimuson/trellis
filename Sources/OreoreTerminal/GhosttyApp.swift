@@ -1,6 +1,23 @@
 import AppKit
 import GhosttyKit
 
+enum GhosttyFontSizeChange {
+    case increase(Int)
+    case decrease(Int)
+    case reset
+
+    var bindingAction: String {
+        switch self {
+        case .increase(let amount):
+            "increase_font_size:\(amount)"
+        case .decrease(let amount):
+            "decrease_font_size:\(amount)"
+        case .reset:
+            "reset_font_size"
+        }
+    }
+}
+
 /// Notification posted when a ghostty surface title changes.
 /// userInfo contains "title" (String).
 extension Notification.Name {
@@ -121,6 +138,32 @@ public final class GhosttyAppWrapper {
             ghostty_app_free(app)
         }
         app = nil
+    }
+
+    public func increaseFontSize() {
+        _ = performFocusedSurfaceBindingAction(
+            GhosttyFontSizeChange.increase(1).bindingAction
+        )
+    }
+
+    public func decreaseFontSize() {
+        _ = performFocusedSurfaceBindingAction(
+            GhosttyFontSizeChange.decrease(1).bindingAction
+        )
+    }
+
+    public func resetFontSize() {
+        _ = performFocusedSurfaceBindingAction(
+            GhosttyFontSizeChange.reset.bindingAction
+        )
+    }
+
+    @discardableResult
+    private func performFocusedSurfaceBindingAction(_ action: String) -> Bool {
+        guard let surface = focusedSurface else { return false }
+        return action.withCString { cstr in
+            ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
+        }
     }
 
     // MARK: - Static Callbacks
