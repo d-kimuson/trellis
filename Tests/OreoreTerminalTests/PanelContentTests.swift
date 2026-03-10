@@ -20,14 +20,8 @@ final class PanelContentTests: XCTestCase {
     }
 
     func testTerminalSessionReturnsNilForFileTree() {
-        let state = FileTreeState(rootPath: NSTemporaryDirectory())
+        let state = FileTreeState()
         let content = PanelContent.fileTree(state)
-        XCTAssertNil(content.terminalSession)
-    }
-
-    func testTerminalSessionReturnsNilForGitClient() {
-        let state = GitClientState(repositoryPath: NSTemporaryDirectory())
-        let content = PanelContent.gitClient(state)
         XCTAssertNil(content.terminalSession)
     }
 
@@ -45,10 +39,16 @@ final class PanelContentTests: XCTestCase {
         XCTAssertEqual(content.tabTitle, "example.com")
     }
 
-    func testTabTitleForFileTree() {
+    func testTabTitleForFileTreeWithPath() {
         let state = FileTreeState(rootPath: "/Users/test/project")
         let content = PanelContent.fileTree(state)
         XCTAssertEqual(content.tabTitle, "project")
+    }
+
+    func testTabTitleForFileTreeWithoutPath() {
+        let state = FileTreeState()
+        let content = PanelContent.fileTree(state)
+        XCTAssertEqual(content.tabTitle, "Files")
     }
 
     // MARK: - iconName
@@ -60,11 +60,8 @@ final class PanelContentTests: XCTestCase {
         let browser = PanelContent.browser(BrowserState())
         XCTAssertEqual(browser.iconName, "globe")
 
-        let fileTree = PanelContent.fileTree(FileTreeState(rootPath: NSTemporaryDirectory()))
+        let fileTree = PanelContent.fileTree(FileTreeState())
         XCTAssertEqual(fileTree.iconName, "folder")
-
-        let git = PanelContent.gitClient(GitClientState(repositoryPath: NSTemporaryDirectory()))
-        XCTAssertEqual(git.iconName, "arrow.triangle.branch")
     }
 
     // MARK: - Switch exhaustiveness
@@ -75,8 +72,7 @@ final class PanelContentTests: XCTestCase {
         let contents: [PanelContent] = [
             .terminal(TerminalSession(title: "t")),
             .browser(BrowserState()),
-            .fileTree(FileTreeState(rootPath: NSTemporaryDirectory())),
-            .gitClient(GitClientState(repositoryPath: NSTemporaryDirectory())),
+            .fileTree(FileTreeState()),
         ]
 
         for content in contents {
@@ -87,8 +83,6 @@ final class PanelContentTests: XCTestCase {
             case .browser:
                 XCTAssertNil(content.terminalSession)
             case .fileTree:
-                XCTAssertNil(content.terminalSession)
-            case .gitClient:
                 XCTAssertNil(content.terminalSession)
             }
         }

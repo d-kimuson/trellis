@@ -5,29 +5,41 @@ struct FileTreePanelView: View {
     @ObservedObject var state: FileTreeState
 
     var body: some View {
+        VSplitView {
+            treePane
+                .frame(minHeight: 100)
+
+            if let content = state.selectedFileContent, let path = state.selectedFilePath {
+                filePreviewPane(path: path, content: content)
+                    .frame(minHeight: 80)
+            }
+        }
+    }
+
+    // MARK: - Tree Pane
+
+    private var treePane: some View {
         VStack(spacing: 0) {
             toolbar
 
             if let rootNode = state.rootNode {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(rootNode.children) { child in
-                            FileNodeRow(
-                                node: child,
-                                state: state,
-                                depth: 0
-                            )
+                GeometryReader { geo in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(rootNode.children) { child in
+                                FileNodeRow(
+                                    node: child,
+                                    state: state,
+                                    depth: 0
+                                )
+                            }
                         }
+                        .padding(.vertical, 4)
+                        .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
                     }
-                    .padding(.vertical, 4)
                 }
             } else {
-                VStack {
-                    Spacer()
-                    Text("No directory loaded")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
+                emptyState
             }
         }
     }
@@ -37,26 +49,99 @@ struct FileTreePanelView: View {
             Image(systemName: "folder")
                 .foregroundColor(.secondary)
 
-            Text(URL(fileURLWithPath: state.rootPath).lastPathComponent)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            if let rootPath = state.rootPath {
+                Text(URL(fileURLWithPath: rootPath).lastPathComponent)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } else {
+                Text("No directory")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
             Spacer()
 
             Button(
-                action: { state.reload() },
+                action: { state.openDirectoryPicker() },
                 label: {
-                    Image(systemName: "arrow.clockwise")
+                    Image(systemName: "folder.badge.plus")
                         .font(.caption)
                 }
             )
             .buttonStyle(.borderless)
-            .help("Refresh")
+            .help("Open Directory")
+
+            if state.rootPath != nil {
+                Button(
+                    action: { state.reload() },
+                    label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                )
+                .buttonStyle(.borderless)
+                .help("Refresh")
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "folder.badge.questionmark")
+                .font(.system(size: 32))
+                .foregroundColor(.secondary)
+            Text("Open a directory to browse files")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Button("Open Directory") {
+                state.openDirectoryPicker()
+            }
+            .controlSize(.small)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - File Preview Pane
+
+    private func filePreviewPane(path: String, content: String) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(URL(fileURLWithPath: path).lastPathComponent)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1)
+                Spacer()
+                Button(
+                    action: {
+                        state.selectedFilePath = nil
+                        state.selectedFileContent = nil
+                    },
+                    label: {
+                        Image(systemName: "xmark")
+                            .font(.caption)
+                    }
+                )
+                .buttonStyle(.borderless)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            GeometryReader { geo in
+                ScrollView([.horizontal, .vertical]) {
+                    Text(content)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
+                }
+            }
+        }
     }
 }
 
@@ -102,6 +187,11 @@ private struct FileNodeRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .background(
+                state.selectedFilePath == node.path
+                    ? Color.accentColor.opacity(0.15)
+                    : Color.clear
+            )
 
             // Children (if expanded)
             if node.isDirectory && isExpanded {
@@ -124,10 +214,7 @@ private struct FileNodeRow: View {
         if node.isDirectory {
             state.toggleExpanded(node.id)
         } else {
-            // Copy path to clipboard
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(node.path, forType: .string)
+            state.selectFile(at: node.path)
         }
     }
 

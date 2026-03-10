@@ -87,7 +87,6 @@ struct AreaPanelView: View {
                         Button("Terminal") { store.addTerminalTab(to: area.id) }
                         Button("Browser") { store.addBrowserTab(to: area.id) }
                         Button("File Tree") { store.addFileTreeTab(to: area.id) }
-                        Button("Git") { store.addGitTab(to: area.id) }
                     }
                     .font(.caption)
                 }
@@ -168,8 +167,6 @@ struct AreaPanelView: View {
                 }
         case .fileTree(let state):
             FileTreePanelView(state: state)
-        case .gitClient(let state):
-            GitPanelView(state: state)
         }
     }
 
@@ -211,9 +208,6 @@ struct AreaPanelView: View {
                 }
                 tabBarIcon("folder", help: "New File Tree") {
                     store.addFileTreeTab(to: area.id)
-                }
-                tabBarIcon("arrow.triangle.branch", help: "New Git") {
-                    store.addGitTab(to: area.id)
                 }
 
                 Divider().frame(height: 14).padding(.horizontal, 2)

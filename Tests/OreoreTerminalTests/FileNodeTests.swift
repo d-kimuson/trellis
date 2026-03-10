@@ -76,7 +76,7 @@ final class FileNodeTests: XCTestCase {
         XCTAssertEqual(dirNode.children.count, 1)
     }
 
-    // MARK: - buildTree
+    // MARK: - buildTree (shallow)
 
     func testBuildTreeFromDirectory() {
         let tempDir = NSTemporaryDirectory()
@@ -108,6 +108,8 @@ final class FileNodeTests: XCTestCase {
         // Directories should come first
         XCTAssertTrue(node!.children[0].isDirectory)
         XCTAssertFalse(node!.children[1].isDirectory)
+        // Subdirectory children should be empty (lazy loading)
+        XCTAssertEqual(node!.children[0].children.count, 0)
     }
 
     func testBuildTreeFiltersIgnoredPatterns() {
@@ -138,5 +140,49 @@ final class FileNodeTests: XCTestCase {
     func testBuildTreeNonexistentPathReturnsNil() {
         let node = FileNode.buildTree(at: "/nonexistent/path/\(UUID().uuidString)")
         XCTAssertNil(node)
+    }
+
+    // MARK: - loadChildren (lazy)
+
+    func testLoadChildrenReturnsDirectoryContents() {
+        let tempDir = NSTemporaryDirectory()
+        let testDir = (tempDir as NSString).appendingPathComponent("filetree_lazy_\(UUID().uuidString)")
+        let fileManager = FileManager.default
+
+        let subDir = (testDir as NSString).appendingPathComponent("subdir")
+        try? fileManager.createDirectory(atPath: subDir, withIntermediateDirectories: true)
+        try? "content".write(
+            toFile: (subDir as NSString).appendingPathComponent("file.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        defer { try? fileManager.removeItem(atPath: testDir) }
+
+        let children = FileNode.loadChildren(at: subDir, ignoredPatterns: [])
+        XCTAssertEqual(children.count, 1)
+        XCTAssertEqual(children[0].name, "file.txt")
+    }
+
+    // MARK: - replacingChildren
+
+    func testReplacingChildrenUpdatesTargetNode() {
+        let childDirId = UUID()
+        let root = FileNode.directory(
+            id: UUID(),
+            name: "root",
+            path: "/root",
+            children: [
+                .directory(id: childDirId, name: "sub", path: "/root/sub", children: [])
+            ]
+        )
+
+        let newChildren: [FileNode] = [
+            .file(id: UUID(), name: "new.txt", path: "/root/sub/new.txt")
+        ]
+
+        let updated = root.replacingChildren(ofNodeId: childDirId, with: newChildren)
+        XCTAssertEqual(updated.children[0].children.count, 1)
+        XCTAssertEqual(updated.children[0].children[0].name, "new.txt")
     }
 }

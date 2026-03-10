@@ -40,18 +40,30 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Detect the git branch at the given directory in background.
     func updateGitBranch(at directory: String) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let runner = GitRunner(repositoryPath: directory)
-            let branch: String?
-            switch runner.currentBranch() {
-            case .success(let name):
-                branch = name
-            case .failure:
-                branch = nil
-            }
+            let branch = Self.detectGitBranch(at: directory)
             DispatchQueue.main.async {
                 self?.gitBranch = branch
             }
         }
+    }
+
+    /// Run `git rev-parse --abbrev-ref HEAD` to get the current branch name.
+    private static func detectGitBranch(at directory: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", directory, "rev-parse", "--abbrev-ref", "HEAD"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+        guard process.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Shortened display name of the current working directory.

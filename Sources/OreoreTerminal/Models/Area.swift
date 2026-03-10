@@ -5,13 +5,12 @@ public enum PanelContent {
     case terminal(TerminalSession)
     case browser(BrowserState)
     case fileTree(FileTreeState)
-    case gitClient(GitClientState)
 
     public var terminalSession: TerminalSession? {
         switch self {
         case .terminal(let session):
             return session
-        case .browser, .fileTree, .gitClient:
+        case .browser, .fileTree:
             return nil
         }
     }
@@ -28,9 +27,10 @@ public enum PanelContent {
         case .browser(let state):
             return state.currentURL.host ?? "Browser"
         case .fileTree(let state):
-            return URL(fileURLWithPath: state.rootPath).lastPathComponent
-        case .gitClient(let state):
-            return state.status?.branch ?? "Git"
+            if let rootPath = state.rootPath {
+                return URL(fileURLWithPath: rootPath).lastPathComponent
+            }
+            return "Files"
         }
     }
 
@@ -43,8 +43,6 @@ public enum PanelContent {
             return "globe"
         case .fileTree:
             return "folder"
-        case .gitClient:
-            return "arrow.triangle.branch"
         }
     }
 }

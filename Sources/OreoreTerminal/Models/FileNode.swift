@@ -46,17 +46,12 @@ public enum FileNode: Identifiable, Equatable {
         }
     }
 
-    /// Maximum depth to traverse to prevent runaway recursion.
-    private static let maxDepth = 5
-
     /// Build a FileNode tree from a directory path.
-    /// Filters entries matching basic .gitignore patterns.
-    /// Uses stable IDs derived from file path to preserve SwiftUI identity across reloads.
+    /// Only reads one level deep (shallow). Use `loadChildren` to expand subdirectories on demand.
     public static func buildTree(
         at path: String,
         ignoredPatterns: [String] = [],
-        fileManager: FileManager = .default,
-        depth: Int = 0
+        fileManager: FileManager = .default
     ) -> FileNode? {
         let url = URL(fileURLWithPath: path)
         let name = url.lastPathComponent
@@ -71,22 +66,51 @@ public enum FileNode: Identifiable, Equatable {
             return .file(id: stableId, name: name, path: path)
         }
 
-        // Stop recursion at max depth
-        guard depth < maxDepth else {
-            return .directory(id: stableId, name: name, path: path, children: [])
-        }
+        let children = listChildren(at: path, ignoredPatterns: ignoredPatterns, fileManager: fileManager)
+        return .directory(id: stableId, name: name, path: path, children: children)
+    }
 
+    /// Load immediate children of a directory path (one level only).
+    /// Subdirectories are returned with empty children arrays.
+    public static func loadChildren(
+        at path: String,
+        ignoredPatterns: [String] = [],
+        fileManager: FileManager = .default
+    ) -> [FileNode] {
+        listChildren(at: path, ignoredPatterns: ignoredPatterns, fileManager: fileManager)
+    }
+
+    /// Replace the children of a specific directory node (by ID) in the tree.
+    public func replacingChildren(ofNodeId targetId: UUID, with newChildren: [FileNode]) -> FileNode {
+        switch self {
+        case .file:
+            return self
+        case .directory(let id, let name, let path, let children):
+            if id == targetId {
+                return .directory(id: id, name: name, path: path, children: newChildren)
+            }
+            let updatedChildren = children.map { $0.replacingChildren(ofNodeId: targetId, with: newChildren) }
+            return .directory(id: id, name: name, path: path, children: updatedChildren)
+        }
+    }
+
+    // MARK: - Private
+
+    private static func listChildren(
+        at path: String,
+        ignoredPatterns: [String],
+        fileManager: FileManager
+    ) -> [FileNode] {
         let contents: [String]
         do {
             contents = try fileManager.contentsOfDirectory(atPath: path)
         } catch {
-            return .directory(id: stableId, name: name, path: path, children: [])
+            return []
         }
 
-        let children = contents
+        return contents
             .filter { !shouldIgnore(name: $0, patterns: ignoredPatterns) }
             .sorted { lhs, rhs in
-                // Directories first, then alphabetical
                 let lhsPath = (path as NSString).appendingPathComponent(lhs)
                 let rhsPath = (path as NSString).appendingPathComponent(rhs)
                 var lhsIsDir: ObjCBool = false
@@ -100,21 +124,22 @@ public enum FileNode: Identifiable, Equatable {
             }
             .compactMap { child -> FileNode? in
                 let childPath = (path as NSString).appendingPathComponent(child)
-                return buildTree(
-                    at: childPath,
-                    ignoredPatterns: ignoredPatterns,
-                    fileManager: fileManager,
-                    depth: depth + 1
-                )
+                var childIsDir: ObjCBool = false
+                guard fileManager.fileExists(atPath: childPath, isDirectory: &childIsDir) else {
+                    return nil
+                }
+                let childId = stableUUID(for: childPath)
+                let childName = URL(fileURLWithPath: childPath).lastPathComponent
+                if childIsDir.boolValue {
+                    return .directory(id: childId, name: childName, path: childPath, children: [])
+                }
+                return .file(id: childId, name: childName, path: childPath)
             }
-
-        return .directory(id: stableId, name: name, path: path, children: children)
     }
 
     /// Generate a stable UUID from a file path so SwiftUI identity is preserved across reloads.
-    private static func stableUUID(for path: String) -> UUID {
+    static func stableUUID(for path: String) -> UUID {
         let data = Data(path.utf8)
-        // Use a simple hash-based approach for deterministic UUID
         var hash = [UInt8](repeating: 0, count: 16)
         let bytes = [UInt8](data)
         for (index, byte) in bytes.enumerated() {

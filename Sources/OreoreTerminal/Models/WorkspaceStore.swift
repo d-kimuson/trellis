@@ -182,16 +182,8 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Add a file tree tab to the given area.
     public func addFileTreeTab(to areaId: UUID, path: String? = nil) {
-        let rootPath = path ?? NSHomeDirectory()
-        let state = FileTreeState(rootPath: rootPath)
+        let state = FileTreeState(rootPath: path)
         addTabWithContent(to: areaId, content: .fileTree(state))
-    }
-
-    /// Add a git client tab to the given area.
-    public func addGitTab(to areaId: UUID, path: String? = nil) {
-        let repoPath = path ?? NSHomeDirectory()
-        let state = GitClientState(repositoryPath: repoPath)
-        addTabWithContent(to: areaId, content: .gitClient(state))
     }
 
     /// Add a tab with the given content to the specified area.
