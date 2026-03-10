@@ -5,7 +5,7 @@ public struct ContentView: View {
     @ObservedObject var notificationStore: NotificationStore
     @State private var showSidebar = true
     @State private var showNotifications = false
-    private let sidebarWidth: CGFloat = 200
+    @State private var sidebarWidth: CGFloat = 200
 
     public init(store: WorkspaceStore, notificationStore: NotificationStore) {
         self._store = ObservedObject(wrappedValue: store)
@@ -42,7 +42,7 @@ public struct ContentView: View {
                 .clipped()
 
             if showSidebar {
-                Divider()
+                SidebarResizeHandle(sidebarWidth: $sidebarWidth)
             }
 
             // Main content
