@@ -1,7 +1,6 @@
 import CoreTransferable
 import SwiftUI
 import UniformTypeIdentifiers
-import WebKit
 
 /// Recursively renders the layout tree as split views with draggable dividers.
 struct AreaLayoutView: View {
@@ -159,7 +158,14 @@ struct AreaPanelView: View {
                 store: store
             )
         case .browser(let state):
-            BrowserPanelView(state: state)
+            BrowserPanelView(state: state, onFocused: { store.activateArea(area.id) })
+                .overlay {
+                    TabDropInterceptView(
+                        area: area,
+                        store: store,
+                        onEdgeChanged: { dropEdge = $0 }
+                    )
+                }
         case .fileTree(let state):
             FileTreePanelView(state: state)
         case .gitClient(let state):
@@ -379,85 +385,6 @@ struct SplitContainer<First: View, Second: View>: View {
                     NSCursor.pop()
                 }
             }
-    }
-}
-
-// MARK: - Split Drop Delegate
-
-/// DropDelegate that tracks cursor position during drag to show edge-based split preview.
-/// Uses dropUpdated for real-time position tracking (onContinuousHover doesn't fire during drag).
-struct SplitDropDelegate: DropDelegate {
-    let area: Area
-    let store: WorkspaceStore
-    let viewSize: CGSize
-    let onEdgeChanged: (DropEdge?) -> Void
-
-    func dropEntered(info: DropInfo) {
-        updateEdge(info: info)
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        updateEdge(info: info)
-        return DropProposal(operation: .move)
-    }
-
-    func dropExited(info: DropInfo) {
-        onEdgeChanged(nil)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        let edge = AreaPanelView.determineEdge(location: info.location, size: viewSize)
-        onEdgeChanged(nil)
-
-        let providers = info.itemProviders(for: [.tabDragData])
-        guard let provider = providers.first else { return false }
-
-        provider.loadObject(ofClass: TabDragTransfer.self) { object, _ in
-            guard let transfer = object as? TabDragTransfer else { return }
-            let dragData = transfer.data
-            DispatchQueue.main.async {
-                if dragData.sourceAreaId == area.id && area.tabs.count <= 1 { return }
-                let direction: SplitDirection =
-                    (edge == .top || edge == .bottom) ? .horizontal : .vertical
-                let insertBefore = (edge == .leading || edge == .top)
-                store.moveTabToNewArea(
-                    tabId: dragData.tabId,
-                    from: dragData.sourceAreaId,
-                    adjacentTo: area.id,
-                    direction: direction,
-                    insertBefore: insertBefore
-                )
-            }
-        }
-        return true
-    }
-
-    private func updateEdge(info: DropInfo) {
-        let edge = AreaPanelView.determineEdge(location: info.location, size: viewSize)
-        onEdgeChanged(edge)
-    }
-}
-
-/// NSItemProviderReading wrapper for TabDragData to work with .onDrop(of:delegate:).
-final class TabDragTransfer: NSObject, NSItemProviderReading {
-    let data: TabDragData
-
-    init(data: TabDragData) {
-        self.data = data
-        super.init()
-    }
-
-    static var readableTypeIdentifiersForItemProvider: [String] {
-        [UTType.tabDragData.identifier]
-    }
-
-    static func object(
-        withItemProviderData data: Data,
-        typeIdentifier: String
-    ) throws -> Self {
-        let decoded = try JSONDecoder().decode(TabDragData.self, from: data)
-        // swiftlint:disable:next force_cast
-        return TabDragTransfer(data: decoded) as! Self
     }
 }
 

@@ -4,15 +4,33 @@ import WebKit
 /// NSViewRepresentable wrapper around WKWebView.
 struct WebViewRepresentable: NSViewRepresentable {
     @ObservedObject var state: BrowserState
+    var onFocused: (() -> Void)?
 
     func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.navigationDelegate = context.coordinator
         webView.load(URLRequest(url: state.currentURL))
+        context.coordinator.setupMouseMonitor(webView: webView)
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        // Process one-shot navigation actions (back, forward, reload, stop)
+        if let action = state.pendingAction {
+            DispatchQueue.main.async { state.pendingAction = nil }
+            switch action {
+            case .back:
+                webView.goBack()
+            case .forward:
+                webView.goForward()
+            case .reload:
+                webView.reload()
+            case .stop:
+                webView.stopLoading()
+            }
+            return
+        }
+
         // Only navigate if URL changed externally (e.g., URL bar submission)
         if context.coordinator.lastNavigatedURL != state.currentURL {
             context.coordinator.lastNavigatedURL = state.currentURL
@@ -21,19 +39,53 @@ struct WebViewRepresentable: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(state: state)
+        Coordinator(state: state, onFocused: onFocused)
+    }
+
+    static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+        coordinator.removeMouseMonitor()
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         let state: BrowserState
+        let onFocused: (() -> Void)?
         var lastNavigatedURL: URL?
+        private var mouseMonitor: Any?
 
-        init(state: BrowserState) {
+        init(state: BrowserState, onFocused: (() -> Void)?) {
             self.state = state
+            self.onFocused = onFocused
             self.lastNavigatedURL = state.currentURL
         }
 
-        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        deinit {
+            removeMouseMonitor()
+        }
+
+        func setupMouseMonitor(webView: WKWebView) {
+            mouseMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: .leftMouseDown
+            ) { [weak self, weak webView] event in
+                guard let webView = webView else { return event }
+                let point = webView.convert(event.locationInWindow, from: nil)
+                if webView.bounds.contains(point) {
+                    self?.onFocused?()
+                }
+                return event
+            }
+        }
+
+        func removeMouseMonitor() {
+            if let monitor = mouseMonitor {
+                NSEvent.removeMonitor(monitor)
+                mouseMonitor = nil
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didStartProvisionalNavigation navigation: WKNavigation!
+        ) {
             state.isLoading = true
         }
 
@@ -47,7 +99,11 @@ struct WebViewRepresentable: NSViewRepresentable {
             }
         }
 
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        func webView(
+            _ webView: WKWebView,
+            didFail navigation: WKNavigation!,
+            withError error: Error
+        ) {
             state.isLoading = false
             state.canGoBack = webView.canGoBack
             state.canGoForward = webView.canGoForward
@@ -66,14 +122,13 @@ struct WebViewRepresentable: NSViewRepresentable {
 /// Browser panel with URL bar and navigation controls.
 struct BrowserPanelView: View {
     @ObservedObject var state: BrowserState
+    var onFocused: (() -> Void)?
     @State private var urlText: String = ""
-    @State private var webViewId = UUID()
 
     var body: some View {
         VStack(spacing: 0) {
             navigationBar
-            WebViewRepresentable(state: state)
-                .id(webViewId)
+            WebViewRepresentable(state: state, onFocused: onFocused)
         }
         .onAppear {
             urlText = state.currentURL.absoluteString
@@ -85,21 +140,23 @@ struct BrowserPanelView: View {
 
     private var navigationBar: some View {
         HStack(spacing: 4) {
-            Button(action: goBack) {
+            Button { state.pendingAction = .back } label: {
                 Image(systemName: "chevron.left")
             }
             .buttonStyle(.borderless)
             .disabled(!state.canGoBack)
             .help("Back")
 
-            Button(action: goForward) {
+            Button { state.pendingAction = .forward } label: {
                 Image(systemName: "chevron.right")
             }
             .buttonStyle(.borderless)
             .disabled(!state.canGoForward)
             .help("Forward")
 
-            Button(action: reload) {
+            Button {
+                state.pendingAction = state.isLoading ? .stop : .reload
+            } label: {
                 Image(systemName: state.isLoading ? "xmark" : "arrow.clockwise")
             }
             .buttonStyle(.borderless)
@@ -114,21 +171,6 @@ struct BrowserPanelView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(Color(nsColor: .controlBackgroundColor))
-    }
-
-    private func goBack() {
-        // Trigger navigation by updating state
-        // The WKWebView handles actual back navigation
-        webViewId = UUID()
-    }
-
-    private func goForward() {
-        webViewId = UUID()
-    }
-
-    private func reload() {
-        // Force reload by changing the view ID
-        webViewId = UUID()
     }
 
     private func navigateToURL() {
