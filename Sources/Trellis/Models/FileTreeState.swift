@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import Foundation
 
 /// Observable state for a file tree panel.
@@ -12,8 +13,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
     @Published public var selectedFileContent: String?
 
     private var ignoredPatterns: [String] = []
-    private var watcherSource: DispatchSourceFileSystemObject?
-    private var fileDescriptor: Int32 = -1
+    private var eventStream: FSEventStreamRef?
     private var debounceWork: DispatchWorkItem?
 
     public init(
@@ -29,7 +29,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
         }
     }
 
-    /// Reload the file tree from disk (shallow — only root's immediate children).
+    /// Reload the file tree from disk, restoring expanded directory contents.
     public func reload() {
         guard let rootPath else {
             rootNode = nil
@@ -38,6 +38,12 @@ public final class FileTreeState: ObservableObject, Identifiable {
         let gitignorePath = (rootPath as NSString).appendingPathComponent(".gitignore")
         ignoredPatterns = FileNode.parseGitignore(at: gitignorePath)
         rootNode = FileNode.buildTree(at: rootPath, ignoredPatterns: ignoredPatterns)
+        // Re-expand directories that were open before the reload.
+        // After buildTree, all directory children are empty (shallow), so
+        // loadChildrenIfNeeded will fire for each previously expanded node.
+        for nodeId in expandedDirectories {
+            loadChildrenIfNeeded(for: nodeId)
+        }
     }
 
     /// Change root directory and reload.
@@ -117,27 +123,41 @@ public final class FileTreeState: ObservableObject, Identifiable {
 
     private func startWatching() {
         guard let rootPath else { return }
-        fileDescriptor = open(rootPath, O_EVTONLY)
-        guard fileDescriptor >= 0 else { return }
 
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
-            eventMask: [.write, .delete, .rename],
-            queue: .main
+        // C callback — must be a free function or static closure.
+        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
+            guard let info else { return }
+            let state = Unmanaged<FileTreeState>.fromOpaque(info).takeUnretainedValue()
+            state.debouncedReload()
+        }
+
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
         )
 
-        source.setEventHandler { [weak self] in
-            self?.debouncedReload()
-        }
+        let flags = FSEventStreamCreateFlags(
+            kFSEventStreamCreateFlagUseCFTypes |
+            kFSEventStreamCreateFlagFileEvents |
+            kFSEventStreamCreateFlagWatchRoot
+        )
 
-        source.setCancelHandler { [weak self] in
-            guard let self, self.fileDescriptor >= 0 else { return }
-            close(self.fileDescriptor)
-            self.fileDescriptor = -1
-        }
+        guard let stream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            callback,
+            &context,
+            [rootPath] as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.3,  // seconds latency
+            flags
+        ) else { return }
 
-        source.resume()
-        watcherSource = source
+        FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+        FSEventStreamStart(stream)
+        eventStream = stream
     }
 
     /// Debounce FS events to avoid reload storms.
@@ -147,14 +167,18 @@ public final class FileTreeState: ObservableObject, Identifiable {
             self?.reload()
         }
         debounceWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
     private func stopWatching() {
         debounceWork?.cancel()
         debounceWork = nil
-        watcherSource?.cancel()
-        watcherSource = nil
+        if let stream = eventStream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            eventStream = nil
+        }
     }
 
     deinit {
