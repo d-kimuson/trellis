@@ -1,6 +1,8 @@
 import AppKit
 import Combine
-import Trellis  // SPM build only; ignored in Makefile build (same module)
+#if SWIFT_PACKAGE
+import Trellis  // SPM/xcodebuild only; Makefile compiles all files as one module
+#endif
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
