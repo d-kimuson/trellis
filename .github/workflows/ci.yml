@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # -------------------------------------------------------
+  # Lint (fast: SwiftLint only, no ghostty dependency)
+  # -------------------------------------------------------
+  lint:
+    name: SwiftLint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Lint
+        run: swiftlint lint --quiet Sources/
+
+  # -------------------------------------------------------
+  # Build + Test
+  # Requires libghostty (Zig build). Cached by version + patch hash.
+  # NOTE: Zig version must match what's in flake.nix (0.14.x).
+  #       If `brew install zig` installs a newer incompatible version,
+  #       switch to the manual install step below.
+  # -------------------------------------------------------
+  build-test:
+    name: Build & Test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache the entire deps/ghostty directory (source + built artifacts).
+      # Key: ghostty version tag + patch files hash.
+      - name: Cache libghostty
+        id: cache-ghostty
+        uses: actions/cache@v4
+        with:
+          path: deps/ghostty
+          key: ghostty-v1.2.1-${{ hashFiles('patches/**') }}-macos-arm64
+
+      # Install Zig only when cache is cold.
+      # Alternative: replace with a pinned Zig install if brew version mismatches.
+      #   curl -L https://ziglang.org/download/0.14.0/zig-macos-aarch64-0.14.0.tar.xz | tar -xJ
+      #   echo "$PWD/zig-macos-aarch64-0.14.0" >> $GITHUB_PATH
+      - name: Install Zig
+        if: steps.cache-ghostty.outputs.cache-hit != 'true'
+        run: brew install zig
+
+      - name: Build libghostty
+        if: steps.cache-ghostty.outputs.cache-hit != 'true'
+        run: make setup
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test

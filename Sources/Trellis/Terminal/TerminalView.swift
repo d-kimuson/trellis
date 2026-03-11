@@ -193,6 +193,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// Send a key event to ghostty with optional text and composing state.
     private func sendKeyToGhostty(event: NSEvent, text: String?, composing: Bool) {
         guard let surface else { return }
+        debugLog("[KEY] keyCode=\(event.keyCode) mods=\(Self.modsDebugString(event.modifierFlags)) text=\(text.map { "\"\($0)\"" } ?? "nil") composing=\(composing) repeat=\(event.isARepeat)")
 
         var key = ghostty_input_key_s()
         key.action = event.isARepeat ? GHOSTTY_ACTION_REPEAT : GHOSTTY_ACTION_PRESS
@@ -428,6 +429,15 @@ class GhosttyNSView: NSView, NSTextInputClient {
     private func convertMousePosition(_ event: NSEvent) -> NSPoint {
         let local = convert(event.locationInWindow, from: nil)
         return NSPoint(x: local.x, y: bounds.height - local.y)
+    }
+
+    private static func modsDebugString(_ flags: NSEvent.ModifierFlags) -> String {
+        var parts: [String] = []
+        if flags.contains(.shift)   { parts.append("shift") }
+        if flags.contains(.control) { parts.append("ctrl") }
+        if flags.contains(.option)  { parts.append("opt") }
+        if flags.contains(.command) { parts.append("cmd") }
+        return parts.isEmpty ? "none" : parts.joined(separator: "+")
     }
 
     private static func convertModifiers(_ flags: NSEvent.ModifierFlags) -> ghostty_input_mods_e {

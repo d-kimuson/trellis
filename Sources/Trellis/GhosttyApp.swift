@@ -51,6 +51,7 @@ public final class GhosttyAppWrapper {
 
     public init() {
         GhosttyAppWrapper.current = self
+        debugLog("[STARTUP] GhosttyAppWrapper init")
 
         // Initialize ghostty global state
         guard ghostty_init(0, nil) == GHOSTTY_SUCCESS else {
@@ -222,6 +223,7 @@ public final class GhosttyAppWrapper {
             let setTitle = action.action.set_title
             if let titlePtr = setTitle.title {
                 let title = String(cString: titlePtr)
+                debugLog("[OSC] SET_TITLE title=\(title)")
                 if target.tag == GHOSTTY_TARGET_SURFACE,
                    let surface = target.target.surface,
                    let session = current?.lookupSession(surface: surface) {
@@ -241,12 +243,14 @@ public final class GhosttyAppWrapper {
             let notif = action.action.desktop_notification
             let title = notif.title.map { String(cString: $0) } ?? "Notification"
             let body = notif.body.map { String(cString: $0) } ?? ""
+            debugLog("[OSC] DESKTOP_NOTIFICATION title=\(title) body=\(body)")
             // Call directly — no DispatchQueue.main.async to avoid Metal render delays
             current?.onDesktopNotification?(title, body)
         case GHOSTTY_ACTION_PWD:
             let pwdAction = action.action.pwd
             if let pwdPtr = pwdAction.pwd {
                 let pwd = String(cString: pwdPtr)
+                debugLog("[OSC] PWD pwd=\(pwd)")
                 if target.tag == GHOSTTY_TARGET_SURFACE,
                    let surface = target.target.surface,
                    let session = current?.lookupSession(surface: surface) {
@@ -260,7 +264,7 @@ public final class GhosttyAppWrapper {
             let openURL = action.action.open_url
             if let urlPtr = openURL.url {
                 let url = String(cString: urlPtr)
-                try? (url + "\n").appendToFile("/tmp/oreore-url-debug.log")
+                debugLog("[OSC] OPEN_URL url=\(url)")
                 if target.tag == GHOSTTY_TARGET_SURFACE,
                    let surface = target.target.surface,
                    let session = current?.lookupSession(surface: surface) {
@@ -272,14 +276,17 @@ public final class GhosttyAppWrapper {
                 }
             }
         case GHOSTTY_ACTION_CLOSE_TAB:
+            debugLog("[ACTION] CLOSE_TAB")
             notifySessionClose(target: target)
         case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
+            debugLog("[ACTION] SHOW_CHILD_EXITED")
             notifySessionClose(target: target)
         case GHOSTTY_ACTION_RENDER:
             break
         case GHOSTTY_ACTION_CELL_SIZE:
             break
         default:
+            debugLog("[ACTION] unhandled tag=\(action.tag)")
             break
         }
         return true
@@ -326,20 +333,5 @@ public final class GhosttyAppWrapper {
 
     deinit {
         shutdown()
-    }
-}
-
-private extension String {
-    func appendToFile(_ path: String) throws {
-        let data = Data(utf8)
-        let url = URL(fileURLWithPath: path)
-        if FileManager.default.fileExists(atPath: path) {
-            let handle = try FileHandle(forWritingTo: url)
-            handle.seekToEndOfFile()
-            handle.write(data)
-            handle.closeFile()
-        } else {
-            try data.write(to: url)
-        }
     }
 }

@@ -47,6 +47,20 @@ make build   # App build
 make test    # XCTest via xcodebuild
 ```
 
+## Debug Logging
+
+バグ調査・再現確認が必要なときは `make debug` を使うこと。
+
+```bash
+make debug       # DEBUG_LOGGING フラグ付きでビルド・起動
+make debug-log   # 別ターミナルで最新ログを tail -f
+```
+
+ログ: `~/Library/Logs/Trellis/debug-YYYY-MM-DD-HH-mm-ss.log`
+記録内容: `[KEY]` キー入力、`[OSC]` OSC/ghostty アクション、`[ACTION]` ghostty アクション、`[STARTUP]` 起動
+
+追加ログは `debugLog("[CATEGORY] ...")` で記述する。非デバッグビルドでは完全にゼロコスト。
+
 ## Session Completion
 
 1. Create bd issues for remaining/discovered work

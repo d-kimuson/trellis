@@ -28,6 +28,21 @@ make test
 make lint
 ```
 
+## Debug Logging
+
+バグ調査時は `make debug` で起動すること。ファイルベースのログが有効になる。
+
+```bash
+make debug            # デバッグビルドで起動 (DEBUG_LOGGING フラグ有効)
+make debug-log        # 別ターミナルで最新ログを tail -f
+```
+
+ログ出力先: `~/Library/Logs/Trellis/debug-YYYY-MM-DD-HH-mm-ss.log`
+
+- 起動ごとに新しいファイルが作られる
+- キーボードイベント (`[KEY]`)、OSC アクション (`[OSC]`)、ghostty アクション (`[ACTION]`)、起動 (`[STARTUP]`) が記録される
+- `debugLog("[CATEGORY] message")` で任意のログを追加できる (非デバッグビルドはゼロオーバーヘッド)
+
 ## Quality Gate (MUST follow)
 
 .swift ファイルを変更したら、コミット前に必ず実行:
