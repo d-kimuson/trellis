@@ -22,7 +22,7 @@ struct SidebarView: View {
                     WorkspaceCard(
                         workspace: workspace,
                         isActive: index == store.activeWorkspaceIndex,
-                        unreadCount: notificationStore.unreadCount(forWorkspace: index),
+                        unreadCount: notificationStore.unreadCount(forSessionIds: store.sessionIds(forWorkspace: index)),
                         isEditing: Binding(
                             get: { renamingIndex == index },
                             set: { editing in

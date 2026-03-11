@@ -252,12 +252,15 @@ public final class WorkspaceStore: ObservableObject {
     /// Select a tab in the given area.
     public func selectTab(in areaId: UUID, at tabIndex: Int) {
         guard var workspace = activeWorkspace else { return }
+        let sessionId = workspace.layout.findArea(id: areaId)?.tabs[tabIndex].content.terminalSession?.id
         workspace.layout = workspace.layout.updatingArea(areaId: areaId) { area in
             area.selectingTab(at: tabIndex)
         }
         workspace.activeAreaId = areaId
         workspaces[activeWorkspaceIndex] = workspace
-        notificationStore?.markAsRead(areaId: areaId)
+        if let sessionId {
+            notificationStore?.markAsRead(sessionId: sessionId)
+        }
     }
 
     // MARK: - Drag & Drop Operations
@@ -358,17 +361,36 @@ public final class WorkspaceStore: ObservableObject {
 
     // MARK: - Focus (Notification Click)
 
-    /// Switch to the specified workspace and activate the specified area.
-    /// Returns true if the workspace and area were found and focused.
+    /// Focus the workspace/area/tab that contains the given session.
+    /// Returns true if the session was found and focused.
     @discardableResult
-    public func focusArea(workspaceIndex: Int, areaId: UUID) -> Bool {
-        guard workspaceIndex >= 0, workspaceIndex < workspaces.count else { return false }
-        guard workspaces[workspaceIndex].layout.findArea(id: areaId) != nil else { return false }
+    public func focusSession(id sessionId: UUID) -> Bool {
+        for (wsIndex, workspace) in workspaces.enumerated() {
+            for area in workspace.allAreas {
+                for (tabIndex, tab) in area.tabs.enumerated() {
+                    guard tab.content.terminalSession?.id == sessionId else { continue }
+                    activeWorkspaceIndex = wsIndex
+                    workspaces[wsIndex].activeAreaId = area.id
+                    workspaces[wsIndex].layout = workspaces[wsIndex].layout.updatingArea(areaId: area.id) { a in
+                        a.selectingTab(at: tabIndex)
+                    }
+                    notificationStore?.markAsRead(sessionId: sessionId)
+                    return true
+                }
+            }
+        }
+        return false
+    }
 
-        activeWorkspaceIndex = workspaceIndex
-        workspaces[workspaceIndex].activeAreaId = areaId
-        notificationStore?.markAsRead(areaId: areaId)
-        return true
+    // MARK: - Queries
+
+    /// All terminal session IDs belonging to the given workspace.
+    /// Used by the sidebar to compute per-workspace notification badges.
+    public func sessionIds(forWorkspace index: Int) -> [UUID] {
+        guard index >= 0, index < workspaces.count else { return [] }
+        return workspaces[index].allAreas.flatMap { area in
+            area.tabs.compactMap { $0.content.terminalSession?.id }
+        }
     }
 
     // MARK: - Area Activation
@@ -377,10 +399,11 @@ public final class WorkspaceStore: ObservableObject {
     public func activateArea(_ areaId: UUID) {
         guard var workspace = activeWorkspace else { return }
         guard workspace.activeAreaId != areaId else { return }
-        guard workspace.layout.findArea(id: areaId) != nil else { return }
+        guard let area = workspace.layout.findArea(id: areaId) else { return }
         workspace.activeAreaId = areaId
         workspaces[activeWorkspaceIndex] = workspace
-        notificationStore?.markAsRead(areaId: areaId)
+        let sessionIds = area.tabs.compactMap { $0.content.terminalSession?.id }
+        notificationStore?.markAsRead(sessionIds: sessionIds)
     }
 
     // MARK: - Process Exit Handling

@@ -507,36 +507,31 @@ final class WorkspaceStoreTests: XCTestCase {
 
     // MARK: - Focus Area (Notification Click)
 
-    func testFocusAreaSwitchesWorkspaceAndArea() {
+    func testFocusSessionSwitchesWorkspaceAndArea() {
         let store = makeStore()
         store.addWorkspace()
         // Now at workspace index 1
         let area1Id = store.activeWorkspace!.activeAreaId!
         store.splitArea(areaId: area1Id, direction: .vertical)
         let area2 = store.activeWorkspace!.allAreas.first(where: { $0.id != area1Id })!
+        let session = area2.tabs.first!.content.terminalSession!
 
         // Switch to workspace 0
         store.selectWorkspace(at: 0)
         XCTAssertEqual(store.activeWorkspaceIndex, 0)
 
-        // Focus area in workspace 1
-        let result = store.focusArea(workspaceIndex: 1, areaId: area2.id)
+        // Focus via session ID
+        let result = store.focusSession(id: session.id)
 
         XCTAssertTrue(result)
         XCTAssertEqual(store.activeWorkspaceIndex, 1)
         XCTAssertEqual(store.activeWorkspace?.activeAreaId, area2.id)
     }
 
-    func testFocusAreaWithInvalidWorkspaceReturnsFalse() {
+    func testFocusSessionWithUnknownIdReturnsFalse() {
         let store = makeStore()
-        let result = store.focusArea(workspaceIndex: 99, areaId: UUID())
+        let result = store.focusSession(id: UUID())
         XCTAssertFalse(result)
         XCTAssertEqual(store.activeWorkspaceIndex, 0)
-    }
-
-    func testFocusAreaWithInvalidAreaReturnsFalse() {
-        let store = makeStore()
-        let result = store.focusArea(workspaceIndex: 0, areaId: UUID())
-        XCTAssertFalse(result)
     }
 }

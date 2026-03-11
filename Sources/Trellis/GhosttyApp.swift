@@ -46,9 +46,10 @@ public final class GhosttyAppWrapper {
     private var surfaceSessions: [UnsafeRawPointer: TerminalSession] = [:]
 
     /// Called synchronously on the main thread when OSC 9/777 desktop notification arrives.
-    /// Parameters: (title, body, shouldFireDesktop)
+    /// Parameters: (title, body, shouldFireDesktop, sourceSession)
     /// shouldFireDesktop is true when the source surface is not the currently focused surface.
-    public var onDesktopNotification: ((String, String, Bool) -> Void)?
+    /// sourceSession is the TerminalSession that fired the notification (nil if not found).
+    public var onDesktopNotification: ((String, String, Bool, TerminalSession?) -> Void)?
 
     public init() {
         GhosttyAppWrapper.current = self
@@ -265,8 +266,10 @@ public final class GhosttyAppWrapper {
             } else {
                 isSourceFocused = false
             }
+            // Resolve session before the callback so callers don't need GhosttyKit import.
+            let sourceSession = sourceSurface.flatMap { current?.lookupSession(surface: $0) }
             // Call directly — no DispatchQueue.main.async to avoid Metal render delays
-            current?.onDesktopNotification?(title, body, !isSourceFocused)
+            current?.onDesktopNotification?(title, body, !isSourceFocused, sourceSession)
         case GHOSTTY_ACTION_PWD:
             let pwdAction = action.action.pwd
             if let pwdPtr = pwdAction.pwd {

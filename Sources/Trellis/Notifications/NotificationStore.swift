@@ -1,12 +1,12 @@
 import Foundation
 
-/// An in-app notification entry.
+/// An in-app notification entry tied to a specific terminal panel (session).
 public struct AppNotification: Identifiable {
     public let id: UUID
     public let title: String
     public let body: String
-    public let workspaceIndex: Int
-    public let areaId: UUID
+    /// The terminal session (panel) that generated this notification.
+    public let sessionId: UUID
     public let timestamp: Date
     public var isRead: Bool
 
@@ -14,16 +14,14 @@ public struct AppNotification: Identifiable {
         id: UUID = UUID(),
         title: String,
         body: String,
-        workspaceIndex: Int,
-        areaId: UUID,
+        sessionId: UUID,
         timestamp: Date = Date(),
         isRead: Bool = false
     ) {
         self.id = id
         self.title = title
         self.body = body
-        self.workspaceIndex = workspaceIndex
-        self.areaId = areaId
+        self.sessionId = sessionId
         self.timestamp = timestamp
         self.isRead = isRead
     }
@@ -40,12 +38,11 @@ public final class NotificationStore: ObservableObject {
 
     // MARK: - Add
 
-    public func add(title: String, body: String, workspaceIndex: Int, areaId: UUID) {
+    public func add(title: String, body: String, sessionId: UUID) {
         let notification = AppNotification(
             title: title,
             body: body,
-            workspaceIndex: workspaceIndex,
-            areaId: areaId
+            sessionId: sessionId
         )
         notifications.insert(notification, at: 0)
         if notifications.count > maxCount {
@@ -55,9 +52,17 @@ public final class NotificationStore: ObservableObject {
 
     // MARK: - Read State
 
-    /// Mark all notifications for a given area as read.
-    public func markAsRead(areaId: UUID) {
-        for index in notifications.indices where notifications[index].areaId == areaId {
+    /// Mark all notifications for a given session as read.
+    public func markAsRead(sessionId: UUID) {
+        for index in notifications.indices where notifications[index].sessionId == sessionId {
+            notifications[index].isRead = true
+        }
+    }
+
+    /// Mark all notifications for the given set of sessions as read.
+    public func markAsRead(sessionIds: [UUID]) {
+        let idSet = Set(sessionIds)
+        for index in notifications.indices where idSet.contains(notifications[index].sessionId) {
             notifications[index].isRead = true
         }
     }
@@ -80,11 +85,13 @@ public final class NotificationStore: ObservableObject {
         notifications.count(where: { !$0.isRead })
     }
 
-    public func unreadCount(forWorkspace index: Int) -> Int {
-        notifications.count(where: { !$0.isRead && $0.workspaceIndex == index })
+    /// Unread count for a set of session IDs (used to compute workspace-level badge).
+    public func unreadCount(forSessionIds sessionIds: [UUID]) -> Int {
+        let idSet = Set(sessionIds)
+        return notifications.count(where: { !$0.isRead && idSet.contains($0.sessionId) })
     }
 
-    public func unreadCount(forArea areaId: UUID) -> Int {
-        notifications.count(where: { !$0.isRead && $0.areaId == areaId })
+    public func unreadCount(forSession sessionId: UUID) -> Int {
+        notifications.count(where: { !$0.isRead && $0.sessionId == sessionId })
     }
 }

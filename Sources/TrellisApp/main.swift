@@ -44,17 +44,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Set up notification manager
         notificationManager = NotificationManager()
         notificationManager.requestAuthorization()
-        notificationManager.onNotificationClicked = { [weak self] workspaceIndex, areaId in
+        notificationManager.onNotificationClicked = { [weak self] sessionId in
             guard let self else { return }
-            self.store.focusArea(workspaceIndex: workspaceIndex, areaId: areaId)
-            self.notificationStore.markAsRead(areaId: areaId)
+            self.store.focusSession(id: sessionId)
             NSApp.activate(ignoringOtherApps: true)
             self.window?.makeKeyAndOrderFront(nil)
         }
 
         // OSC 9/777 desktop notification — direct callback (no async dispatch)
-        ghosttyApp.onDesktopNotification = { [weak self] title, body, shouldFireDesktop in
-            self?.handleDesktopNotification(title: title, body: body, shouldFireDesktop: shouldFireDesktop)
+        ghosttyApp.onDesktopNotification = { [weak self] title, body, shouldFireDesktop, sourceSession in
+            self?.handleDesktopNotification(title: title, body: body, shouldFireDesktop: shouldFireDesktop, sourceSession: sourceSession)
         }
 
         let contentView = ContentView(store: store, notificationStore: notificationStore)
@@ -95,25 +94,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func handleDesktopNotification(title: String, body: String, shouldFireDesktop: Bool) {
-        let workspaceIndex = store.activeWorkspaceIndex
-        let areaId = store.activeWorkspace?.activeAreaId ?? UUID()
+    private func handleDesktopNotification(
+        title: String,
+        body: String,
+        shouldFireDesktop: Bool,
+        sourceSession: TerminalSession?
+    ) {
+        // Use the source session's ID, falling back to the active terminal session.
+        let sessionId: UUID
+        if let session = sourceSession {
+            sessionId = session.id
+        } else if let activeSession = store.activeWorkspace?.activeArea?.activeTab?.content.terminalSession {
+            sessionId = activeSession.id
+        } else {
+            sessionId = UUID()
+        }
 
-        notificationStore.add(
-            title: title,
-            body: body,
-            workspaceIndex: workspaceIndex,
-            areaId: areaId
-        )
+        notificationStore.add(title: title, body: body, sessionId: sessionId)
 
         // Fire desktop notification when the source terminal is not the focused surface
         if shouldFireDesktop {
-            notificationManager.sendNotification(
-                title: title,
-                body: body,
-                workspaceIndex: workspaceIndex,
-                areaId: areaId
-            )
+            notificationManager.sendNotification(title: title, body: body, sessionId: sessionId)
         }
     }
 

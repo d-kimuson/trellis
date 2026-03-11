@@ -4,8 +4,8 @@ import UserNotifications
 /// Manages macOS desktop notifications via UNUserNotificationCenter.
 public final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Callback invoked when a notification is clicked.
-    /// Parameters: workspaceIndex, areaId
-    public var onNotificationClicked: ((Int, UUID) -> Void)?
+    /// Parameter: sessionId of the panel that generated the notification.
+    public var onNotificationClicked: ((UUID) -> Void)?
 
     override public init() {
         super.init()
@@ -30,19 +30,17 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
 
     // MARK: - Send Notification
 
-    /// Send a desktop notification with workspace/area context embedded in userInfo.
+    /// Send a desktop notification with the source session ID embedded in userInfo.
     public func sendNotification(
         title: String,
         body: String,
-        workspaceIndex: Int,
-        areaId: UUID
+        sessionId: UUID
     ) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.userInfo = [
-            "workspaceIndex": workspaceIndex,
-            "areaId": areaId.uuidString
+            "sessionId": sessionId.uuidString
         ]
 
         let request = UNNotificationRequest(
@@ -68,11 +66,10 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     ) {
         let userInfo = response.notification.request.content.userInfo
 
-        if let workspaceIndex = userInfo["workspaceIndex"] as? Int,
-           let areaIdString = userInfo["areaId"] as? String,
-           let areaId = UUID(uuidString: areaIdString) {
+        if let sessionIdString = userInfo["sessionId"] as? String,
+           let sessionId = UUID(uuidString: sessionIdString) {
             DispatchQueue.main.async { [weak self] in
-                self?.onNotificationClicked?(workspaceIndex, areaId)
+                self?.onNotificationClicked?(sessionId)
             }
         }
 

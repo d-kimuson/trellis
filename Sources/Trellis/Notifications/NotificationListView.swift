@@ -60,11 +60,7 @@ struct NotificationListView: View {
             LazyVStack(spacing: 0) {
                 ForEach(notificationStore.notifications) { notification in
                     NotificationRow(notification: notification) {
-                        store.focusArea(
-                            workspaceIndex: notification.workspaceIndex,
-                            areaId: notification.areaId
-                        )
-                        notificationStore.markAsRead(areaId: notification.areaId)
+                        store.focusSession(id: notification.sessionId)
                         isPresented = false
                     }
                     Divider()

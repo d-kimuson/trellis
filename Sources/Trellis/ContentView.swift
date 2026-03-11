@@ -56,7 +56,8 @@ public struct ContentView: View {
                 AreaLayoutView(
                     node: workspace.layout,
                     ghosttyApp: store.ghosttyApp,
-                    store: store
+                    store: store,
+                    notificationStore: notificationStore
                 )
             } else {
                 Text("No workspace")
