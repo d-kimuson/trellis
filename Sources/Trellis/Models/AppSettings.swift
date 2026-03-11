@@ -21,6 +21,12 @@ public final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(panelFontSize, forKey: Keys.panelFontSize) }
     }
 
+    // MARK: - IPC Server
+
+    @Published public var ipcServerEnabled: Bool {
+        didSet { UserDefaults.standard.set(ipcServerEnabled, forKey: Keys.ipcServerEnabled) }
+    }
+
     // MARK: - Init
 
     private init() {
@@ -29,6 +35,7 @@ public final class AppSettings: ObservableObject {
         fontFamily = UserDefaults.standard.string(forKey: Keys.fontFamily) ?? ""
         let storedPanelSize = UserDefaults.standard.double(forKey: Keys.panelFontSize)
         panelFontSize = storedPanelSize > 0 ? storedPanelSize : 13
+        ipcServerEnabled = UserDefaults.standard.bool(forKey: Keys.ipcServerEnabled)
     }
 
     // MARK: - UserDefaults Keys
@@ -37,5 +44,6 @@ public final class AppSettings: ObservableObject {
         static let fontFamily = "trellis.fontFamily"
         static let fontSize = "trellis.fontSize"
         static let panelFontSize = "trellis.panelFontSize"
+        static let ipcServerEnabled = "trellis.ipcServerEnabled"
     }
 }

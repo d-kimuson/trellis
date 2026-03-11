@@ -9,7 +9,6 @@ DEBUG_BUNDLE = $(BUILD_DIR)/Trellis-debug.app
 DEBUG_LOG_DIR = $(HOME)/Library/Logs/Trellis
 SWIFT_FILES = $(shell find Sources/Trellis Sources/TrellisApp -name '*.swift')
 
-
 .PHONY: all setup build run debug debug-log clean distclean test lint check
 
 all: build

@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var store: WorkspaceStore!
     var notificationManager: NotificationManager!
     var notificationStore: NotificationStore!
+    var ipcServer: IPCServer!
     private var cancellables = Set<AnyCancellable>()
     private var sessionTitleCancellable: AnyCancellable?
 
@@ -71,6 +72,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
 
         NSApp.activate(ignoringOtherApps: true)
+
+        // IPC server for external CLI control (trellis-cli)
+        let settings = AppSettings.shared
+        ipcServer = IPCServer(store: store, ghosttyApp: ghosttyApp)
+        if settings.ipcServerEnabled {
+            do {
+                try ipcServer.start()
+                debugLog("[STARTUP] IPC server started at \(IPCServer.socketPath)")
+            } catch {
+                debugLog("[STARTUP] IPC server failed to start: \(error)")
+            }
+        }
+        settings.$ipcServerEnabled
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if enabled {
+                    do {
+                        try self.ipcServer.start()
+                        debugLog("[IPC] Server started at \(IPCServer.socketPath)")
+                    } catch {
+                        debugLog("[IPC] Server failed to start: \(error)")
+                    }
+                } else {
+                    self.ipcServer.stop()
+                    debugLog("[IPC] Server stopped")
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func subscribeToRepresentativeSession() {
@@ -123,6 +154,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        ipcServer?.stop()
         ghosttyApp?.shutdown()
     }
 
@@ -215,6 +247,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }.resume()
     }
+}
+
+// CLI mode: when invoked as `trellis list-panels` or `trellis send-keys ...`,
+// connect to the IPC socket and exit without starting the GUI.
+let cliArgs = Array(CommandLine.arguments.dropFirst())
+// Any flag-like arg (--version, --help, etc.) or known subcommand → CLI mode
+if let subcommand = cliArgs.first,
+   subcommand.hasPrefix("-") || ["list-panels", "new-panel", "send-keys"].contains(subcommand) {
+    runCLIMode(args: cliArgs)
 }
 
 // Entry point

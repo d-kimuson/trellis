@@ -10,6 +10,8 @@ public struct SettingsView: View {
     @State private var snapshotFontSize: Double = 13
     @State private var snapshotFontFamily: String = ""
     @State private var snapshotPanelFontSize: Double = 13
+    @State private var snapshotIPCEnabled: Bool = false
+
 
     public init(settings: AppSettings, onApply: @escaping () -> Void) {
         self._settings = ObservedObject(wrappedValue: settings)
@@ -42,6 +44,7 @@ public struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     ghosttySection
                     panelsSection
+                    cliSection
                 }
                 .padding(20)
             }
@@ -54,6 +57,7 @@ public struct SettingsView: View {
                     settings.fontSize = snapshotFontSize
                     settings.fontFamily = snapshotFontFamily
                     settings.panelFontSize = snapshotPanelFontSize
+                    settings.ipcServerEnabled = snapshotIPCEnabled
                     onApply()
                 }
                 .foregroundColor(.secondary)
@@ -75,6 +79,7 @@ public struct SettingsView: View {
             snapshotFontSize = settings.fontSize
             snapshotFontFamily = settings.fontFamily
             snapshotPanelFontSize = settings.panelFontSize
+            snapshotIPCEnabled = settings.ipcServerEnabled
         }
         .onChange(of: settings.fontSize) { _ in onApply() }
         .onChange(of: settings.fontFamily) { _ in onApply() }
@@ -128,6 +133,36 @@ public struct SettingsView: View {
                     Text("Leave blank to use ghostty's default.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+
+    // MARK: - CLI Section
+
+    private var cliSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "CLI Control", icon: "terminal.fill")
+
+            SettingsRow(label: "Enable") {
+                Toggle("Allow external CLI control (trellis)", isOn: $settings.ipcServerEnabled)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+            }
+
+            if settings.ipcServerEnabled {
+                SettingsRow(label: "Socket") {
+                    Text(IPCServer.socketPath)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                SettingsRow(label: "Usage") {
+                    Text("trellis list-panels\ntrellis send-keys s:<id> $'cmd\\n'")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
                 }
             }
         }

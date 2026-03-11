@@ -361,6 +361,16 @@ public final class GhosttyAppWrapper {
         pasteboard.setString(String(cString: string), forType: .string)
     }
 
+    /// Send raw text to the given session's terminal surface.
+    /// Returns false if the session's surface is not yet ready.
+    public func sendText(_ text: String, to session: TerminalSession) -> Bool {
+        guard let surface = session.surface else { return false }
+        text.withCString { cstr in
+            ghostty_surface_text(surface, cstr, UInt(text.utf8.count))
+        }
+        return true
+    }
+
     deinit {
         shutdown()
     }

@@ -18,6 +18,7 @@ Built for workflows where you're running multiple Claude Code instances, watchin
 - **Native notifications** — OSC 9/777 desktop notifications with per-tab badge counts and click-to-focus.
 - **Built-in browser** — Side-by-side documentation browsing without leaving the terminal.
 - **File tree** — Directory browser with preview pane and .gitignore-aware filtering.
+- **CLI control** — Control panels from any terminal via the `trellis` command (tmux-style).
 
 ## Tech
 
@@ -36,6 +37,46 @@ To run it, remove the quarantine attribute after copying to Applications:
 ```bash
 xattr -d com.apple.quarantine /Applications/Trellis.app
 ```
+
+## CLI Control
+
+Trellis ships with a built-in CLI for controlling panels from any terminal — useful for AI agent workflows where one agent needs to spawn or communicate with another.
+
+**Setup**: Enable in **Settings → CLI Control → Allow external CLI control**.
+
+The `trellis` binary (the app itself) doubles as the CLI client when invoked with a subcommand.
+
+```bash
+# List all terminal panels
+trellis list-panels
+
+# Send keys to the active panel (or create a new one if no --panel given)
+trellis send-keys 'codex .' Enter          # new panel, prints its id to stdout
+trellis send-keys --panel s:<id> 'hi' Enter  # existing panel
+```
+
+**Agent-to-agent example** — Claude Code spawns Codex in a new panel, Codex reports back when done:
+
+```bash
+# Claude Code side: start Codex in a new panel, capture the panel id
+CODEX_PANEL=$(trellis send-keys 'codex .' Enter)
+
+# Codex side: when finished, notify Claude Code's panel
+trellis send-keys --panel s:<cc-panel-id> 'LGTM!' Enter
+```
+
+**Reference**:
+
+| Command | Description |
+|---------|-------------|
+| `trellis list-panels` | JSON list of all terminal panels with id, title, pwd, workspace |
+| `trellis send-keys [--panel\|-p <id>] <keys> [Enter]` | Send text to a panel. Omit `--panel` to create a new panel. `Enter` appends a newline. |
+
+**Notes**:
+- Panel ids are in `s:<UUID>` format; use `list-panels` to discover them.
+- `--panel` / `-p` are equivalent.
+- `Enter` is a special token that appends `\n`; other keys like `Tab` or Ctrl sequences (`\x03` = Ctrl+C) can be embedded directly in the string.
+- When `--panel` is omitted, the new panel id is printed to stdout, making it pipeable.
 
 ## Development
 
