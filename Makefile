@@ -64,6 +64,7 @@ app: $(BUILD_DIR)/Trellis
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
 	cp $(BUILD_DIR)/Trellis $(APP_BUNDLE)/Contents/MacOS/
 	cp Resources/Info.plist $(APP_BUNDLE)/Contents/
+	cp Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/
 	@echo "App bundle created: $(APP_BUNDLE)"
 
 run: app
