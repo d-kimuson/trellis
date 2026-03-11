@@ -65,8 +65,12 @@ enum SnapshotStore {
     /// be replayed (e.g. direnv lifecycle messages, zsh partial-line markers).
     private static func isTerminalTeardownLine(_ trimmed: String) -> Bool {
         // direnv prints "direnv: unloading" when the shell exits a direnv-managed dir.
-        // May be prefixed by zsh PROMPT_SP '%' with no space (e.g. "%direnv: unloading")
-        if trimmed.contains("direnv: unloading") { return true }
+        // May be prefixed by zsh PROMPT_SP '%' with no space (e.g. "%direnv: unloading").
+        // Use hasPrefix (not contains) to avoid removing meaningful lines that merely
+        // contain the substring (e.g. "Process log: direnv: unloading some module").
+        if trimmed.hasPrefix("direnv: unloading") || trimmed.hasPrefix("%direnv: unloading") {
+            return true
+        }
         // zsh PROMPT_SP: when previous output lacks a trailing newline, zsh prints '%'
         // (or a Unicode PROMPT_SP character) padded to the terminal width.
         // Match a line whose non-whitespace content is only '%' characters.
