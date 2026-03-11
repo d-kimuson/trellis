@@ -3,8 +3,10 @@ import SwiftUI
 public struct ContentView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var notificationStore: NotificationStore
+    @ObservedObject private var settings = AppSettings.shared
     @State private var showSidebar = true
     @State private var showNotifications = false
+    @State private var showSettings = false
     @State private var sidebarWidth: CGFloat = 200
 
     public init(store: WorkspaceStore, notificationStore: NotificationStore) {
@@ -32,6 +34,10 @@ public struct ContentView: View {
                 notificationBell
 
                 Spacer()
+
+                // Settings gear
+                settingsButton
+                Spacer().frame(height: 8)
             }
             .frame(width: 32)
             .background(Color(nsColor: .windowBackgroundColor))
@@ -62,6 +68,27 @@ public struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
             withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
+            showSettings = true
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(settings: settings) {
+                store.ghosttyApp.applySettings(settings)
+            }
+        }
+    }
+
+    // MARK: - Settings Button
+
+    private var settingsButton: some View {
+        Image(systemName: "gearshape")
+            .font(.system(size: 14))
+            .foregroundColor(.secondary)
+            .frame(width: 24, height: 24)
+            .contentShape(Rectangle())
+            .onTapGesture { showSettings = true }
+            .help("Settings")
+            .padding(.horizontal, 4)
     }
 
     // MARK: - Notification Bell

@@ -26,6 +26,8 @@ extension Notification.Name {
     public static let ghosttyTitleChanged = Notification.Name("ghosttyTitleChanged")
     /// Toggle sidebar visibility.
     public static let toggleSidebar = Notification.Name("toggleSidebar")
+    /// Open the settings panel.
+    public static let openSettings = Notification.Name("openSettings")
 }
 
 /// Wrapper around the libghostty app instance.
@@ -91,6 +93,10 @@ public final class GhosttyAppWrapper {
         runtimeConfig.close_surface_cb = { _, _ in
             // Handled via GHOSTTY_ACTION_CLOSE_TAB / SHOW_CHILD_EXITED in action_cb
         }
+
+        // Write current Trellis settings to the ghostty config file before creating the app,
+        // so that the initial config load picks them up.
+        GhosttyConfigManager.apply(AppSettings.shared)
 
         app = ghostty_app_new(&runtimeConfig, config)
         ghostty_config_free(config)
@@ -180,6 +186,23 @@ public final class GhosttyAppWrapper {
         _ = performFocusedSurfaceBindingAction(
             GhosttyFontSizeChange.reset.bindingAction
         )
+    }
+
+    /// Write settings to the ghostty config file and reload the ghostty app config.
+    /// This affects all existing and future surfaces (font family, size, etc.).
+    public func applySettings(_ settings: AppSettings) {
+        GhosttyConfigManager.apply(settings)
+        reloadConfig()
+    }
+
+    private func reloadConfig() {
+        guard let app else { return }
+        let config = ghostty_config_new()!
+        ghostty_config_load_default_files(config)
+        ghostty_config_load_recursive_files(config)
+        ghostty_config_finalize(config)
+        ghostty_app_update_config(app, config)
+        ghostty_config_free(config)
     }
 
     @discardableResult

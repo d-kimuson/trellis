@@ -123,6 +123,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ghosttyApp?.resetFontSize()
     }
 
+    @objc func openSettings(_ sender: Any?) {
+        NotificationCenter.default.post(name: .openSettings, object: nil)
+    }
+
     @objc func checkForUpdates(_ sender: Any?) {
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
 
@@ -185,6 +189,16 @@ appMenu.addItem(
     action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
     keyEquivalent: ""
 )
+appMenu.addItem(NSMenuItem.separator())
+
+let settingsItem = NSMenuItem(
+    title: "Settings...",
+    action: #selector(AppDelegate.openSettings(_:)),
+    keyEquivalent: ","
+)
+settingsItem.keyEquivalentModifierMask = [.command]
+appMenu.addItem(settingsItem)
+
 appMenu.addItem(NSMenuItem.separator())
 appMenu.addItem(
     withTitle: "Check for Updates...",

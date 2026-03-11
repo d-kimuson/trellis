@@ -103,7 +103,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
         if event.modifierFlags.contains(.command) {
             let char = event.charactersIgnoringModifiers?.lowercased() ?? ""
             // Let these pass to the app menu bar
-            let menuKeys: Set<String> = ["q", "w", "d", "b", "=", "-", "0"]
+            let menuKeys: Set<String> = ["q", "w", "d", "b", "=", "-", "0", ","]
             if menuKeys.contains(char) {
                 return super.performKeyEquivalent(with: event)
             }
