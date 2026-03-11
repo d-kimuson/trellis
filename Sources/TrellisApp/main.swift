@@ -53,8 +53,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // OSC 9/777 desktop notification — direct callback (no async dispatch)
-        ghosttyApp.onDesktopNotification = { [weak self] title, body in
-            self?.handleDesktopNotification(title: title, body: body)
+        ghosttyApp.onDesktopNotification = { [weak self] title, body, shouldFireDesktop in
+            self?.handleDesktopNotification(title: title, body: body, shouldFireDesktop: shouldFireDesktop)
         }
 
         let contentView = ContentView(store: store, notificationStore: notificationStore)
@@ -95,7 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func handleDesktopNotification(title: String, body: String) {
+    private func handleDesktopNotification(title: String, body: String, shouldFireDesktop: Bool) {
         let workspaceIndex = store.activeWorkspaceIndex
         let areaId = store.activeWorkspace?.activeAreaId ?? UUID()
 
@@ -106,8 +106,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             areaId: areaId
         )
 
-        // Desktop notification only when app is inactive
-        if !NSApp.isActive {
+        // Fire desktop notification when the source terminal is not the focused surface
+        if shouldFireDesktop {
             notificationManager.sendNotification(
                 title: title,
                 body: body,

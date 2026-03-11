@@ -85,7 +85,6 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Don't show notifications when app is foreground (they only fire when inactive)
-        completionHandler([])
+        completionHandler([.banner, .sound])
     }
 }

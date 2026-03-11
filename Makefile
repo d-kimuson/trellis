@@ -51,6 +51,7 @@ SWIFTC_FLAGS = \
 	-framework IOKit \
 	-framework IOSurface \
 	-framework UniformTypeIdentifiers \
+	-framework UserNotifications \
 	-framework WebKit
 
 $(BUILD_DIR)/Trellis: $(SWIFT_FILES) $(GHOSTTY_STATIC_LIB)
@@ -67,6 +68,7 @@ app: $(BUILD_DIR)/Trellis
 	cp $(BUILD_DIR)/Trellis $(APP_BUNDLE)/Contents/MacOS/
 	cp Resources/Info.plist $(APP_BUNDLE)/Contents/
 	cp Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/
+	codesign --force --deep --sign - $(APP_BUNDLE)
 	@echo "App bundle created: $(APP_BUNDLE)"
 
 run: app
@@ -84,6 +86,7 @@ debug-bundle: $(BUILD_DIR)/Trellis-debug
 	cp $(BUILD_DIR)/Trellis-debug $(DEBUG_BUNDLE)/Contents/MacOS/Trellis
 	cp Resources/Info.plist $(DEBUG_BUNDLE)/Contents/
 	cp Resources/AppIcon.icns $(DEBUG_BUNDLE)/Contents/Resources/
+	codesign --force --deep --sign - $(DEBUG_BUNDLE)
 
 debug: debug-bundle
 	@mkdir -p $(DEBUG_LOG_DIR)
