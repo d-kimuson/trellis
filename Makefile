@@ -67,7 +67,7 @@ app: $(BUILD_DIR)/Trellis
 	cp $(BUILD_DIR)/Trellis $(APP_BUNDLE)/Contents/MacOS/
 	cp Resources/Info.plist $(APP_BUNDLE)/Contents/
 	cp Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/
-	cp Resources/shell-integration/* $(APP_BUNDLE)/Contents/Resources/shell-integration/
+	cp -r Resources/shell-integration/. $(APP_BUNDLE)/Contents/Resources/shell-integration/
 	codesign --force --deep --sign - $(APP_BUNDLE)
 	@echo "App bundle created: $(APP_BUNDLE)"
 
@@ -86,7 +86,7 @@ debug-bundle: $(BUILD_DIR)/Trellis-debug
 	cp $(BUILD_DIR)/Trellis-debug $(DEBUG_BUNDLE)/Contents/MacOS/Trellis
 	cp Resources/Info.plist $(DEBUG_BUNDLE)/Contents/
 	cp Resources/AppIcon.icns $(DEBUG_BUNDLE)/Contents/Resources/
-	cp Resources/shell-integration/* $(DEBUG_BUNDLE)/Contents/Resources/shell-integration/
+	cp -r Resources/shell-integration/. $(DEBUG_BUNDLE)/Contents/Resources/shell-integration/
 	codesign --force --deep --sign - $(DEBUG_BUNDLE)
 
 debug: debug-bundle

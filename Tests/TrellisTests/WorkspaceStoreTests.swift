@@ -6,7 +6,7 @@ final class WorkspaceStoreTests: XCTestCase {
 
     private func makeStore() -> WorkspaceStore {
         let ghosttyApp = GhosttyAppWrapper()
-        return WorkspaceStore(ghosttyApp: ghosttyApp)
+        return WorkspaceStore(ghosttyApp: ghosttyApp, loadSnapshots: false)
     }
 
     // MARK: - Initial State

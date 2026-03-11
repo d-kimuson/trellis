@@ -12,14 +12,14 @@ public final class WorkspaceStore: ObservableObject {
     /// Optional reference to the in-app notification store for marking read on focus.
     public weak var notificationStore: NotificationStore?
 
-    public init(ghosttyApp: GhosttyAppWrapper) {
+    public init(ghosttyApp: GhosttyAppWrapper, loadSnapshots: Bool = true) {
         self.ghosttyApp = ghosttyApp
 
         // Copy bundled shell-integration scripts to the stable app-support path
-        SnapshotStore.installShellIntegration()
+        if loadSnapshots { SnapshotStore.installShellIntegration() }
 
         // Restore pinned workspaces from the last snapshot
-        let snapshots = SnapshotStore.load()
+        let snapshots = loadSnapshots ? SnapshotStore.load() : []
         let pinned = snapshots.filter(\.isPinned).map { Self.makeRestoredWorkspace(from: $0) }
 
         // Default temp workspace
@@ -581,11 +581,9 @@ public final class WorkspaceStore: ObservableObject {
         let tabs: [Tab] = areaSnapshot.tabs.compactMap { tab in
             switch tab.type {
             case "terminal":
-                var envVars: [String: String] = [:]
-                if let scrollback = tab.scrollback, !scrollback.isEmpty,
-                   let path = SnapshotStore.writeScrollbackFile(scrollback, id: tab.tabId) {
-                    envVars["TRELLIS_RESTORE_SCROLLBACK_FILE"] = path
-                }
+                let envVars: [String: String] = tab.scrollback.map { scrollback in
+                    SnapshotStore.prepareRestoreEnv(scrollback: scrollback, sessionId: tab.tabId)
+                } ?? [:]
                 let session = TerminalSession(
                     title: "Terminal",
                     workingDirectory: tab.cwd,
