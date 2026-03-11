@@ -6,6 +6,11 @@ public struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    // Snapshot taken on appear for Discard support
+    @State private var snapshotFontSize: Double = 13
+    @State private var snapshotFontFamily: String = ""
+    @State private var snapshotPanelFontSize: Double = 13
+
     public init(settings: AppSettings, onApply: @escaping () -> Void) {
         self._settings = ObservedObject(wrappedValue: settings)
         self.onApply = onApply
@@ -36,6 +41,7 @@ public struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     ghosttySection
+                    panelsSection
                 }
                 .padding(20)
             }
@@ -44,14 +50,17 @@ public struct SettingsView: View {
 
             // Footer buttons
             HStack {
-                Spacer()
-                Button("Cancel") {
-                    dismiss()
-                }
-                .keyboardShortcut(.escape)
-
-                Button("Apply") {
+                Button("Revert") {
+                    settings.fontSize = snapshotFontSize
+                    settings.fontFamily = snapshotFontFamily
+                    settings.panelFontSize = snapshotPanelFontSize
                     onApply()
+                }
+                .foregroundColor(.secondary)
+
+                Spacer()
+
+                Button("Done") {
                     dismiss()
                 }
                 .keyboardShortcut(.return)
@@ -62,6 +71,13 @@ public struct SettingsView: View {
         }
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            snapshotFontSize = settings.fontSize
+            snapshotFontFamily = settings.fontFamily
+            snapshotPanelFontSize = settings.panelFontSize
+        }
+        .onChange(of: settings.fontSize) { _ in onApply() }
+        .onChange(of: settings.fontFamily) { _ in onApply() }
     }
 
     // MARK: - Ghostty Section
@@ -70,13 +86,13 @@ public struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "Ghostty", icon: "terminal")
 
-            // Warning banner
+            // Info banner
             HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle")
+                Image(systemName: "info.circle")
                     .font(.system(size: 12))
-                    .foregroundColor(.orange)
+                    .foregroundColor(.secondary)
                     .padding(.top, 1)
-                Text("These settings are written to **~/.config/ghostty/config**. Changes take effect after clicking Apply.")
+                Text("These settings are written to **~/.config/ghostty/config** and applied in real-time.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -84,7 +100,7 @@ public struct SettingsView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.orange.opacity(0.08))
+                    .fill(Color.secondary.opacity(0.06))
             )
 
             SettingsRow(label: "Font Size") {
@@ -114,7 +130,31 @@ public struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
+        }
+    }
 
+    // MARK: - Panels Section
+
+    private var panelsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Panels", icon: "sidebar.left")
+
+            SettingsRow(label: "Font Size") {
+                HStack(spacing: 8) {
+                    Stepper(
+                        value: $settings.panelFontSize,
+                        in: 8...32,
+                        step: 1
+                    ) {
+                        EmptyView()
+                    }
+                    .labelsHidden()
+
+                    Text("\(Int(settings.panelFontSize.rounded())) pt")
+                        .font(.system(size: 13, design: .monospaced))
+                        .frame(width: 44, alignment: .leading)
+                }
+            }
         }
     }
 }

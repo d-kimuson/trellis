@@ -33,11 +33,10 @@ public struct ContentView: View {
                 // Notification bell
                 notificationBell
 
-                Spacer()
-
                 // Settings gear
                 settingsButton
-                Spacer().frame(height: 8)
+
+                Spacer()
             }
             .frame(width: 32)
             .background(Color(nsColor: .windowBackgroundColor))

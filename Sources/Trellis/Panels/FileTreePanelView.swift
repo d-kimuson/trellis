@@ -3,6 +3,7 @@ import SwiftUI
 /// File tree panel showing directory contents with expand/collapse.
 struct FileTreePanelView: View {
     @ObservedObject var state: FileTreeState
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VSplitView {
@@ -51,12 +52,12 @@ struct FileTreePanelView: View {
 
             if let rootPath = state.rootPath {
                 Text(URL(fileURLWithPath: rootPath).lastPathComponent)
-                    .font(.caption)
+                    .font(.system(size: settings.panelFontSize))
                     .lineLimit(1)
                     .truncationMode(.middle)
             } else {
                 Text("No directory")
-                    .font(.caption)
+                    .font(.system(size: settings.panelFontSize))
                     .foregroundColor(.secondary)
             }
 
@@ -113,7 +114,7 @@ struct FileTreePanelView: View {
         VStack(spacing: 0) {
             HStack {
                 Text(URL(fileURLWithPath: path).lastPathComponent)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(size: settings.panelFontSize, design: .monospaced))
                     .lineLimit(1)
                 Spacer()
                 Button(
@@ -135,7 +136,7 @@ struct FileTreePanelView: View {
             GeometryReader { geo in
                 ScrollView([.horizontal, .vertical]) {
                     Text(content)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(size: settings.panelFontSize, design: .monospaced))
                         .textSelection(.enabled)
                         .padding(8)
                         .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
@@ -150,6 +151,7 @@ private struct FileNodeRow: View {
     let node: FileNode
     @ObservedObject var state: FileTreeState
     let depth: Int
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -177,7 +179,7 @@ private struct FileNodeRow: View {
 
                     // Name
                     Text(node.name)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(size: settings.panelFontSize, design: .monospaced))
                         .lineLimit(1)
 
                     Spacer()

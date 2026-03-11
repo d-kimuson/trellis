@@ -11,8 +11,14 @@ public final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(fontFamily, forKey: Keys.fontFamily) }
     }
 
-@Published public var fontSize: Double {
+    @Published public var fontSize: Double {
         didSet { UserDefaults.standard.set(fontSize, forKey: Keys.fontSize) }
+    }
+
+    // MARK: - Panel Font Size (applies to non-terminal panels like file tree)
+
+    @Published public var panelFontSize: Double {
+        didSet { UserDefaults.standard.set(panelFontSize, forKey: Keys.panelFontSize) }
     }
 
     // MARK: - Init
@@ -21,6 +27,8 @@ public final class AppSettings: ObservableObject {
         let storedSize = UserDefaults.standard.double(forKey: Keys.fontSize)
         fontSize = storedSize > 0 ? storedSize : 13
         fontFamily = UserDefaults.standard.string(forKey: Keys.fontFamily) ?? ""
+        let storedPanelSize = UserDefaults.standard.double(forKey: Keys.panelFontSize)
+        panelFontSize = storedPanelSize > 0 ? storedPanelSize : 13
     }
 
     // MARK: - UserDefaults Keys
@@ -28,5 +36,6 @@ public final class AppSettings: ObservableObject {
     private enum Keys {
         static let fontFamily = "trellis.fontFamily"
         static let fontSize = "trellis.fontSize"
+        static let panelFontSize = "trellis.panelFontSize"
     }
 }
