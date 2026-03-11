@@ -257,35 +257,49 @@ struct AreaPanelView: View {
         let dragData = TabDragData(tabId: tab.id, sourceAreaId: area.id)
         // Use plain view + onTapGesture instead of Button to allow .draggable() to work.
         // Button consumes the drag gesture, preventing tab dragging.
-        return HStack(spacing: 4) {
+        // Exception: the close button uses Button so it has reliable hit testing
+        // regardless of which area is focused.
+        return HStack(spacing: 0) {
             if dropInsertIndex == index {
                 Rectangle().fill(Color.accentColor).frame(width: 2, height: 16)
             }
-            Image(systemName: "xmark")
-                .font(.system(size: 8))
-                .foregroundColor(.secondary)
-                .onTapGesture { store.closeTab(in: area.id, at: index) }
-            Image(systemName: tab.content.iconName)
-                .font(.system(size: 10)).foregroundColor(.secondary)
-            TabTitleLabel(content: tab.content)
-        }
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
-        .cornerRadius(4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            store.selectTab(in: area.id, at: index)
-            // Restore keyboard focus to the terminal surface when switching tabs.
-            // Without this, the previously-focused terminal stays first responder and
-            // receives Cmd+V / other key events even after tab switching.
-            if case .terminal(let session) = tab.content, let nsView = session.nsView {
-                NSApp.keyWindow?.makeFirstResponder(nsView)
+            // Close button: use Button for reliable click handling.
+            // .onTapGesture on a tiny icon inside a .draggable() parent can fail to fire
+            // on the first click in an unfocused area.
+            Button(action: { store.closeTab(in: area.id, at: index) }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8))
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+
+            // Tab label area: draggable and selectable.
+            HStack(spacing: 4) {
+                Image(systemName: tab.content.iconName)
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                TabTitleLabel(content: tab.content)
+            }
+            .padding(.horizontal, 6).padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                store.selectTab(in: area.id, at: index)
+                // Restore keyboard focus to the terminal surface when switching tabs.
+                // Without this, the previously-focused terminal stays first responder and
+                // receives Cmd+V / other key events even after tab switching.
+                if case .terminal(let session) = tab.content, let nsView = session.nsView {
+                    NSApp.keyWindow?.makeFirstResponder(nsView)
+                }
+            }
+            .draggable(dragData)
+            .onDrop(of: [.tabDragData], isTargeted: .none) { _ in
+                false
             }
         }
-        .draggable(dragData)
-        .onDrop(of: [.tabDragData], isTargeted: .none) { _ in
-            false
-        }
+        .padding(.leading, 4)
+        .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
+        .cornerRadius(4)
     }
 }
 
