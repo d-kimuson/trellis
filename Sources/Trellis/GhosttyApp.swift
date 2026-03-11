@@ -281,13 +281,19 @@ public final class GhosttyAppWrapper {
         case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
             debugLog("[ACTION] SHOW_CHILD_EXITED")
             notifySessionClose(target: target)
-        case GHOSTTY_ACTION_RENDER:
+        case GHOSTTY_ACTION_RENDER,
+             GHOSTTY_ACTION_CELL_SIZE,
+             GHOSTTY_ACTION_MOUSE_SHAPE,      // cursor shape on mouse move (noisy)
+             GHOSTTY_ACTION_MOUSE_VISIBILITY,
+             GHOSTTY_ACTION_MOUSE_OVER_LINK,
+             GHOSTTY_ACTION_SIZE_LIMIT,       // startup
+             GHOSTTY_ACTION_QUIT_TIMER,       // startup/shutdown
+             GHOSTTY_ACTION_KEY_SEQUENCE:     // key sequence notification
             break
-        case GHOSTTY_ACTION_CELL_SIZE:
-            break
+        case GHOSTTY_ACTION_PROGRESS_REPORT: // OSC progress (e.g. Claude Code spinner)
+            debugLog("[ACTION] PROGRESS_REPORT")
         default:
             debugLog("[ACTION] unhandled tag=\(action.tag)")
-            break
         }
         return true
     }
