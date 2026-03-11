@@ -4,7 +4,7 @@ set -euo pipefail
 # Usage: ./scripts/release.sh [version]
 # Example: ./scripts/release.sh 0.1.0
 #
-# Creates a GitHub release with the Trellis.app zip attached.
+# Creates a GitHub release with Trellis.app zip and dmg attached.
 # If no version is provided, reads from Resources/Info.plist.
 
 VERSION="${1:-}"
@@ -15,6 +15,7 @@ fi
 
 TAG="v${VERSION}"
 ZIP_NAME="Trellis-${VERSION}-macos-arm64.zip"
+DMG_NAME="Trellis-${VERSION}-macos-arm64.dmg"
 BUILD_DIR=".build"
 APP_BUNDLE="${BUILD_DIR}/Trellis.app"
 
@@ -47,6 +48,21 @@ fi
 echo "==> Creating ${ZIP_NAME}..."
 ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "${BUILD_DIR}/${ZIP_NAME}"
 
+# Create dmg
+# Staging dir contains the .app + a symlink to /Applications for drag-install UX
+echo "==> Creating ${DMG_NAME}..."
+DMG_STAGING="${BUILD_DIR}/dmg-staging"
+rm -rf "$DMG_STAGING"
+mkdir -p "$DMG_STAGING"
+cp -R "$APP_BUNDLE" "$DMG_STAGING/"
+ln -s /Applications "$DMG_STAGING/Applications"
+hdiutil create \
+  -volname "Trellis" \
+  -srcfolder "$DMG_STAGING" \
+  -ov -format UDZO \
+  "${BUILD_DIR}/${DMG_NAME}"
+rm -rf "$DMG_STAGING"
+
 # Create git tag
 echo "==> Tagging ${TAG}..."
 git tag "${TAG}"
@@ -55,15 +71,22 @@ git push origin "${TAG}"
 # Create GitHub release
 echo "==> Creating GitHub release..."
 gh release create "${TAG}" \
+  "${BUILD_DIR}/${DMG_NAME}" \
   "${BUILD_DIR}/${ZIP_NAME}" \
   --title "Trellis ${TAG}" \
   --notes "$(cat <<EOF
 ## Trellis ${VERSION}
 
-> **Note**: This build is unsigned. After downloading, run:
+> **Note**: This build is unsigned. macOS may block the app on first launch.
+> Right-click → Open → Open to bypass the warning.
+> Or from Terminal:
 > \`\`\`
 > xattr -d com.apple.quarantine Trellis.app
 > \`\`\`
+
+### Install (dmg)
+1. Open \`Trellis-${VERSION}-macos-arm64.dmg\`
+2. Drag Trellis to Applications
 
 ### Requirements
 - macOS 14.0+
