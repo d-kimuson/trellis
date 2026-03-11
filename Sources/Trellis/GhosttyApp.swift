@@ -168,16 +168,22 @@ public final class GhosttyAppWrapper {
         }
     }
 
-    /// Read all visible + scrollback text from the given surface.
-    /// Returns nil if the surface has no text or the read fails.
+    /// Return the current terminal column count for the given surface.
+    func terminalColumns(surface: ghostty_surface_t) -> Int {
+        Int(ghostty_surface_size(surface).columns)
+    }
+
+    /// Read the current viewport text from the given surface.
+    /// Uses VIEWPORT (not SCREEN) so the captured text is formatted at the current terminal
+    /// width — replaying it via cat at the same width will not cause column misalignment.
     func readScrollback(surface: ghostty_surface_t) -> String? {
         let topLeft = ghostty_point_s(
-            tag: GHOSTTY_POINT_SCREEN,
+            tag: GHOSTTY_POINT_VIEWPORT,
             coord: GHOSTTY_POINT_COORD_TOP_LEFT,
             x: 0, y: 0
         )
         let bottomRight = ghostty_point_s(
-            tag: GHOSTTY_POINT_SCREEN,
+            tag: GHOSTTY_POINT_VIEWPORT,
             coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT,
             x: 0, y: 0
         )
@@ -187,10 +193,21 @@ public final class GhosttyAppWrapper {
             rectangle: false
         )
         var text = ghostty_text_s()
-        guard ghostty_surface_read_text(surface, selection, &text) else { return nil }
+        guard ghostty_surface_read_text(surface, selection, &text) else {
+            debugLog("[SCROLLBACK] read_text returned false — nothing captured")
+            return nil
+        }
         defer { ghostty_surface_free_text(surface, &text) }
-        guard let ptr = text.text, text.text_len > 0 else { return nil }
-        return String(decoding: Data(bytes: ptr, count: Int(text.text_len)), as: UTF8.self)
+        guard let ptr = text.text, text.text_len > 0 else {
+            debugLog("[SCROLLBACK] read_text returned empty text")
+            return nil
+        }
+        let result = String(decoding: Data(bytes: ptr, count: Int(text.text_len)), as: UTF8.self)
+        let lines = result.components(separatedBy: "\n")
+        debugLog("[SCROLLBACK] captured \(lines.count) lines, \(result.count) chars")
+        if let firstLine = lines.first { debugLog("[SCROLLBACK] first line: \(firstLine.prefix(80))") }
+        if let lastLine = lines.last { debugLog("[SCROLLBACK] last line: \(lastLine.prefix(80))") }
+        return result
     }
 
     // MARK: - Surface Session Registry

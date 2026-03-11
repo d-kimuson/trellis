@@ -180,9 +180,18 @@ private struct FileNodeRow: View {
                     // Name
                     Text(node.name)
                         .font(.system(size: settings.panelFontSize, design: .monospaced))
+                        .foregroundColor(nameColor)
                         .lineLimit(1)
 
                     Spacer()
+
+                    // Git status badge (files only, right-aligned)
+                    if let badge = gitBadge {
+                        Text(badge.label)
+                            .font(.system(size: settings.panelFontSize - 2, weight: .medium, design: .monospaced))
+                            .foregroundColor(badge.color)
+                            .padding(.trailing, 2)
+                    }
                 }
                 .padding(.vertical, 2)
                 .padding(.horizontal, 4)
@@ -210,6 +219,31 @@ private struct FileNodeRow: View {
 
     private var isExpanded: Bool {
         state.expandedDirectories.contains(node.id)
+    }
+
+    private var nameColor: Color {
+        if node.isDirectory {
+            return state.dirtyDirectoryPaths.contains(node.path)
+                ? Color(red: 0.9, green: 0.6, blue: 0.1)
+                : .primary
+        }
+        switch state.gitStatusMap[node.path] {
+        case .untracked, .added: return .green
+        case .modified:          return Color(red: 0.9, green: 0.6, blue: 0.1)
+        case .deleted:           return .red
+        case nil:                return .primary
+        }
+    }
+
+    private var gitBadge: (label: String, color: Color)? {
+        guard !node.isDirectory else { return nil }
+        switch state.gitStatusMap[node.path] {
+        case .untracked: return ("U", .green)
+        case .modified:  return ("M", Color(red: 0.9, green: 0.6, blue: 0.1))
+        case .added:     return ("A", .green)
+        case .deleted:   return ("D", .red)
+        case nil:        return nil
+        }
     }
 
     private func handleTap() {

@@ -11,10 +11,13 @@ public final class FileTreeState: ObservableObject, Identifiable {
     @Published public var expandedDirectories: Set<UUID>
     @Published public var selectedFilePath: String?
     @Published public var selectedFileContent: String?
+    @Published public var gitStatusMap: [String: GitFileStatus] = [:]
+    @Published public var dirtyDirectoryPaths: Set<String> = []
 
     private var ignoredPatterns: [String] = []
     private var eventStream: FSEventStreamRef?
     private var debounceWork: DispatchWorkItem?
+    private var gitStatusProcess: Process?
 
     public init(
         id: UUID = UUID(),
@@ -44,10 +47,12 @@ public final class FileTreeState: ObservableObject, Identifiable {
         for nodeId in expandedDirectories {
             loadChildrenIfNeeded(for: nodeId)
         }
+        reloadGitStatus()
     }
 
     /// Change root directory and reload.
     public func changeRoot(to path: String) {
+        cancelGitStatus()
         stopWatching()
         rootPath = path
         expandedDirectories = []
@@ -182,6 +187,49 @@ public final class FileTreeState: ObservableObject, Identifiable {
     }
 
     deinit {
+        cancelGitStatus()
         stopWatching()
+    }
+
+    // MARK: - Git Status
+
+    private func reloadGitStatus() {
+        guard let rootPath else {
+            gitStatusMap = [:]
+            dirtyDirectoryPaths = []
+            return
+        }
+        cancelGitStatus()
+        let root = rootPath
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", root, "status", "--porcelain"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { [weak self] proc in
+            let output: String? = proc.terminationStatus == 0
+                ? String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+                : nil
+            DispatchQueue.main.async {
+                guard let self, self.gitStatusProcess === proc else { return }
+                if let output {
+                    let map = GitFileStatus.parse(porcelainOutput: output, root: root)
+                    self.gitStatusMap = map
+                    self.dirtyDirectoryPaths = GitFileStatus.dirtyDirectories(from: map, root: root)
+                } else {
+                    self.gitStatusMap = [:]
+                    self.dirtyDirectoryPaths = []
+                }
+                self.gitStatusProcess = nil
+            }
+        }
+        try? process.run()
+        gitStatusProcess = process
+    }
+
+    private func cancelGitStatus() {
+        gitStatusProcess?.terminate()
+        gitStatusProcess = nil
     }
 }

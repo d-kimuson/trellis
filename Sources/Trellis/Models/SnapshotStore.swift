@@ -45,10 +45,34 @@ enum SnapshotStore {
     /// Truncate scrollback to the policy limits.
     static func truncate(_ scrollback: String) -> String {
         let lines = scrollback.components(separatedBy: "\n")
-        let limited = lines.suffix(maxScrollbackLines)
-        let joined = limited.joined(separator: "\n")
+        var lineArray = Array(lines.suffix(maxScrollbackLines))
+        // Trim trailing blank lines and terminal teardown artifacts (direnv messages,
+        // zsh PROMPT_SP markers) to prevent garbage appearing at the top of the replayed buffer.
+        while let last = lineArray.last {
+            let trimmed = last.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || isTerminalTeardownLine(trimmed) {
+                lineArray.removeLast()
+            } else {
+                break
+            }
+        }
+        let joined = lineArray.joined(separator: "\n")
         guard joined.count > maxScrollbackChars else { return joined }
         return String(joined.suffix(maxScrollbackChars))
+    }
+
+    /// Returns true for lines that are artifacts of shell/tool teardown and should not
+    /// be replayed (e.g. direnv lifecycle messages, zsh partial-line markers).
+    private static func isTerminalTeardownLine(_ trimmed: String) -> Bool {
+        // direnv prints "direnv: unloading" when the shell exits a direnv-managed dir.
+        // May be prefixed by zsh PROMPT_SP '%' with no space (e.g. "%direnv: unloading")
+        if trimmed.contains("direnv: unloading") { return true }
+        // zsh PROMPT_SP: when previous output lacks a trailing newline, zsh prints '%'
+        // (or a Unicode PROMPT_SP character) padded to the terminal width.
+        // Match a line whose non-whitespace content is only '%' characters.
+        let nonSpace = trimmed.filter { !$0.isWhitespace }
+        if !nonSpace.isEmpty && nonSpace.allSatisfy({ $0 == "%" }) { return true }
+        return false
     }
 
     /// Write scrollback content to a temp file; returns the file path on success.
@@ -70,20 +94,31 @@ enum SnapshotStore {
     ///
     /// For other shells: sets TRELLIS_RESTORE_SCROLLBACK_FILE only (requires the user
     /// to source trellis-bash-integration.bash from ~/.bashrc).
-    static func prepareRestoreEnv(scrollback: String, sessionId: UUID) -> [String: String] {
+    static func prepareRestoreEnv(
+        scrollback: String,
+        sessionId: UUID,
+        terminalCols: Int? = nil
+    ) -> [String: String] {
         guard !scrollback.isEmpty else { return [:] }
 
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         if shell.hasSuffix("zsh") {
-            return prepareZshRestoreEnv(scrollback: scrollback, sessionId: sessionId)
+            return prepareZshRestoreEnv(scrollback: scrollback, sessionId: sessionId,
+                                        terminalCols: terminalCols)
         }
 
         // Non-zsh fallback: env var picked up by the bundled integration script
         guard let path = writeScrollbackFile(scrollback, id: sessionId) else { return [:] }
-        return ["TRELLIS_RESTORE_SCROLLBACK_FILE": path]
+        var env = ["TRELLIS_RESTORE_SCROLLBACK_FILE": path]
+        if let cols = terminalCols, cols > 0 { env["TRELLIS_TERMINAL_COLS"] = String(cols) }
+        return env
     }
 
-    private static func prepareZshRestoreEnv(scrollback: String, sessionId: UUID) -> [String: String] {
+    private static func prepareZshRestoreEnv(
+        scrollback: String,
+        sessionId: UUID,
+        terminalCols: Int?
+    ) -> [String: String] {
         guard let sbPath = writeScrollbackFile(scrollback, id: sessionId) else { return [:] }
 
         let integrationDir = shellIntegrationDir
@@ -91,7 +126,9 @@ enum SnapshotStore {
 
         // Only use ZDOTDIR injection when the integration scripts are installed
         guard FileManager.default.fileExists(atPath: zshenvPath) else {
-            return ["TRELLIS_RESTORE_SCROLLBACK_FILE": sbPath]
+            var env = ["TRELLIS_RESTORE_SCROLLBACK_FILE": sbPath]
+            if let cols = terminalCols, cols > 0 { env["TRELLIS_TERMINAL_COLS"] = String(cols) }
+            return env
         }
 
         // Save the user's current ZDOTDIR so .zshenv can restore it
@@ -100,11 +137,10 @@ enum SnapshotStore {
         var env: [String: String] = [
             "ZDOTDIR": integrationDir,
             "TRELLIS_SHELL_INTEGRATION_DIR": integrationDir,
-            "TRELLIS_RESTORE_SCROLLBACK_FILE": sbPath,
+            "TRELLIS_RESTORE_SCROLLBACK_FILE": sbPath
         ]
-        if let userZdotdir {
-            env["TRELLIS_ZSH_ZDOTDIR"] = userZdotdir
-        }
+        if let cols = terminalCols, cols > 0 { env["TRELLIS_TERMINAL_COLS"] = String(cols) }
+        if let userZdotdir { env["TRELLIS_ZSH_ZDOTDIR"] = userZdotdir }
         return env
     }
 
