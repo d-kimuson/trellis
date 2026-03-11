@@ -33,10 +33,26 @@ if git rev-parse "${TAG}" &>/dev/null; then
   exit 1
 fi
 
-# Build
-echo "==> Building..."
-make clean
-make app
+# Build from a clean worktree of the tagged commit to ensure the binary
+# exactly matches the source in the tag (no working directory drift).
+echo "==> Building from clean worktree..."
+WORKTREE_DIR=$(mktemp -d)
+trap 'rm -rf "$WORKTREE_DIR"' EXIT
+
+git worktree add --detach "$WORKTREE_DIR" HEAD
+
+# Copy pre-built ghostty static lib (expensive to rebuild)
+if [[ -d "deps/ghostty/zig-out" ]]; then
+  mkdir -p "$WORKTREE_DIR/deps/ghostty"
+  cp -R deps/ghostty/zig-out "$WORKTREE_DIR/deps/ghostty/"
+  cp -R deps/ghostty/include "$WORKTREE_DIR/deps/ghostty/"
+fi
+
+(cd "$WORKTREE_DIR" && make setup && make app)
+
+# Copy artifacts back
+cp -R "$WORKTREE_DIR/$APP_BUNDLE" "$BUILD_DIR/"
+git worktree remove "$WORKTREE_DIR" 2>/dev/null || true
 
 # Verify .app bundle exists
 if [[ ! -d "$APP_BUNDLE" ]]; then

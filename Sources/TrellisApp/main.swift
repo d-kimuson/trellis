@@ -122,6 +122,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func resetFontSize(_ sender: Any?) {
         ghosttyApp?.resetFontSize()
     }
+
+    @objc func checkForUpdates(_ sender: Any?) {
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+
+        let url = URL(string: "https://api.github.com/repos/d-kimuson/trellis/releases/latest")!
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            DispatchQueue.main.async {
+                guard let data, error == nil,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let tagName = json["tag_name"] as? String,
+                      let htmlUrl = json["html_url"] as? String
+                else {
+                    let alert = NSAlert()
+                    alert.messageText = "Update Check Failed"
+                    alert.informativeText = "Could not reach GitHub. Check your connection."
+                    alert.runModal()
+                    return
+                }
+
+                let latestVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
+
+                if latestVersion == currentVersion {
+                    let alert = NSAlert()
+                    alert.messageText = "Trellis is up to date"
+                    alert.informativeText = "Version \(currentVersion) is the latest."
+                    alert.runModal()
+                } else {
+                    let alert = NSAlert()
+                    alert.messageText = "Update Available"
+                    alert.informativeText = "Version \(latestVersion) is available (you have \(currentVersion))."
+                    alert.addButton(withTitle: "Open Release Page")
+                    alert.addButton(withTitle: "Cancel")
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        NSWorkspace.shared.open(URL(string: htmlUrl)!)
+                    }
+                }
+            }
+        }.resume()
+    }
 }
 
 // Entry point
@@ -138,6 +180,18 @@ let mainMenu = NSMenu()
 let appMenuItem = NSMenuItem()
 mainMenu.addItem(appMenuItem)
 let appMenu = NSMenu()
+appMenu.addItem(
+    withTitle: "About Trellis",
+    action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+    keyEquivalent: ""
+)
+appMenu.addItem(NSMenuItem.separator())
+appMenu.addItem(
+    withTitle: "Check for Updates...",
+    action: #selector(AppDelegate.checkForUpdates(_:)),
+    keyEquivalent: ""
+)
+appMenu.addItem(NSMenuItem.separator())
 appMenu.addItem(
     withTitle: "Quit Trellis",
     action: #selector(NSApplication.terminate(_:)),
