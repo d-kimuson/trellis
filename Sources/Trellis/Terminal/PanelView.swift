@@ -261,13 +261,13 @@ struct AreaPanelView: View {
             if dropInsertIndex == index {
                 Rectangle().fill(Color.accentColor).frame(width: 2, height: 16)
             }
-            Image(systemName: tab.content.iconName)
-                .font(.system(size: 10)).foregroundColor(.secondary)
-            TabTitleLabel(content: tab.content)
             Image(systemName: "xmark")
                 .font(.system(size: 8))
                 .foregroundColor(.secondary)
                 .onTapGesture { store.closeTab(in: area.id, at: index) }
+            Image(systemName: tab.content.iconName)
+                .font(.system(size: 10)).foregroundColor(.secondary)
+            TabTitleLabel(content: tab.content)
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
         .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)

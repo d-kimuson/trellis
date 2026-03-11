@@ -4,6 +4,9 @@ struct SidebarView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var notificationStore: NotificationStore
     @State private var renamingIndex: Int?
+    @State private var hoveredIndex: Int?
+    @State private var indexToClose: Int?
+    @State private var showCloseConfirmation = false
 
     var body: some View {
         List(selection: Binding<Int?>(
@@ -26,20 +29,26 @@ struct SidebarView: View {
                                 renamingIndex = editing ? index : nil
                             }
                         ),
+                        showCloseButton: hoveredIndex == index,
                         onRename: { newName in
                             store.renameWorkspace(at: index, to: newName)
+                        },
+                        onClose: {
+                            requestClose(at: index)
                         }
                     )
                     .tag(index)
+                    .onHover { hovering in
+                        hoveredIndex = hovering ? index : nil
+                    }
                     .contextMenu {
                         Button("Rename") {
                             renamingIndex = index
                         }
-                        Button("Delete", role: .destructive) {
-                            store.removeWorkspace(at: index)
-                        }
-                        .disabled(store.workspaces.count <= 1)
                     }
+                }
+                .onMove { fromOffsets, toOffset in
+                    store.moveWorkspace(fromOffsets: fromOffsets, toOffset: toOffset)
                 }
             } header: {
                 HStack {
@@ -65,6 +74,32 @@ struct SidebarView: View {
             .collapsible(false)
         }
         .listStyle(.sidebar)
+        .confirmationDialog(
+            "Close Workspace?",
+            isPresented: $showCloseConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Close", role: .destructive) {
+                if let idx = indexToClose {
+                    store.removeWorkspace(at: idx)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This workspace has open panels. Close anyway?")
+        }
+    }
+
+    private func requestClose(at index: Int) {
+        guard store.workspaces.count > 1 else { return }
+        let workspace = store.workspaces[index]
+        let hasOpenPanels = workspace.allAreas.contains { !$0.tabs.isEmpty }
+        if hasOpenPanels {
+            indexToClose = index
+            showCloseConfirmation = true
+        } else {
+            store.removeWorkspace(at: index)
+        }
     }
 }
 
@@ -75,7 +110,9 @@ private struct WorkspaceCard: View {
     let isActive: Bool
     let unreadCount: Int
     @Binding var isEditing: Bool
+    let showCloseButton: Bool
     let onRename: (String) -> Void
+    let onClose: () -> Void
 
     @State private var editingName: String = ""
     @FocusState private var isTextFieldFocused: Bool
@@ -119,6 +156,18 @@ private struct WorkspaceCard: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
                         .background(Capsule().fill(Color.accentColor))
+                }
+
+                if showCloseButton {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16, height: 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.primary.opacity(0.08))
+                        )
+                        .onTapGesture { onClose() }
                 }
             }
 

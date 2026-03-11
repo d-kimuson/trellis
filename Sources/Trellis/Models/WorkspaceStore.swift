@@ -93,6 +93,15 @@ public final class WorkspaceStore: ObservableObject {
         }
     }
 
+    /// Move workspaces for drag-and-drop reordering.
+    public func moveWorkspace(fromOffsets: IndexSet, toOffset: Int) {
+        let activeId = workspaces[activeWorkspaceIndex].id
+        workspaces.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        if let newIndex = workspaces.firstIndex(where: { $0.id == activeId }) {
+            activeWorkspaceIndex = newIndex
+        }
+    }
+
     // MARK: - Active Area Operations
 
     /// Split the active area in the active workspace.

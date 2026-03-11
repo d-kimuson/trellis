@@ -9,7 +9,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var store: WorkspaceStore!
     var notificationManager: NotificationManager!
     var notificationStore: NotificationStore!
-    private var notificationBadgeCancellable: AnyCancellable?
+    private var cancellables = Set<AnyCancellable>()
+    private var sessionTitleCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyAppWrapper()
@@ -19,12 +20,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         store.notificationStore = notificationStore
 
         // Sync unread count to Dock badge
-        notificationBadgeCancellable = notificationStore.$notifications
+        notificationStore.$notifications
             .map { notifs in notifs.count(where: { !$0.isRead }) }
             .removeDuplicates()
             .sink { count in
                 NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : ""
             }
+            .store(in: &cancellables)
+
+        // Dynamic window title: update on store changes and session pwd changes
+        store.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.updateWindowTitle()
+                    self?.subscribeToRepresentativeSession()
+                }
+            }
+            .store(in: &cancellables)
 
         // Set up notification manager
         notificationManager = NotificationManager()
@@ -57,6 +70,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
 
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func subscribeToRepresentativeSession() {
+        sessionTitleCancellable = store.activeWorkspace?.representativeSession?.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { self?.updateWindowTitle() }
+            }
+    }
+
+    private func updateWindowTitle() {
+        guard let workspace = store.activeWorkspace else {
+            window.title = "Trellis"
+            return
+        }
+        if let cwd = workspace.representativeSession?.shortPwd {
+            let safeCwd = cwd.replacingOccurrences(of: "/", with: "∕")
+            window.title = "Trellis / 📂 \(safeCwd) / \(workspace.name)"
+        } else {
+            window.title = "Trellis / \(workspace.name)"
+        }
     }
 
     private func handleDesktopNotification(title: String, body: String) {
