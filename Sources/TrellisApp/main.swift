@@ -239,9 +239,9 @@ viewMenu.addItem(resetFontSizeItem)
 let increaseFontSizeItem = NSMenuItem(
     title: "Increase Font Size",
     action: #selector(AppDelegate.increaseFontSize(_:)),
-    keyEquivalent: "="
+    keyEquivalent: "+"
 )
-increaseFontSizeItem.keyEquivalentModifierMask = [.command, .shift]
+increaseFontSizeItem.keyEquivalentModifierMask = [.command]
 viewMenu.addItem(increaseFontSizeItem)
 
 let decreaseFontSizeItem = NSMenuItem(
@@ -249,7 +249,7 @@ let decreaseFontSizeItem = NSMenuItem(
     action: #selector(AppDelegate.decreaseFontSize(_:)),
     keyEquivalent: "-"
 )
-decreaseFontSizeItem.keyEquivalentModifierMask = [.command, .shift]
+decreaseFontSizeItem.keyEquivalentModifierMask = [.command]
 viewMenu.addItem(decreaseFontSizeItem)
 
 viewMenu.addItem(NSMenuItem.separator())

@@ -78,6 +78,7 @@ private struct WorkspaceCard: View {
     let onRename: (String) -> Void
 
     @State private var editingName: String = ""
+    @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -93,11 +94,15 @@ private struct WorkspaceCard: View {
                     })
                     .textFieldStyle(.plain)
                     .font(.system(size: 13, weight: .medium))
+                    .focused($isTextFieldFocused)
                     .onExitCommand {
                         isEditing = false
                     }
                     .onAppear {
                         editingName = workspace.name
+                        DispatchQueue.main.async {
+                            isTextFieldFocused = true
+                        }
                     }
                 } else {
                     Text(workspace.name)

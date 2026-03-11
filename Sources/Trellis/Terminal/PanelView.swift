@@ -286,14 +286,6 @@ struct AreaPanelView: View {
         .onDrop(of: [.tabDragData], isTargeted: .none) { _ in
             false
         }
-        .onContinuousHover { phase in
-            switch phase {
-            case .active:
-                dropInsertIndex = index
-            case .ended:
-                break
-            }
-        }
     }
 }
 

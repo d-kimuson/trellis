@@ -102,19 +102,40 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
         if event.modifierFlags.contains(.command) {
             let char = event.charactersIgnoringModifiers?.lowercased() ?? ""
+            let withShift = event.modifierFlags.contains(.shift)
+
+            // Font size shortcuts — handle directly so they always reach GhosttyAppWrapper.
+            // keyCode 24 = the +/= key (US: Shift+= → "+", JIS: base key is already "+").
+            // Check both "+" and "=" to handle US and JIS keyboard layouts.
+            if withShift && (char == "+" || char == "=") {
+                ghosttyApp.increaseFontSize()
+                return true
+            }
+            if char == "-" || char == "_" {
+                ghosttyApp.decreaseFontSize()
+                return true
+            }
+            if !withShift && char == "0" {
+                ghosttyApp.resetFontSize()
+                return true
+            }
+
             // Let these pass to the app menu bar
-            let menuKeys: Set<String> = ["q", "w", "d", "b", "=", "-", "0", ","]
+            let menuKeys: Set<String> = ["q", "w", "d", "b", "=", ","]
             if menuKeys.contains(char) {
                 return super.performKeyEquivalent(with: event)
             }
 
             // Handle Cmd+V paste directly via ghostty_surface_text
             // (ghostty's keybinding system doesn't trigger read_clipboard_cb)
+            // Use focusedSurface so paste goes to the last-clicked terminal regardless
+            // of which NSView happens to be the current first responder.
             if char == "v" {
+                let pasteTarget = ghosttyApp.focusedSurface ?? surface
                 let pasteboard = NSPasteboard.general
                 if let content = pasteboard.string(forType: .string), !content.isEmpty {
                     content.withCString { cstr in
-                        ghostty_surface_text(surface, cstr, UInt(content.utf8.count))
+                        ghostty_surface_text(pasteTarget, cstr, UInt(content.utf8.count))
                     }
                 }
                 return true
@@ -366,6 +387,12 @@ class GhosttyNSView: NSView, NSTextInputClient {
     }
 
     override func mouseDown(with event: NSEvent) {
+        // Update focusedSurface immediately on click so that Cmd+V routes to the correct
+        // terminal even if the responder chain is temporarily inconsistent (e.g. SwiftUI
+        // re-render between click and key event).
+        if let surface {
+            ghosttyApp.focusedSurface = surface
+        }
         window?.makeFirstResponder(self)
         session.onFocused?()
         guard let surface else { return }

@@ -171,21 +171,18 @@ public final class GhosttyAppWrapper {
     }
 
     public func increaseFontSize() {
-        _ = performFocusedSurfaceBindingAction(
-            GhosttyFontSizeChange.increase(1).bindingAction
-        )
+        AppSettings.shared.fontSize = min(AppSettings.shared.fontSize + 1, 72)
+        applySettings(AppSettings.shared)
     }
 
     public func decreaseFontSize() {
-        _ = performFocusedSurfaceBindingAction(
-            GhosttyFontSizeChange.decrease(1).bindingAction
-        )
+        AppSettings.shared.fontSize = max(AppSettings.shared.fontSize - 1, 6)
+        applySettings(AppSettings.shared)
     }
 
     public func resetFontSize() {
-        _ = performFocusedSurfaceBindingAction(
-            GhosttyFontSizeChange.reset.bindingAction
-        )
+        AppSettings.shared.fontSize = 13
+        applySettings(AppSettings.shared)
     }
 
     /// Write settings to the ghostty config file and reload the ghostty app config.
