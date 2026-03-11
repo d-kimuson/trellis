@@ -192,9 +192,14 @@ class GhosttyNSView: NSView, NSTextInputClient {
             }
         }
 
-        // Only encode text if it's not a control character
+        // Only encode text if it's a printable, non-function-key character.
+        // macOS uses private-use area U+F700-U+F8FF for arrow/function keys.
+        // Passing these as text confuses ghostty when kitty keyboard protocol is active
+        // (e.g. Claude Code), producing garbled characters instead of escape sequences.
+        let isFunctionChar = text.flatMap { $0.unicodeScalars.first }
+            .map { $0.value >= 0xF700 && $0.value <= 0xF8FF } ?? false
         if let text, !text.isEmpty,
-           let first = text.utf8.first, first >= 0x20
+           let first = text.utf8.first, first >= 0x20, !isFunctionChar
         {
             text.withCString { cstr in
                 key.text = cstr

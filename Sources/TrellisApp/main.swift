@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Trellis  // SPM build only; ignored in Makefile build (same module)
 import SwiftUI
 
@@ -8,6 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var store: WorkspaceStore!
     var notificationManager: NotificationManager!
     var notificationStore: NotificationStore!
+    private var notificationBadgeCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyAppWrapper()
@@ -15,6 +17,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         store = WorkspaceStore(ghosttyApp: ghosttyApp)
         notificationStore = NotificationStore()
         store.notificationStore = notificationStore
+
+        // Sync unread count to Dock badge
+        notificationBadgeCancellable = notificationStore.$notifications
+            .map { notifs in notifs.count(where: { !$0.isRead }) }
+            .removeDuplicates()
+            .sink { count in
+                NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : ""
+            }
 
         // Set up notification manager
         notificationManager = NotificationManager()
