@@ -17,39 +17,69 @@ struct SidebarView: View {
                 }
             }
         )) {
+            // Pinned section — only shown when there are pinned workspaces
+            if !store.pinnedWorkspaces.isEmpty {
+                Section {
+                    ForEach(store.pinnedWorkspaces) { workspace in
+                        let globalIndex = store.workspaces.firstIndex(where: { $0.id == workspace.id }) ?? 0
+                        WorkspaceCard(
+                            workspace: workspace,
+                            isActive: globalIndex == store.activeWorkspaceIndex,
+                            unreadCount: notificationStore.unreadCount(
+                                forSessionIds: store.sessionIds(forWorkspace: globalIndex)
+                            ),
+                            isEditing: Binding(
+                                get: { renamingIndex == globalIndex },
+                                set: { editing in renamingIndex = editing ? globalIndex : nil }
+                            ),
+                            showCloseButton: hoveredIndex == globalIndex,
+                            onRename: { newName in store.renameWorkspace(at: globalIndex, to: newName) },
+                            onClose: { requestClose(at: globalIndex) }
+                        )
+                        .tag(globalIndex)
+                        .onHover { hoveredIndex = $0 ? globalIndex : nil }
+                        .contextMenu {
+                            Button("Rename") { renamingIndex = globalIndex }
+                            Divider()
+                            Button("Unpin") { store.unpinWorkspace(id: workspace.id) }
+                        }
+                    }
+                    .onMove { store.movePinnedWorkspace(fromOffsets: $0, toOffset: $1) }
+                } header: {
+                    Label("Pinned", systemImage: "pin.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+                .collapsible(false)
+            }
+
+            // Temporary workspaces section
             Section {
-                ForEach(Array(store.workspaces.enumerated()), id: \.element.id) { index, workspace in
+                ForEach(store.tempWorkspaces) { workspace in
+                    let globalIndex = store.workspaces.firstIndex(where: { $0.id == workspace.id }) ?? 0
                     WorkspaceCard(
                         workspace: workspace,
-                        isActive: index == store.activeWorkspaceIndex,
-                        unreadCount: notificationStore.unreadCount(forSessionIds: store.sessionIds(forWorkspace: index)),
-                        isEditing: Binding(
-                            get: { renamingIndex == index },
-                            set: { editing in
-                                renamingIndex = editing ? index : nil
-                            }
+                        isActive: globalIndex == store.activeWorkspaceIndex,
+                        unreadCount: notificationStore.unreadCount(
+                            forSessionIds: store.sessionIds(forWorkspace: globalIndex)
                         ),
-                        showCloseButton: hoveredIndex == index,
-                        onRename: { newName in
-                            store.renameWorkspace(at: index, to: newName)
-                        },
-                        onClose: {
-                            requestClose(at: index)
-                        }
+                        isEditing: Binding(
+                            get: { renamingIndex == globalIndex },
+                            set: { editing in renamingIndex = editing ? globalIndex : nil }
+                        ),
+                        showCloseButton: hoveredIndex == globalIndex,
+                        onRename: { newName in store.renameWorkspace(at: globalIndex, to: newName) },
+                        onClose: { requestClose(at: globalIndex) }
                     )
-                    .tag(index)
-                    .onHover { hovering in
-                        hoveredIndex = hovering ? index : nil
-                    }
+                    .tag(globalIndex)
+                    .onHover { hoveredIndex = $0 ? globalIndex : nil }
                     .contextMenu {
-                        Button("Rename") {
-                            renamingIndex = index
-                        }
+                        Button("Rename") { renamingIndex = globalIndex }
+                        Divider()
+                        Button("Pin") { store.pinWorkspace(id: workspace.id) }
                     }
                 }
-                .onMove { fromOffsets, toOffset in
-                    store.moveWorkspace(fromOffsets: fromOffsets, toOffset: toOffset)
-                }
+                .onMove { store.moveTempWorkspace(fromOffsets: $0, toOffset: $1) }
             } header: {
                 HStack {
                     Text("Workspaces")
@@ -121,6 +151,12 @@ private struct WorkspaceCard: View {
         VStack(alignment: .leading, spacing: 4) {
             // Title row
             HStack {
+                if workspace.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+
                 if isEditing {
                     TextField("Workspace name", text: $editingName, onCommit: {
                         let trimmed = editingName.trimmingCharacters(in: .whitespaces)

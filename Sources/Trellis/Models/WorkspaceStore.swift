@@ -7,6 +7,7 @@ public final class WorkspaceStore: ObservableObject {
     @Published public var workspaces: [Workspace]
     @Published public var activeWorkspaceIndex: Int
     private var nextTerminalCounter: Int = 1
+    private var autosaveTimer: Timer?
 
     /// Optional reference to the in-app notification store for marking read on focus.
     public weak var notificationStore: NotificationStore?
@@ -14,13 +15,35 @@ public final class WorkspaceStore: ObservableObject {
     public init(ghosttyApp: GhosttyAppWrapper) {
         self.ghosttyApp = ghosttyApp
 
-        // Start with one workspace containing one empty area
+        // Copy bundled shell-integration scripts to the stable app-support path
+        SnapshotStore.installShellIntegration()
+
+        // Restore pinned workspaces from the last snapshot
+        let snapshots = SnapshotStore.load()
+        let pinned = snapshots.filter(\.isPinned).map { Self.makeRestoredWorkspace(from: $0) }
+
+        // Default temp workspace
         let area = Area(tabs: [])
         let layout = LayoutNode.leaf(area)
-        let workspace = Workspace(name: "Workspace 1", layout: layout, activeAreaId: area.id)
+        let defaultWorkspace = Workspace(
+            name: "Workspace \(pinned.count + 1)",
+            layout: layout,
+            activeAreaId: area.id
+        )
 
-        self.workspaces = [workspace]
-        self.activeWorkspaceIndex = 0
+        self.workspaces = pinned + [defaultWorkspace]
+        self.activeWorkspaceIndex = pinned.isEmpty ? 0 : pinned.count
+
+        // Autosave pinned workspaces every 8 seconds
+        let timer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: true) { [weak self] _ in
+            self?.saveSnapshot()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        autosaveTimer = timer
+    }
+
+    deinit {
+        autosaveTimer?.invalidate()
     }
 
     // MARK: - Computed Properties
@@ -29,6 +52,9 @@ public final class WorkspaceStore: ObservableObject {
         guard activeWorkspaceIndex >= 0, activeWorkspaceIndex < workspaces.count else { return nil }
         return workspaces[activeWorkspaceIndex]
     }
+
+    public var pinnedWorkspaces: [Workspace] { workspaces.filter(\.isPinned) }
+    public var tempWorkspaces: [Workspace] { workspaces.filter { !$0.isPinned } }
 
     /// All terminal sessions across all workspaces.
     public var allSessions: [TerminalSession] {
@@ -66,6 +92,7 @@ public final class WorkspaceStore: ObservableObject {
     public func renameWorkspace(at index: Int, to name: String) {
         guard index >= 0, index < workspaces.count else { return }
         workspaces[index].name = name
+        if workspaces[index].isPinned { saveSnapshot() }
     }
 
     /// Remove a workspace at the given index. The last workspace cannot be removed.
@@ -75,6 +102,7 @@ public final class WorkspaceStore: ObservableObject {
 
         // Close all sessions in the workspace being removed
         let workspace = workspaces[index]
+        let wasPinned = workspace.isPinned
         for area in workspace.allAreas {
             for tab in area.tabs {
                 if let session = tab.content.terminalSession {
@@ -90,6 +118,54 @@ public final class WorkspaceStore: ObservableObject {
             activeWorkspaceIndex = workspaces.count - 1
         } else if activeWorkspaceIndex > index {
             activeWorkspaceIndex -= 1
+        }
+
+        if wasPinned { saveSnapshot() }
+    }
+
+    // MARK: - Pin / Unpin
+
+    public func pinWorkspace(id: UUID) {
+        guard let index = workspaces.firstIndex(where: { $0.id == id }) else { return }
+        let activeId = workspaces[activeWorkspaceIndex].id
+        workspaces[index].isPinned = true
+        // Re-sort: pinned first, temp after (preserving relative order in each group)
+        workspaces = workspaces.filter(\.isPinned) + workspaces.filter { !$0.isPinned }
+        if let newIndex = workspaces.firstIndex(where: { $0.id == activeId }) {
+            activeWorkspaceIndex = newIndex
+        }
+        saveSnapshot()
+    }
+
+    public func unpinWorkspace(id: UUID) {
+        guard let index = workspaces.firstIndex(where: { $0.id == id }) else { return }
+        let activeId = workspaces[activeWorkspaceIndex].id
+        workspaces[index].isPinned = false
+        workspaces = workspaces.filter(\.isPinned) + workspaces.filter { !$0.isPinned }
+        if let newIndex = workspaces.firstIndex(where: { $0.id == activeId }) {
+            activeWorkspaceIndex = newIndex
+        }
+        saveSnapshot()
+    }
+
+    /// Reorder within the pinned section (offsets are local to that section).
+    public func movePinnedWorkspace(fromOffsets: IndexSet, toOffset: Int) {
+        let activeId = workspaces[activeWorkspaceIndex].id
+        workspaces.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        if let newIndex = workspaces.firstIndex(where: { $0.id == activeId }) {
+            activeWorkspaceIndex = newIndex
+        }
+    }
+
+    /// Reorder within the temp section (offsets are local to that section).
+    public func moveTempWorkspace(fromOffsets: IndexSet, toOffset: Int) {
+        let activeId = workspaces[activeWorkspaceIndex].id
+        let pinnedCount = pinnedWorkspaces.count
+        let globalFrom = IndexSet(fromOffsets.map { $0 + pinnedCount })
+        let globalTo = toOffset + pinnedCount
+        workspaces.move(fromOffsets: globalFrom, toOffset: globalTo)
+        if let newIndex = workspaces.firstIndex(where: { $0.id == activeId }) {
+            activeWorkspaceIndex = newIndex
         }
     }
 
@@ -433,5 +509,108 @@ public final class WorkspaceStore: ObservableObject {
         let terminalNumber = nextTerminalCounter
         nextTerminalCounter += 1
         return terminalNumber
+    }
+
+    // MARK: - Snapshot Save / Restore
+
+    /// Save snapshots of all pinned workspaces to disk.
+    public func saveSnapshot() {
+        let snapshots = workspaces.filter(\.isPinned).map { makeSnapshot($0) }
+        SnapshotStore.save(snapshots)
+    }
+
+    private func makeSnapshot(_ workspace: Workspace) -> WorkspaceSnapshot {
+        let areaSnapshots = workspace.allAreas.map { area -> AreaSnapshot in
+            let tabSnapshots = area.tabs.map { tab -> TabSnapshot in
+                switch tab.content {
+                case .terminal(let session):
+                    let scrollback = session.surface.flatMap { surface in
+                        ghosttyApp.readScrollback(surface: surface).map { SnapshotStore.truncate($0) }
+                    }
+                    return TabSnapshot(
+                        tabId: tab.id,
+                        type: "terminal",
+                        cwd: session.pwd,
+                        scrollback: scrollback,
+                        browserURL: nil,
+                        fileTreePath: nil
+                    )
+                case .browser(let state):
+                    return TabSnapshot(
+                        tabId: tab.id,
+                        type: "browser",
+                        cwd: nil,
+                        scrollback: nil,
+                        browserURL: state.currentURL.absoluteString,
+                        fileTreePath: nil
+                    )
+                case .fileTree(let state):
+                    return TabSnapshot(
+                        tabId: tab.id,
+                        type: "fileTree",
+                        cwd: nil,
+                        scrollback: nil,
+                        browserURL: nil,
+                        fileTreePath: state.rootPath
+                    )
+                }
+            }
+            return AreaSnapshot(areaId: area.id, tabs: tabSnapshots, activeTabIndex: area.activeTabIndex)
+        }
+        return WorkspaceSnapshot(
+            schemaVersion: 1,
+            id: workspace.id,
+            name: workspace.name,
+            isPinned: workspace.isPinned,
+            areas: areaSnapshots,
+            savedAt: Date()
+        )
+    }
+
+    /// Restore a workspace from a snapshot.
+    /// MVP: restores only the first area; split layouts are not persisted.
+    private static func makeRestoredWorkspace(from snapshot: WorkspaceSnapshot) -> Workspace {
+        guard let areaSnapshot = snapshot.areas.first else {
+            let area = Area(tabs: [])
+            return Workspace(
+                id: snapshot.id, name: snapshot.name,
+                layout: .leaf(area), activeAreaId: area.id, isPinned: true
+            )
+        }
+
+        let tabs: [Tab] = areaSnapshot.tabs.compactMap { tab in
+            switch tab.type {
+            case "terminal":
+                var envVars: [String: String] = [:]
+                if let scrollback = tab.scrollback, !scrollback.isEmpty,
+                   let path = SnapshotStore.writeScrollbackFile(scrollback, id: tab.tabId) {
+                    envVars["TRELLIS_RESTORE_SCROLLBACK_FILE"] = path
+                }
+                let session = TerminalSession(
+                    title: "Terminal",
+                    workingDirectory: tab.cwd,
+                    envVars: envVars
+                )
+                return Tab(id: tab.tabId, content: .terminal(session))
+            case "browser":
+                let url = tab.browserURL.flatMap { URL(string: $0) }
+                    ?? URL(string: "https://www.google.com")!
+                return Tab(id: tab.tabId, content: .browser(BrowserState(url: url)))
+            case "fileTree":
+                return Tab(id: tab.tabId, content: .fileTree(FileTreeState(rootPath: tab.fileTreePath)))
+            default:
+                return nil
+            }
+        }
+
+        let area = Area(
+            id: areaSnapshot.areaId,
+            tabs: tabs,
+            activeTabIndex: max(0, min(areaSnapshot.activeTabIndex, max(0, tabs.count - 1)))
+        )
+        return Workspace(
+            id: snapshot.id, name: snapshot.name,
+            layout: .leaf(area), activeAreaId: area.id, isPinned: true
+        )
     }
 }

@@ -6,12 +6,20 @@ public struct Workspace: Identifiable {
     public var name: String
     public var layout: LayoutNode
     public var activeAreaId: UUID?
+    public var isPinned: Bool
 
-    public init(id: UUID = UUID(), name: String, layout: LayoutNode, activeAreaId: UUID? = nil) {
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        layout: LayoutNode,
+        activeAreaId: UUID? = nil,
+        isPinned: Bool = false
+    ) {
         self.id = id
         self.name = name
         self.layout = layout
         self.activeAreaId = activeAreaId
+        self.isPinned = isPinned
     }
 
     /// The currently active area, if any.

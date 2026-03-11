@@ -154,6 +154,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        store?.saveSnapshot()
         ipcServer?.stop()
         ghosttyApp?.shutdown()
     }

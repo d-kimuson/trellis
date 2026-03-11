@@ -20,6 +20,9 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Working directory to use when creating the ghostty surface.
     public let initialWorkingDirectory: String?
 
+    /// Additional environment variables to set when creating the ghostty surface.
+    public let initialEnvVars: [String: String]
+
     // Opaque pointer to ghostty surface - managed by GhosttyNSView
     var surface: ghostty_surface_t?
 
@@ -35,11 +38,12 @@ public final class TerminalSession: Identifiable, ObservableObject {
 
     private var gitProcess: Process?
 
-    public init(title: String = "Terminal", workingDirectory: String? = nil) {
+    public init(title: String = "Terminal", workingDirectory: String? = nil, envVars: [String: String] = [:]) {
         self.id = UUID()
         self.title = title
         self.isActive = true
         self.initialWorkingDirectory = workingDirectory
+        self.initialEnvVars = envVars
     }
 
     /// Detect the git branch at the given directory in background.

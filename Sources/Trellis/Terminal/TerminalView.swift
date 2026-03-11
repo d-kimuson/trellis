@@ -80,7 +80,8 @@ class GhosttyNSView: NSView, NSTextInputClient {
     private func createSurface() {
         surface = ghosttyApp.createSurface(
             for: self,
-            workingDirectory: session.initialWorkingDirectory
+            workingDirectory: session.initialWorkingDirectory,
+            envVars: session.initialEnvVars
         )
         session.surface = surface
         ghosttyApp.focusedSurface = surface

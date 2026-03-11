@@ -126,7 +126,8 @@ public final class GhosttyAppWrapper {
     func createSurface(
         for view: NSView,
         userdata: UnsafeMutableRawPointer? = nil,
-        workingDirectory: String? = nil
+        workingDirectory: String? = nil,
+        envVars: [String: String] = [:]
     ) -> ghostty_surface_t? {
         guard let app else { return nil }
 
@@ -135,15 +136,61 @@ public final class GhosttyAppWrapper {
         config.platform.macos.nsview = Unmanaged.passUnretained(view).toOpaque()
         config.userdata = userdata
 
-        if let workingDirectory {
-            // working_directory must remain valid until ghostty_surface_new returns.
-            return workingDirectory.withCString { cstr in
-                config.working_directory = cstr
-                return ghostty_surface_new(app, &config)
-            }
+        // Build env var C structs. strdup keeps pointers stable until ghostty_surface_new
+        // returns; freed in defer block below.
+        var cKeys: [UnsafeMutablePointer<CChar>?] = []
+        var cValues: [UnsafeMutablePointer<CChar>?] = []
+        var envVarStructs: [ghostty_env_var_s] = []
+        for (k, v) in envVars {
+            let ck = strdup(k)
+            let cv = strdup(v)
+            cKeys.append(ck)
+            cValues.append(cv)
+            envVarStructs.append(ghostty_env_var_s(key: ck, value: cv))
+        }
+        defer {
+            for k in cKeys { if let k { free(UnsafeMutableRawPointer(k)) } }
+            for v in cValues { if let v { free(UnsafeMutableRawPointer(v)) } }
         }
 
-        return ghostty_surface_new(app, &config)
+        return envVarStructs.withUnsafeMutableBufferPointer { buf in
+            if !buf.isEmpty {
+                config.env_vars = buf.baseAddress
+                config.env_var_count = buf.count
+            }
+            if let workingDirectory {
+                return workingDirectory.withCString { cstr in
+                    config.working_directory = cstr
+                    return ghostty_surface_new(app, &config)
+                }
+            }
+            return ghostty_surface_new(app, &config)
+        }
+    }
+
+    /// Read all visible + scrollback text from the given surface.
+    /// Returns nil if the surface has no text or the read fails.
+    func readScrollback(surface: ghostty_surface_t) -> String? {
+        let topLeft = ghostty_point_s(
+            tag: GHOSTTY_POINT_SCREEN,
+            coord: GHOSTTY_POINT_COORD_TOP_LEFT,
+            x: 0, y: 0
+        )
+        let bottomRight = ghostty_point_s(
+            tag: GHOSTTY_POINT_SCREEN,
+            coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT,
+            x: 0, y: 0
+        )
+        let selection = ghostty_selection_s(
+            top_left: topLeft,
+            bottom_right: bottomRight,
+            rectangle: false
+        )
+        var text = ghostty_text_s()
+        guard ghostty_surface_read_text(surface, selection, &text) else { return nil }
+        defer { ghostty_surface_free_text(surface, &text) }
+        guard let ptr = text.text, text.text_len > 0 else { return nil }
+        return String(decoding: Data(bytes: ptr, count: Int(text.text_len)), as: UTF8.self)
     }
 
     // MARK: - Surface Session Registry
