@@ -75,20 +75,20 @@ gh release create "${TAG}" \
   "${BUILD_DIR}/${ZIP_NAME}" \
   --title "Trellis ${TAG}" \
   --notes "$(cat <<EOF
-## Trellis ${VERSION}
+## Install
 
-> **Note**: This build is unsigned. macOS may block the app on first launch.
-> Right-click → Open → Open to bypass the warning.
-> Or from Terminal:
-> \`\`\`
-> xattr -d com.apple.quarantine Trellis.app
-> \`\`\`
-
-### Install (dmg)
 1. Open \`Trellis-${VERSION}-macos-arm64.dmg\`
 2. Drag Trellis to Applications
 
-### Requirements
+**Note**: Trellis is not signed with an Apple Developer certificate. macOS will block the app on first launch with "Trellis is damaged and can't be opened." This is a Gatekeeper restriction, not an actual problem with the app.
+
+To run it, remove the quarantine attribute after copying to Applications:
+
+\`\`\`bash
+xattr -d com.apple.quarantine /Applications/Trellis.app
+\`\`\`
+
+## Requirements
 - macOS 14.0+
 - Apple Silicon (arm64)
 EOF

@@ -25,9 +25,21 @@ Built for workflows where you're running multiple Claude Code instances, watchin
 - **GUI**: SwiftUI + AppKit
 - **Build**: Nix Flakes + Make
 
-## Getting Started
+## Install
 
-See [docs/dev.md](docs/dev.md) for development setup.
+Download the latest `.dmg` from [Releases](https://github.com/d-kimuson/trellis/releases), open it, and drag Trellis to Applications.
+
+**Note**: Trellis is not signed with an Apple Developer certificate. macOS will block the app on first launch with "Trellis is damaged and can't be opened." This is a Gatekeeper restriction, not an actual problem with the app.
+
+To run it, remove the quarantine attribute after copying to Applications:
+
+```bash
+xattr -d com.apple.quarantine /Applications/Trellis.app
+```
+
+## Development
+
+See [docs/dev.md](docs/dev.md) for setup instructions.
 
 ```bash
 # Prerequisites: Xcode, Nix, direnv
