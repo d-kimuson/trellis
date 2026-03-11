@@ -2,6 +2,7 @@ import Foundation
 
 /// App-level settings persisted to UserDefaults.
 /// Font settings are also written to the ghostty config file on apply.
+@MainActor
 public final class AppSettings: ObservableObject {
     public static let shared = AppSettings()
 

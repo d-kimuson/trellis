@@ -11,6 +11,7 @@ import Foundation
 ///     # --- End Trellis managed ---
 ///
 /// The rest of the file (if any) is left untouched.
+@MainActor
 public enum GhosttyConfigManager {
     private static let sectionStart = "# --- Trellis managed (do not edit this section manually) ---"
     private static let sectionEnd = "# --- End Trellis managed ---"

@@ -4,6 +4,7 @@ import GhosttyKit
 /// Unix Domain Socket server for external CLI control.
 /// Listens at ~/.trellis/control.sock and handles newline-delimited JSON commands.
 /// All operations run on the main queue to safely access WorkspaceStore and ghostty APIs.
+@MainActor
 public final class IPCServer {
     public static let socketPath: String = {
         "\(NSHomeDirectory())/.trellis/control.sock"

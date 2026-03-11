@@ -28,6 +28,7 @@ public struct AppNotification: Identifiable {
 }
 
 /// Manages in-app notification state, separate from OS desktop notifications.
+@MainActor
 public final class NotificationStore: ObservableObject {
     @Published public var notifications: [AppNotification] = []
 

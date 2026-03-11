@@ -5,6 +5,7 @@ import Trellis  // SPM/xcodebuild only; Makefile compiles all files as one modul
 #endif
 import SwiftUI
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var ghosttyApp: GhosttyAppWrapper!
@@ -263,7 +264,7 @@ if let subcommand = cliArgs.first,
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 
-let delegate = AppDelegate()
+let delegate = MainActor.assumeIsolated { AppDelegate() }
 app.delegate = delegate
 
 // Create menu bar

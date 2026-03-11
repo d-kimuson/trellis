@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Manages workspaces, areas, tabs, and terminal sessions.
 /// Successor to SessionStore.
+@MainActor
 public final class WorkspaceStore: ObservableObject {
     public let ghosttyApp: GhosttyAppWrapper
     @Published public var workspaces: [Workspace]

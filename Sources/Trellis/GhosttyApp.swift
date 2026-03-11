@@ -32,6 +32,7 @@ extension Notification.Name {
 
 /// Wrapper around the libghostty app instance.
 /// Manages the global ghostty state and provides surface creation.
+@MainActor
 public final class GhosttyAppWrapper {
     /// Singleton reference for C callback access (C function pointers can't capture context).
     static weak var current: GhosttyAppWrapper?
@@ -436,6 +437,9 @@ public final class GhosttyAppWrapper {
     }
 
     deinit {
-        shutdown()
+        tickTimer?.invalidate()
+        if let app {
+            ghostty_app_free(app)
+        }
     }
 }
