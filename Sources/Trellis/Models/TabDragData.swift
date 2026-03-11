@@ -19,5 +19,5 @@ public struct TabDragData: Codable, Transferable, Equatable {
 }
 
 extension UTType {
-    static let tabDragData = UTType(exportedAs: "com.oreore-terminal.tab-drag-data")
+    static let tabDragData = UTType(exportedAs: "dev.trellis.tab-drag-data")
 }

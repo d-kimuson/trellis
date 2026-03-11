@@ -11,7 +11,7 @@ let sharedSwiftSettings: [SwiftSetting] = [
 ]
 
 let package = Package(
-    name: "OreoreTerminal",
+    name: "Trellis",
     platforms: [.macOS(.v14)],
     targets: [
         .systemLibrary(
@@ -19,9 +19,9 @@ let package = Package(
             path: "Sources/GhosttyKit"
         ),
         .target(
-            name: "OreoreTerminal",
+            name: "Trellis",
             dependencies: ["GhosttyKit"],
-            path: "Sources/OreoreTerminal",
+            path: "Sources/Trellis",
             swiftSettings: sharedSwiftSettings,
             linkerSettings: [
                 .unsafeFlags(["-L", ghosttyLib]),
@@ -43,15 +43,15 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "OreoreTerminalApp",
-            dependencies: ["OreoreTerminal"],
-            path: "Sources/OreoreTerminalApp",
+            name: "TrellisApp",
+            dependencies: ["Trellis"],
+            path: "Sources/TrellisApp",
             swiftSettings: sharedSwiftSettings
         ),
         .testTarget(
-            name: "OreoreTerminalTests",
-            dependencies: ["OreoreTerminal"],
-            path: "Tests/OreoreTerminalTests",
+            name: "TrellisTests",
+            dependencies: ["Trellis"],
+            path: "Tests/TrellisTests",
             swiftSettings: sharedSwiftSettings
         ),
     ]

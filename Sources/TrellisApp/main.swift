@@ -1,5 +1,5 @@
 import AppKit
-import OreoreTerminal  // SPM build only; ignored in Makefile build (same module)
+import Trellis  // SPM build only; ignored in Makefile build (same module)
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -40,7 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Oreore Terminal"
+        window.title = "Trellis"
         window.delegate = self
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
@@ -139,7 +139,7 @@ let appMenuItem = NSMenuItem()
 mainMenu.addItem(appMenuItem)
 let appMenu = NSMenu()
 appMenu.addItem(
-    withTitle: "Quit Oreore Terminal",
+    withTitle: "Quit Trellis",
     action: #selector(NSApplication.terminate(_:)),
     keyEquivalent: "q"
 )

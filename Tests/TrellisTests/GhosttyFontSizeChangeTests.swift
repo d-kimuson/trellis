@@ -1,5 +1,5 @@
 import XCTest
-@testable import OreoreTerminal
+@testable import Trellis
 
 final class GhosttyFontSizeChangeTests: XCTestCase {
 

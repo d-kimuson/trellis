@@ -1,5 +1,5 @@
 {
-  description = "oreore-terminal - A tmux alternative built on libghostty";
+  description = "Trellis - Terminal app built on libghostty";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -12,50 +12,34 @@
         pkgs = import nixpkgs { inherit system; };
       in
       {
-        devShells.default = pkgs.mkShell {
+        # mkShellNoCC: provides tools in PATH without pulling in the C
+        # toolchain (apple-sdk/clang). This avoids LDFLAGS/CFLAGS/DEVELOPER_DIR
+        # contamination that conflicts with Xcode's native toolchain.
+        devShells.default = pkgs.mkShellNoCC {
           buildInputs = with pkgs; [
-            # Zig 0.14 for building libghostty (ghostty 1.2.x)
-            zig_0_14
-            # Build tools
+            zig_0_14    # Building libghostty (ghostty 1.2.x)
             gnumake
             pkg-config
-            # For ghostty build dependencies
-            freetype
-            fontconfig
-            libxml2
-            # Code quality
             swiftlint
           ];
 
-          # Prerequisites (not manageable via Nix):
-          #   - Xcode: Required for Apple's proprietary `metal` shader compiler.
-          #     libghostty uses Metal for GPU-accelerated terminal rendering on macOS,
-          #     and its build compiles .metal shaders into .metallib via `xcrun metal`.
-          #     `metal` is bundled exclusively in Xcode.app (not in CommandLineTools).
-          #     Ensure xcode-select points to Xcode:
-          #       sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          # Prerequisite: Xcode (for `metal` shader compiler, `swiftc`, `xcodebuild`)
+          #   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
           shellHook = ''
-            # Override DEVELOPER_DIR so that `/usr/bin/xcrun` resolves tools (especially
-            # `metal`) from the real Xcode installation instead of Nix's apple-sdk shim.
-            export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+            # Remove Nix's xcbuild from PATH — it shadows /usr/bin/xcrun,
+            # xcodebuild, etc. and can't find the macOS SDK.
+            export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v xcbuild | tr '\n' ':')
 
-            echo "oreore-terminal dev shell"
+            echo "trellis dev shell"
             echo "  zig: $(zig version)"
             echo ""
 
-            # Verify xcode-select points to Xcode (not CommandLineTools)
-            if ! /usr/bin/xcrun -sdk macosx -f metal &>/dev/null; then
+            if ! xcrun -sdk macosx -f metal &>/dev/null; then
               echo "WARNING: 'metal' compiler not found."
-              echo "  libghostty requires Xcode's Metal shader compiler (proprietary, not in nixpkgs)."
               echo "  Run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
               echo ""
             fi
-
-            echo "Steps:"
-            echo "  1. make setup    - Clone ghostty and build libghostty"
-            echo "  2. make build    - Build oreore-terminal"
-            echo "  3. make run      - Run the app"
           '';
         };
       }

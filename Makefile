@@ -4,13 +4,9 @@ GHOSTTY_LIB = $(GHOSTTY_DIR)/zig-out/lib
 GHOSTTY_STATIC_LIB = $(GHOSTTY_LIB)/libghostty.a
 GHOSTTY_HEADERS = $(GHOSTTY_INCLUDE)
 BUILD_DIR = .build
-APP_BUNDLE = $(BUILD_DIR)/OreoreTerminal.app
-SWIFT_FILES = $(shell find Sources/OreoreTerminal Sources/OreoreTerminalApp -name '*.swift')
+APP_BUNDLE = $(BUILD_DIR)/Trellis.app
+SWIFT_FILES = $(shell find Sources/Trellis Sources/TrellisApp -name '*.swift')
 
-# Ensure Xcode's tools (especially `metal`) are found via /usr/bin/xcrun.
-# Nix's stdenv sets DEVELOPER_DIR to its own apple-sdk, which lacks proprietary
-# tools like the Metal shader compiler. See flake.nix comments for details.
-export DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
 
 .PHONY: all setup build run clean distclean test lint check
 
@@ -34,13 +30,9 @@ setup: $(GHOSTTY_STATIC_LIB)
 	@echo "Headers: $(GHOSTTY_HEADERS)"
 	@echo "Library: $(GHOSTTY_STATIC_LIB)"
 
-# Build the app
-# Use xcrun to invoke swiftc with the Xcode SDK (not Nix's apple-sdk).
-# Nix's apple-sdk has Swift 5.10 interfaces which are incompatible with
-# the system Swift 6.x compiler.
-SWIFTC = /usr/bin/xcrun -sdk macosx swiftc
+SWIFTC = xcrun -sdk macosx swiftc
 
-$(BUILD_DIR)/OreoreTerminal: $(SWIFT_FILES) $(GHOSTTY_STATIC_LIB)
+$(BUILD_DIR)/Trellis: $(SWIFT_FILES) $(GHOSTTY_STATIC_LIB)
 	@mkdir -p $(BUILD_DIR)
 	$(SWIFTC) \
 		-I$(GHOSTTY_HEADERS) \
@@ -60,17 +52,17 @@ $(BUILD_DIR)/OreoreTerminal: $(SWIFT_FILES) $(GHOSTTY_STATIC_LIB)
 		-framework IOSurface \
 		-framework UniformTypeIdentifiers \
 		-framework WebKit \
-		-o $(BUILD_DIR)/OreoreTerminal \
+		-o $(BUILD_DIR)/Trellis \
 		$(SWIFT_FILES)
 
-build: $(BUILD_DIR)/OreoreTerminal
+build: $(BUILD_DIR)/Trellis
 	@echo "Build complete!"
 
 # Create .app bundle
-app: $(BUILD_DIR)/OreoreTerminal
+app: $(BUILD_DIR)/Trellis
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
-	cp $(BUILD_DIR)/OreoreTerminal $(APP_BUNDLE)/Contents/MacOS/
+	cp $(BUILD_DIR)/Trellis $(APP_BUNDLE)/Contents/MacOS/
 	cp Resources/Info.plist $(APP_BUNDLE)/Contents/
 	@echo "App bundle created: $(APP_BUNDLE)"
 
@@ -79,12 +71,11 @@ run: app
 
 # Testing (via xcodebuild + SPM package)
 # Note: `swift test` has a known bug with Xcode 26 testing plugin.
-# Using xcodebuild as workaround.
-# xcodebuild requires a clean environment — Nix's linker flags break it.
-# env -i strips Nix's LD/LDFLAGS contamination.
+# env -i: xcodebuild needs a clean environment (Nix sets vars like
+# NIX_ENFORCE_NO_NATIVE that break the linker).
 test: $(GHOSTTY_STATIC_LIB)
-	env -i HOME=$(HOME) PATH=/usr/bin:/bin:/usr/sbin DEVELOPER_DIR=$(DEVELOPER_DIR) \
-		/usr/bin/xcodebuild test -scheme OreoreTerminal -destination 'platform=macOS' -quiet
+	env -i HOME=$(HOME) PATH=$(PATH) \
+		xcodebuild test -scheme Trellis -destination 'platform=macOS' -quiet
 
 # Linting
 lint:

@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import OreoreTerminal
+@testable import Trellis
 
 final class FileNodeTests: XCTestCase {
 

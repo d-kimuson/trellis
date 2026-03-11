@@ -34,12 +34,12 @@ bd sync --status       # Check sync status
 .swift ファイルを変更したら、コミット前に必ず実行:
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c npx -y check-changed@0.0.1-beta.4 run
+npx -y check-changed@0.0.1-beta.4 run
 ```
 
 全チェック通過が必須。失敗したら修正して再実行。
 
-個別コマンド(すべて `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer nix develop -c` 経由で実行):
+個別コマンド:
 
 ```bash
 make lint    # SwiftLint
