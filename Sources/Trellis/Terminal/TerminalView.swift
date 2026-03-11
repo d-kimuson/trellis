@@ -37,8 +37,22 @@ class GhosttyNSView: NSView, NSTextInputClient {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
 
+        debugLog("[FOCUS] viewDidMoveToWindow: surface=\(surface.map { "\($0)" } ?? "nil") window=\(window != nil ? "yes" : "nil")")
+
         if surface == nil, window != nil {
             createSurface()
+            // Defer makeFirstResponder so the view hierarchy is fully established
+            // before requesting focus. Calling it synchronously during SwiftUI layout
+            // can fail silently, leaving the old surface focused in ghostty.
+            // This triggers resignFirstResponder on the old terminal
+            // (→ ghostty_surface_set_focus false) and becomeFirstResponder here
+            // (→ ghostty_surface_set_focus true).
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = self.window else { return }
+                debugLog("[FOCUS] makeFirstResponder: self=\(ObjectIdentifier(self)) currentFR=\(window.firstResponder != nil ? "\(type(of: window.firstResponder!))" : "nil")")
+                let result = window.makeFirstResponder(self)
+                debugLog("[FOCUS] makeFirstResponder result=\(result)")
+            }
         }
     }
 
@@ -68,6 +82,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
         ghosttyApp.focusedSurface = surface
         if let surface {
             ghosttyApp.registerSession(surface: surface, session: session)
+            // Explicitly mark unfocused until becomeFirstResponder fires.
+            // ghostty defaults new surfaces to focused=true, which causes
+            // cursor blinking on surfaces that haven't received focus yet.
+            ghostty_surface_set_focus(surface, false)
+            debugLog("[FOCUS] createSurface: set focus=false surface=\(surface)")
         }
 
         if let surface, let window {
@@ -98,6 +117,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// macOS does NOT call keyDown for Cmd+key — only performKeyEquivalent.
     /// Let app menu shortcuts pass through; forward the rest to ghostty.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Only handle key equivalents when this view is the actual first responder.
+        // performKeyEquivalent is traversed through the view hierarchy, so without
+        // this guard unfocused terminal panes would also receive Cmd+K etc.
+        guard window?.firstResponder === self else { return super.performKeyEquivalent(with: event) }
         guard let surface else { return super.performKeyEquivalent(with: event) }
 
         if event.modifierFlags.contains(.command) {
@@ -381,8 +404,23 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
+        debugLog("[FOCUS] becomeFirstResponder: result=\(result) surface=\(surface.map { "\($0)" } ?? "nil")")
         if result, let surface {
             ghosttyApp.focusedSurface = surface
+            // Defocus all other surfaces first — resignFirstResponder is not reliably
+            // called when AppKit reassigns first responder during view hierarchy changes
+            // (e.g. split). This ensures only one surface has ghostty focus at a time.
+            ghosttyApp.defocusAllSurfaces(except: surface)
+            ghostty_surface_set_focus(surface, true)
+        }
+        return result
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let result = super.resignFirstResponder()
+        debugLog("[FOCUS] resignFirstResponder: result=\(result) surface=\(surface.map { "\($0)" } ?? "nil")")
+        if result, let surface {
+            ghostty_surface_set_focus(surface, false)
         }
         return result
     }

@@ -161,6 +161,18 @@ public final class GhosttyAppWrapper {
         return surfaceSessions[key]
     }
 
+    /// Set focus=false on every registered surface except the given one.
+    /// Called from becomeFirstResponder so that ghostty cursor blink state
+    /// is correct even when AppKit skips resignFirstResponder (e.g. during
+    /// view hierarchy restructuring on split).
+    func defocusAllSurfaces(except focused: ghostty_surface_t) {
+        for key in surfaceSessions.keys {
+            let surface = ghostty_surface_t(bitPattern: UInt(bitPattern: key))
+            guard let surface, surface != focused else { continue }
+            ghostty_surface_set_focus(surface, false)
+        }
+    }
+
     public func shutdown() {
         tickTimer?.invalidate()
         tickTimer = nil
