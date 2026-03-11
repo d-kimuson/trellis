@@ -6,6 +6,7 @@ public final class WorkspaceStore: ObservableObject {
     public let ghosttyApp: GhosttyAppWrapper
     @Published public var workspaces: [Workspace]
     @Published public var activeWorkspaceIndex: Int
+    private var nextTerminalCounter: Int = 1
 
     /// Optional reference to the in-app notification store for marking read on focus.
     public weak var notificationStore: NotificationStore?
@@ -13,10 +14,8 @@ public final class WorkspaceStore: ObservableObject {
     public init(ghosttyApp: GhosttyAppWrapper) {
         self.ghosttyApp = ghosttyApp
 
-        // Start with one workspace containing one area with one terminal tab
-        let initialSession = TerminalSession(title: "Terminal 1")
-        let tab = Tab(content: .terminal(initialSession))
-        let area = Area(tabs: [tab])
+        // Start with one workspace containing one empty area
+        let area = Area(tabs: [])
         let layout = LayoutNode.leaf(area)
         let workspace = Workspace(name: "Workspace 1", layout: layout, activeAreaId: area.id)
 
@@ -199,9 +198,14 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Close a tab at the given index in the given area.
     /// If it's the last tab in a multi-area layout, close the area.
-    /// If it's the last tab in the last area, do nothing (keep the tab).
+    /// If it's the last tab in the last area, keep the empty area visible.
     public func closeTab(in areaId: UUID, at tabIndex: Int) {
-        guard var workspace = activeWorkspace else { return }
+        closeTab(in: areaId, at: tabIndex, workspaceIndex: activeWorkspaceIndex)
+    }
+
+    private func closeTab(in areaId: UUID, at tabIndex: Int, workspaceIndex: Int) {
+        guard workspaceIndex >= 0, workspaceIndex < workspaces.count else { return }
+        var workspace = workspaces[workspaceIndex]
         guard let area = workspace.layout.findArea(id: areaId) else { return }
         guard tabIndex >= 0, tabIndex < area.tabs.count else { return }
 
@@ -216,20 +220,23 @@ public final class WorkspaceStore: ObservableObject {
                 let allAreas = workspace.layout.allAreas
                 if allAreas.count > 1 {
                     // Multi-area: remove the empty area entirely
-                    closeArea(areaId: areaId)
+                    workspace.layout = workspace.layout.removingArea(areaId: areaId)
+                    if workspace.activeAreaId == areaId {
+                        workspace.activeAreaId = workspace.layout.allAreas.first?.id
+                    }
                 } else {
                     // Single area: keep the empty area visible
                     workspace.layout = workspace.layout.updatingArea(areaId: areaId) { _ in
                         updatedArea
                     }
-                    workspaces[activeWorkspaceIndex] = workspace
                 }
             } else {
                 workspace.layout = workspace.layout.updatingArea(areaId: areaId) { _ in
                     updatedArea
                 }
-                workspaces[activeWorkspaceIndex] = workspace
             }
+
+            workspaces[workspaceIndex] = workspace
         }
     }
 
@@ -374,13 +381,7 @@ public final class WorkspaceStore: ObservableObject {
         for (wsIndex, workspace) in workspaces.enumerated() {
             for area in workspace.allAreas {
                 if let tabIndex = area.tabs.firstIndex(where: { $0.content.terminalSession?.id == session.id }) {
-                    // Temporarily switch to the workspace containing the session
-                    let savedIndex = activeWorkspaceIndex
-                    activeWorkspaceIndex = wsIndex
-                    closeTab(in: area.id, at: tabIndex)
-                    if activeWorkspaceIndex != savedIndex && workspaces.count > savedIndex {
-                        activeWorkspaceIndex = savedIndex
-                    }
+                    closeTab(in: area.id, at: tabIndex, workspaceIndex: wsIndex)
                     return
                 }
             }
@@ -397,6 +398,8 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     private func nextTerminalNumber() -> Int {
-        allSessions.count + 1
+        let terminalNumber = nextTerminalCounter
+        nextTerminalCounter += 1
+        return terminalNumber
     }
 }

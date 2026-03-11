@@ -62,10 +62,19 @@ struct AreaPanelView: View {
                 GeometryReader { geo in
                     ZStack {
                         ForEach(Array(area.tabs.enumerated()), id: \.element.id) { index, tab in
-                            panelContent(for: tab.content)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .opacity(index == area.activeTabIndex ? 1 : 0)
-                                .allowsHitTesting(index == area.activeTabIndex)
+                            let isActive = index == area.activeTabIndex
+                            switch tab.content {
+                            case .terminal:
+                                panelContent(for: tab.content)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .opacity(isActive ? 1 : 0)
+                                    .allowsHitTesting(isActive)
+                            case .browser, .fileTree:
+                                if isActive {
+                                    panelContent(for: tab.content)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                            }
                         }
                     }
                     .overlay { splitPreview(size: geo.size) }
@@ -264,7 +273,15 @@ struct AreaPanelView: View {
         .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
         .cornerRadius(4)
         .contentShape(Rectangle())
-        .onTapGesture { store.selectTab(in: area.id, at: index) }
+        .onTapGesture {
+            store.selectTab(in: area.id, at: index)
+            // Restore keyboard focus to the terminal surface when switching tabs.
+            // Without this, the previously-focused terminal stays first responder and
+            // receives Cmd+V / other key events even after tab switching.
+            if case .terminal(let session) = tab.content, let nsView = session.nsView {
+                NSApp.keyWindow?.makeFirstResponder(nsView)
+            }
+        }
         .draggable(dragData)
         .onDrop(of: [.tabDragData], isTargeted: .none) { _ in
             false
@@ -286,11 +303,31 @@ struct TerminalPanelWrapper: View {
     let ghosttyApp: GhosttyAppWrapper
     let areaId: UUID
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject private var sessionObserver: TerminalSession
+
+    init(session: TerminalSession, ghosttyApp: GhosttyAppWrapper, areaId: UUID, store: WorkspaceStore) {
+        self.session = session
+        self.ghosttyApp = ghosttyApp
+        self.areaId = areaId
+        self.store = store
+        self.sessionObserver = session
+    }
 
     var body: some View {
         TerminalView(ghosttyApp: ghosttyApp, session: session)
             .id(session.id)
             .border(Color(nsColor: .separatorColor), width: 0.5)
+            .overlay(alignment: .bottomLeading) {
+                if let url = sessionObserver.pendingURL {
+                    URLSuggestBanner(url: url, onDismiss: {
+                        session.pendingURL = nil
+                    }, onOpenInBrowser: { parsedURL in
+                        store.addBrowserTab(to: areaId, url: parsedURL)
+                        session.pendingURL = nil
+                    })
+                    .padding(8)
+                }
+            }
             .onAppear {
                 session.onFocused = { [weak store] in
                     store?.activateArea(areaId)
@@ -299,6 +336,50 @@ struct TerminalPanelWrapper: View {
                     store?.closeTerminalSession(session)
                 }
             }
+    }
+}
+
+/// VSCode-style URL suggestion banner shown at the bottom of the terminal.
+private struct URLSuggestBanner: View {
+    let url: String
+    let onDismiss: () -> Void
+    let onOpenInBrowser: (URL) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "link")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+
+            Text(url)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundColor(.primary)
+
+            if let parsedURL = URL(string: url) {
+                Button("Open") {
+                    onOpenInBrowser(parsedURL)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.mini)
+                .help("Open in internal browser")
+            }
+
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9))
+            }
+            .buttonStyle(.borderless)
+            .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+        .shadow(radius: 2, y: 1)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
 
@@ -311,6 +392,7 @@ struct SplitContainer<First: View, Second: View>: View {
     @ViewBuilder let second: () -> Second
 
     @State private var isDragging = false
+    @State private var localRatio: Double?
 
     private let dividerThickness: CGFloat = 4
     private let minRatio: Double = 0.15
@@ -318,9 +400,10 @@ struct SplitContainer<First: View, Second: View>: View {
 
     var body: some View {
         GeometryReader { geo in
+            let activeRatio = localRatio ?? ratio
             let totalSize = direction == .horizontal ? geo.size.height : geo.size.width
-            let firstSize = totalSize * ratio
-            let secondSize = totalSize * (1 - ratio) - dividerThickness
+            let firstSize = totalSize * activeRatio
+            let secondSize = totalSize * (1 - activeRatio) - dividerThickness
 
             if direction == .horizontal {
                 VStack(spacing: 0) {
@@ -359,12 +442,16 @@ struct SplitContainer<First: View, Second: View>: View {
                     .onChanged { value in
                         isDragging = true
                         let offset = isHorizontal ? value.location.y : value.location.x
-                        let currentFirstSize = totalSize * ratio
+                        let currentFirstSize = totalSize * (localRatio ?? ratio)
                         let newFirstSize = currentFirstSize + offset - (dividerThickness / 2)
                         let newRatio = Double(newFirstSize / totalSize)
-                        onRatioChange(min(maxRatio, max(minRatio, newRatio)))
+                        localRatio = min(maxRatio, max(minRatio, newRatio))
                     }
                     .onEnded { _ in
+                        if let localRatio {
+                            onRatioChange(localRatio)
+                        }
+                        localRatio = nil
                         isDragging = false
                     }
             )

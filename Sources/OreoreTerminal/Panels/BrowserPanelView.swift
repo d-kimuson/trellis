@@ -9,28 +9,17 @@ struct WebViewRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.navigationDelegate = context.coordinator
+        context.coordinator.webView = webView
+        // Wire direct action dispatch — bypasses SwiftUI update cycle to avoid lost/double-fire.
+        state.performAction = { [weak coordinator = context.coordinator] action in
+            coordinator?.perform(action)
+        }
         webView.load(URLRequest(url: state.currentURL))
         context.coordinator.setupMouseMonitor(webView: webView)
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        // Process one-shot navigation actions (back, forward, reload, stop)
-        if let action = state.pendingAction {
-            DispatchQueue.main.async { state.pendingAction = nil }
-            switch action {
-            case .back:
-                webView.goBack()
-            case .forward:
-                webView.goForward()
-            case .reload:
-                webView.reload()
-            case .stop:
-                webView.stopLoading()
-            }
-            return
-        }
-
         // Only navigate if URL changed externally (e.g., URL bar submission)
         if context.coordinator.lastNavigatedURL != state.currentURL {
             context.coordinator.lastNavigatedURL = state.currentURL
@@ -43,6 +32,7 @@ struct WebViewRepresentable: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+        coordinator.state.performAction = nil
         coordinator.removeMouseMonitor()
     }
 
@@ -50,12 +40,22 @@ struct WebViewRepresentable: NSViewRepresentable {
         let state: BrowserState
         let onFocused: (() -> Void)?
         var lastNavigatedURL: URL?
+        weak var webView: WKWebView?
         private var mouseMonitor: Any?
 
         init(state: BrowserState, onFocused: (() -> Void)?) {
             self.state = state
             self.onFocused = onFocused
             self.lastNavigatedURL = state.currentURL
+        }
+
+        func perform(_ action: BrowserNavigationAction) {
+            switch action {
+            case .back: webView?.goBack()
+            case .forward: webView?.goForward()
+            case .reload: webView?.reload()
+            case .stop: webView?.stopLoading()
+            }
         }
 
         deinit {
@@ -140,14 +140,14 @@ struct BrowserPanelView: View {
 
     private var navigationBar: some View {
         HStack(spacing: 4) {
-            Button { state.pendingAction = .back } label: {
+            Button { state.performAction?(.back) } label: {
                 Image(systemName: "chevron.left")
             }
             .buttonStyle(.borderless)
             .disabled(!state.canGoBack)
             .help("Back")
 
-            Button { state.pendingAction = .forward } label: {
+            Button { state.performAction?(.forward) } label: {
                 Image(systemName: "chevron.right")
             }
             .buttonStyle(.borderless)
@@ -155,7 +155,7 @@ struct BrowserPanelView: View {
             .help("Forward")
 
             Button {
-                state.pendingAction = state.isLoading ? .stop : .reload
+                state.performAction?(state.isLoading ? .stop : .reload)
             } label: {
                 Image(systemName: state.isLoading ? "xmark" : "arrow.clockwise")
             }

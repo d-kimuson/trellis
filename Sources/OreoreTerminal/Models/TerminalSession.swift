@@ -14,6 +14,9 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Git branch name at the current working directory (detected automatically).
     @Published public var gitBranch: String?
 
+    /// URL pending user action (open / dismiss). Set by ghostty OPEN_URL action.
+    @Published public var pendingURL: String?
+
     /// Working directory to use when creating the ghostty surface.
     public let initialWorkingDirectory: String?
 
@@ -30,6 +33,8 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Called when the shell process exits and the surface should be closed.
     var onProcessExited: (() -> Void)?
 
+    private var gitProcess: Process?
+
     public init(title: String = "Terminal", workingDirectory: String? = nil) {
         self.id = UUID()
         self.title = title
@@ -39,31 +44,64 @@ public final class TerminalSession: Identifiable, ObservableObject {
 
     /// Detect the git branch at the given directory in background.
     func updateGitBranch(at directory: String) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let branch = Self.detectGitBranch(at: directory)
-            DispatchQueue.main.async {
-                self?.gitBranch = branch
+        let startDetection = { [weak self] in
+            guard let self else { return }
+
+            self.gitProcess?.terminate()
+            self.gitProcess = nil
+
+            guard let process = Self.detectGitBranch(at: directory, completion: { [weak self] process, branch in
+                DispatchQueue.main.async {
+                    guard let self, self.gitProcess === process else { return }
+                    self.gitBranch = branch
+                    self.gitProcess = nil
+                }
+            }) else {
+                self.gitBranch = nil
+                return
             }
+
+            self.gitProcess = process
+        }
+
+        if Thread.isMainThread {
+            startDetection()
+        } else {
+            DispatchQueue.main.async(execute: startDetection)
         }
     }
 
     /// Run `git rev-parse --abbrev-ref HEAD` to get the current branch name.
-    private static func detectGitBranch(at directory: String) -> String? {
+    private static func detectGitBranch(
+        at directory: String,
+        completion: @escaping (Process, String?) -> Void
+    ) -> Process? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-C", directory, "rev-parse", "--abbrev-ref", "HEAD"]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { process in
+            let branch: String?
+
+            if process.terminationStatus == 0 {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                branch = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                branch = nil
+            }
+
+            completion(process, branch)
+        }
+
         do {
             try process.run()
-            process.waitUntilExit()
+            return process
         } catch {
             return nil
         }
-        guard process.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Shortened display name of the current working directory.
@@ -81,12 +119,16 @@ public final class TerminalSession: Identifiable, ObservableObject {
 
     /// Mark session as inactive and free the surface.
     func close() {
+        gitProcess?.terminate()
+        gitProcess = nil
         isActive = false
         nsView?.destroySurface()
         nsView = nil
     }
 
     deinit {
+        gitProcess?.terminate()
+        gitProcess = nil
         nsView?.destroySurface()
         nsView = nil
     }
