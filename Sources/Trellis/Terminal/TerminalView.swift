@@ -14,6 +14,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
     private var imMarkedText: NSMutableAttributedString = NSMutableAttributedString()
     private var imSelectedRange: NSRange = NSRange(location: 0, length: 0)
 
+    /// Pending debounced resize task. Cancelled and rescheduled on each layout change
+    /// so ghostty_surface_set_size is only called after the size settles.
+    private var pendingResizeTask: DispatchWorkItem?
+
     /// Non-nil while inside keyDown — collects text from insertText calls.
     /// Matches Ghostty's keyTextAccumulator pattern for proper IME handling.
     private var keyTextAccumulator: [String]?
@@ -102,13 +106,24 @@ class GhosttyNSView: NSView, NSTextInputClient {
     }
 
     private func updateSurfaceSize() {
-        guard let surface else { return }
-        let scaledSize = convertToBacking(bounds.size)
-        ghostty_surface_set_size(
-            surface,
-            UInt32(scaledSize.width),
-            UInt32(scaledSize.height)
-        )
+        guard surface != nil else { return }
+
+        // Debounce rapid-fire layout changes (e.g., split-pane drag at 60 fps).
+        // ghostty adjusts the viewport scroll on every ghostty_surface_set_size call,
+        // so sending it on every frame causes the terminal to scroll to unexpected
+        // positions. We cancel and reschedule so the call only fires once the size
+        // has been stable for ~32 ms (≈ 2 frames).
+        pendingResizeTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in
+            guard let self, let surface = self.surface else { return }
+            let scaledSize = self.convertToBacking(self.bounds.size)
+            // Skip zero or sub-pixel sizes that can appear during SwiftUI layout passes.
+            // Passing zero dimensions to ghostty can reset its scroll state.
+            guard scaledSize.width >= 1, scaledSize.height >= 1 else { return }
+            ghostty_surface_set_size(surface, UInt32(scaledSize.width), UInt32(scaledSize.height))
+        }
+        pendingResizeTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.032, execute: task)
     }
 
     // MARK: - Keyboard Input (via NSTextInputClient)

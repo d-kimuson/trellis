@@ -7,6 +7,7 @@ struct AreaLayoutView: View {
     let node: LayoutNode
     let ghosttyApp: GhosttyAppWrapper
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject var notificationStore: NotificationStore
 
     var body: some View {
         switch node {
@@ -15,6 +16,7 @@ struct AreaLayoutView: View {
                 area: area,
                 ghosttyApp: ghosttyApp,
                 store: store,
+                notificationStore: notificationStore,
                 isActiveArea: store.activeWorkspace?.activeAreaId == area.id
             )
 
@@ -26,10 +28,10 @@ struct AreaLayoutView: View {
                     store.updateRatio(splitId: splitId, ratio: newRatio)
                 },
                 first: {
-                    AreaLayoutView(node: first, ghosttyApp: ghosttyApp, store: store)
+                    AreaLayoutView(node: first, ghosttyApp: ghosttyApp, store: store, notificationStore: notificationStore)
                 },
                 second: {
-                    AreaLayoutView(node: second, ghosttyApp: ghosttyApp, store: store)
+                    AreaLayoutView(node: second, ghosttyApp: ghosttyApp, store: store, notificationStore: notificationStore)
                 }
             )
         }
@@ -47,6 +49,7 @@ struct AreaPanelView: View {
     let area: Area
     let ghosttyApp: GhosttyAppWrapper
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject var notificationStore: NotificationStore
     var isActiveArea: Bool = false
 
     @State private var dropInsertIndex: Int?
@@ -280,6 +283,9 @@ struct AreaPanelView: View {
                 Image(systemName: tab.content.iconName)
                     .font(.system(size: 10)).foregroundColor(.secondary)
                 TabTitleLabel(content: tab.content)
+                if case .terminal(let session) = tab.content {
+                    TabNotificationBadge(session: session, notificationStore: notificationStore)
+                }
             }
             .padding(.horizontal, 6).padding(.vertical, 4)
             .contentShape(Rectangle())
@@ -408,8 +414,8 @@ struct SplitContainer<First: View, Second: View>: View {
         GeometryReader { geo in
             let activeRatio = localRatio ?? ratio
             let totalSize = direction == .horizontal ? geo.size.height : geo.size.width
-            let firstSize = totalSize * activeRatio
-            let secondSize = totalSize * (1 - activeRatio) - dividerThickness
+            let firstSize = max(0, totalSize * activeRatio)
+            let secondSize = max(0, totalSize * (1 - activeRatio) - dividerThickness)
 
             if direction == .horizontal {
                 VStack(spacing: 0) {
@@ -506,5 +512,21 @@ private struct TerminalTabTitle: View {
             return lastComponent.isEmpty ? "/" : lastComponent
         }
         return session.title
+    }
+}
+
+/// Shows an unread notification badge on a terminal tab.
+/// Observes both the session and the notification store for reactive updates.
+private struct TabNotificationBadge: View {
+    @ObservedObject var session: TerminalSession
+    @ObservedObject var notificationStore: NotificationStore
+
+    var body: some View {
+        let count = notificationStore.unreadCount(forSession: session.id)
+        if count > 0 {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 6, height: 6)
+        }
     }
 }
