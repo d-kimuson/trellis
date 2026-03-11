@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import GhosttyKit
 import SwiftUI
 
@@ -239,6 +240,7 @@ public final class GhosttyAppWrapper {
             let openURL = action.action.open_url
             if let urlPtr = openURL.url {
                 let url = String(cString: urlPtr)
+                try? (url + "\n").appendToFile("/tmp/oreore-url-debug.log")
                 if target.tag == GHOSTTY_TARGET_SURFACE,
                    let surface = target.target.surface,
                    let session = current?.lookupSession(surface: surface) {
@@ -304,5 +306,20 @@ public final class GhosttyAppWrapper {
 
     deinit {
         shutdown()
+    }
+}
+
+private extension String {
+    func appendToFile(_ path: String) throws {
+        let data = Data(utf8)
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: path) {
+            let handle = try FileHandle(forWritingTo: url)
+            handle.seekToEndOfFile()
+            handle.write(data)
+            handle.closeFile()
+        } else {
+            try data.write(to: url)
+        }
     }
 }

@@ -319,9 +319,12 @@ struct TerminalPanelWrapper: View {
             .border(Color(nsColor: .separatorColor), width: 0.5)
             .overlay(alignment: .bottomLeading) {
                 if let url = sessionObserver.pendingURL {
-                    URLSuggestBanner(url: url) {
+                    URLSuggestBanner(url: url, onDismiss: {
                         session.pendingURL = nil
-                    }
+                    }, onOpenInBrowser: { parsedURL in
+                        store.addBrowserTab(to: areaId, url: parsedURL)
+                        session.pendingURL = nil
+                    })
                     .padding(8)
                 }
             }
@@ -340,6 +343,7 @@ struct TerminalPanelWrapper: View {
 private struct URLSuggestBanner: View {
     let url: String
     let onDismiss: () -> Void
+    let onOpenInBrowser: (URL) -> Void
 
     var body: some View {
         HStack(spacing: 8) {
@@ -353,14 +357,14 @@ private struct URLSuggestBanner: View {
                 .truncationMode(.middle)
                 .foregroundColor(.primary)
 
-            Button("Open") {
-                if let u = URL(string: url) {
-                    NSWorkspace.shared.open(u)
+            if let parsedURL = URL(string: url) {
+                Button("Open") {
+                    onOpenInBrowser(parsedURL)
                 }
-                onDismiss()
+                .buttonStyle(.borderedProminent)
+                .controlSize(.mini)
+                .help("Open in internal browser")
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.mini)
 
             Button {
                 onDismiss()
