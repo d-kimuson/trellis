@@ -16,8 +16,9 @@ public final class BrowserState: ObservableObject, Identifiable {
     @Published public var canGoBack: Bool
     @Published public var canGoForward: Bool
     @Published public var isLoading: Bool
-    /// One-shot navigation action consumed by WebViewRepresentable on next update.
-    @Published public var pendingAction: BrowserNavigationAction?
+    /// Direct action dispatch. Set by WebViewRepresentable.Coordinator on makeNSView.
+    /// Call this instead of setting pendingAction to avoid lost/double-fire races.
+    public var performAction: ((BrowserNavigationAction) -> Void)?
 
     public init(
         id: UUID = UUID(),

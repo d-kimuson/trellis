@@ -273,7 +273,15 @@ struct AreaPanelView: View {
         .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
         .cornerRadius(4)
         .contentShape(Rectangle())
-        .onTapGesture { store.selectTab(in: area.id, at: index) }
+        .onTapGesture {
+            store.selectTab(in: area.id, at: index)
+            // Restore keyboard focus to the terminal surface when switching tabs.
+            // Without this, the previously-focused terminal stays first responder and
+            // receives Cmd+V / other key events even after tab switching.
+            if case .terminal(let session) = tab.content, let nsView = session.nsView {
+                NSApp.keyWindow?.makeFirstResponder(nsView)
+            }
+        }
         .draggable(dragData)
         .onDrop(of: [.tabDragData], isTargeted: .none) { _ in
             false
@@ -295,11 +303,28 @@ struct TerminalPanelWrapper: View {
     let ghosttyApp: GhosttyAppWrapper
     let areaId: UUID
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject private var sessionObserver: TerminalSession
+
+    init(session: TerminalSession, ghosttyApp: GhosttyAppWrapper, areaId: UUID, store: WorkspaceStore) {
+        self.session = session
+        self.ghosttyApp = ghosttyApp
+        self.areaId = areaId
+        self.store = store
+        self.sessionObserver = session
+    }
 
     var body: some View {
         TerminalView(ghosttyApp: ghosttyApp, session: session)
             .id(session.id)
             .border(Color(nsColor: .separatorColor), width: 0.5)
+            .overlay(alignment: .bottomLeading) {
+                if let url = sessionObserver.pendingURL {
+                    URLSuggestBanner(url: url) {
+                        session.pendingURL = nil
+                    }
+                    .padding(8)
+                }
+            }
             .onAppear {
                 session.onFocused = { [weak store] in
                     store?.activateArea(areaId)
@@ -308,6 +333,49 @@ struct TerminalPanelWrapper: View {
                     store?.closeTerminalSession(session)
                 }
             }
+    }
+}
+
+/// VSCode-style URL suggestion banner shown at the bottom of the terminal.
+private struct URLSuggestBanner: View {
+    let url: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "link")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+
+            Text(url)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundColor(.primary)
+
+            Button("Open") {
+                if let u = URL(string: url) {
+                    NSWorkspace.shared.open(u)
+                }
+                onDismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.mini)
+
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9))
+            }
+            .buttonStyle(.borderless)
+            .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+        .shadow(radius: 2, y: 1)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
 

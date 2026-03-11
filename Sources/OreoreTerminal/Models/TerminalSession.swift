@@ -14,6 +14,9 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Git branch name at the current working directory (detected automatically).
     @Published public var gitBranch: String?
 
+    /// URL pending user action (open / dismiss). Set by ghostty OPEN_URL action.
+    @Published public var pendingURL: String?
+
     /// Working directory to use when creating the ghostty surface.
     public let initialWorkingDirectory: String?
 

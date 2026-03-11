@@ -1,5 +1,6 @@
 import AppKit
 import GhosttyKit
+import SwiftUI
 
 enum GhosttyFontSizeChange {
     case increase(Int)
@@ -232,6 +233,20 @@ public final class GhosttyAppWrapper {
                         session.pwd = pwd
                     }
                     session.updateGitBranch(at: pwd)
+                }
+            }
+        case GHOSTTY_ACTION_OPEN_URL:
+            let openURL = action.action.open_url
+            if let urlPtr = openURL.url {
+                let url = String(cString: urlPtr)
+                if target.tag == GHOSTTY_TARGET_SURFACE,
+                   let surface = target.target.surface,
+                   let session = current?.lookupSession(surface: surface) {
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            session.pendingURL = url
+                        }
+                    }
                 }
             }
         case GHOSTTY_ACTION_CLOSE_TAB:
