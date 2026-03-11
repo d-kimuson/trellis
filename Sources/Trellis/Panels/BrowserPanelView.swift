@@ -10,12 +10,18 @@ struct WebViewRepresentable: NSViewRepresentable {
         let webView = WKWebView()
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
+        // Enable web inspector (right-click "Inspect Element" + programmatic open)
+        webView.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        if #available(macOS 13.3, *) {
+            webView.isInspectable = true
+        }
         // Wire direct action dispatch — bypasses SwiftUI update cycle to avoid lost/double-fire.
         state.performAction = { [weak coordinator = context.coordinator] action in
             coordinator?.perform(action)
         }
         webView.load(URLRequest(url: state.currentURL))
         context.coordinator.setupMouseMonitor(webView: webView)
+        context.coordinator.setupKeyboardMonitor(webView: webView)
         return webView
     }
 
@@ -34,6 +40,7 @@ struct WebViewRepresentable: NSViewRepresentable {
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
         coordinator.state.performAction = nil
         coordinator.removeMouseMonitor()
+        coordinator.removeKeyboardMonitor()
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
@@ -42,6 +49,7 @@ struct WebViewRepresentable: NSViewRepresentable {
         var lastNavigatedURL: URL?
         weak var webView: WKWebView?
         private var mouseMonitor: Any?
+        private var keyboardMonitor: Any?
 
         init(state: BrowserState, onFocused: (() -> Void)?) {
             self.state = state
@@ -55,11 +63,53 @@ struct WebViewRepresentable: NSViewRepresentable {
             case .forward: webView?.goForward()
             case .reload: webView?.reload()
             case .stop: webView?.stopLoading()
+            case .openDevTools: openDevTools()
+            }
+        }
+
+        private func openDevTools() {
+            guard let webView else { return }
+            // Try private API to open the Web Inspector panel programmatically.
+            // Falls back to right-click "Inspect Element" if unavailable.
+            let inspectorSel = Selector(("_inspector"))
+            guard webView.responds(to: inspectorSel),
+                  let inspector = webView.perform(inspectorSel)?.takeUnretainedValue() as? NSObject
+            else { return }
+            let showSel = Selector(("show"))
+            if inspector.responds(to: showSel) {
+                inspector.perform(showSel)
             }
         }
 
         deinit {
             removeMouseMonitor()
+            removeKeyboardMonitor()
+        }
+
+        func setupKeyboardMonitor(webView: WKWebView) {
+            // F12 (keyCode 111) opens DevTools when the WebView is focused.
+            keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak webView] event in
+                guard let webView, event.keyCode == 111 else { return event }
+                let responder = webView.window?.firstResponder
+                let isWebViewFocused: Bool
+                if let view = responder as? NSView {
+                    isWebViewFocused = view === webView || view.isDescendant(of: webView)
+                } else {
+                    isWebViewFocused = false
+                }
+                if isWebViewFocused {
+                    self?.perform(.openDevTools)
+                    return nil
+                }
+                return event
+            }
+        }
+
+        func removeKeyboardMonitor() {
+            if let monitor = keyboardMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyboardMonitor = nil
+            }
         }
 
         func setupMouseMonitor(webView: WKWebView) {
@@ -167,6 +217,12 @@ struct BrowserPanelView: View {
                 .onSubmit {
                     navigateToURL()
                 }
+
+            Button { state.performAction?(.openDevTools) } label: {
+                Image(systemName: "hammer")
+            }
+            .buttonStyle(.borderless)
+            .help("Open DevTools (F12)")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)

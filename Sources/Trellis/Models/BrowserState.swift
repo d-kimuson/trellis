@@ -6,6 +6,7 @@ public enum BrowserNavigationAction {
     case forward
     case reload
     case stop
+    case openDevTools
 }
 
 /// Observable state for a browser panel.
