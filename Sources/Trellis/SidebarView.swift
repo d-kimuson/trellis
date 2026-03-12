@@ -17,75 +17,53 @@ struct SidebarView: View {
                 }
             }
         )) {
-            Section {
-                // "Pinned" sub-label — always visible, non-interactive
-                Label("Pinned", systemImage: "pin.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .selectionDisabled()
-                    .moveDisabled(true)
-                    .deleteDisabled(true)
-
-                // All workspaces in one ForEach — onMove handles cross-boundary pin/unpin
-                ForEach(store.workspaces) { workspace in
-                    let globalIndex = store.workspaces.firstIndex(where: { $0.id == workspace.id }) ?? 0
-                    let isFirstTemp = !workspace.isPinned &&
-                        store.workspaces.first(where: { !$0.isPinned })?.id == workspace.id &&
-                        !store.pinnedWorkspaces.isEmpty
-                    let rep = workspace.representativeSession
-                    WorkspaceCard(
-                        workspace: workspace,
-                        isActive: globalIndex == store.activeWorkspaceIndex,
-                        unreadCount: notificationStore.unreadCount(
-                            forSessionIds: store.sessionIds(forWorkspace: globalIndex)
-                        ),
-                        isEditing: Binding(
-                            get: { renamingIndex == globalIndex },
-                            set: { editing in renamingIndex = editing ? globalIndex : nil }
-                        ),
-                        showCloseButton: hoveredIndex == globalIndex,
-                        showTopDivider: isFirstTemp,
-                        onRename: { newName in store.renameWorkspace(at: globalIndex, to: newName) },
-                        onClose: { requestClose(at: globalIndex) },
-                        sessionBranch: rep?.gitBranch,
-                        sessionShortPwd: rep?.shortPwd
-                    )
-                    .tag(globalIndex)
-                    .onHover { hoveredIndex = $0 ? globalIndex : nil }
-                    .contextMenu {
-                        Button("Rename") { renamingIndex = globalIndex }
-                        Divider()
-                        if workspace.isPinned {
-                            Button("Unpin") { store.unpinWorkspace(id: workspace.id) }
-                        } else {
-                            Button("Pin") { store.pinWorkspace(id: workspace.id) }
-                        }
+            // Pinned section — only shown when there are pinned workspaces
+            if !store.pinnedWorkspaces.isEmpty {
+                Section {
+                    ForEach(store.pinnedWorkspaces) { workspace in
+                        workspaceRow(workspace: workspace)
                     }
+                    .onMove { from, to in store.movePinnedWorkspace(fromOffsets: from, toOffset: to) }
+                } header: {
+                    Text("Pinned")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .textCase(nil)
                 }
-            } header: {
-                HStack {
-                    Text("Workspaces")
-                        .font(.system(size: 13, weight: .semibold))
-                    Spacer()
-                    Button(action: { store.addWorkspace() }) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 20, height: 20)
-                            .background(
-                                RoundedRectangle(cornerRadius: 5)
-                                    .fill(Color.primary.opacity(0.08))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .help("New Workspace")
-                }
-                .padding(.trailing, 4)
-                .padding(.bottom, 4)
+                .collapsible(false)
             }
-            .collapsible(false)
+
+            // Temporary workspaces section
+            if !store.tempWorkspaces.isEmpty || store.pinnedWorkspaces.isEmpty {
+                Section {
+                    ForEach(store.tempWorkspaces) { workspace in
+                        workspaceRow(workspace: workspace)
+                    }
+                    .onMove { from, to in store.moveTempWorkspace(fromOffsets: from, toOffset: to) }
+                } header: {
+                    HStack {
+                        Text("Workspaces")
+                            .font(.system(size: 13, weight: .semibold))
+                            .textCase(nil)
+                        Spacer()
+                        Button(action: { store.addWorkspace() }) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .frame(width: 20, height: 20)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(Color.primary.opacity(0.08))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help("New Workspace")
+                    }
+                    .padding(.trailing, 4)
+                    .padding(.bottom, 4)
+                }
+                .collapsible(false)
+            }
         }
         .listStyle(.sidebar)
         .confirmationDialog(
@@ -101,6 +79,46 @@ struct SidebarView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This workspace has open panels. Close anyway?")
+        }
+    }
+
+    @ViewBuilder
+    private func workspaceRow(workspace: Workspace) -> some View {
+        let globalIndex = store.workspaces.firstIndex(where: { $0.id == workspace.id }) ?? 0
+        let rep = workspace.representativeSession
+        WorkspaceCard(
+            workspace: workspace,
+            isActive: globalIndex == store.activeWorkspaceIndex,
+            unreadCount: notificationStore.unreadCount(
+                forSessionIds: store.sessionIds(forWorkspace: globalIndex)
+            ),
+            isEditing: Binding(
+                get: { renamingIndex == globalIndex },
+                set: { editing in renamingIndex = editing ? globalIndex : nil }
+            ),
+            showActionButtons: hoveredIndex == globalIndex,
+            onRename: { newName in store.renameWorkspace(at: globalIndex, to: newName) },
+            onClose: { requestClose(at: globalIndex) },
+            onTogglePin: {
+                if workspace.isPinned {
+                    store.unpinWorkspace(id: workspace.id)
+                } else {
+                    store.pinWorkspace(id: workspace.id)
+                }
+            },
+            sessionBranch: rep?.gitBranch,
+            sessionShortPwd: rep?.shortPwd
+        )
+        .tag(globalIndex)
+        .onHover { hoveredIndex = $0 ? globalIndex : nil }
+        .contextMenu {
+            Button("Rename") { renamingIndex = globalIndex }
+            Divider()
+            if workspace.isPinned {
+                Button("Unpin") { store.unpinWorkspace(id: workspace.id) }
+            } else {
+                Button("Pin") { store.pinWorkspace(id: workspace.id) }
+            }
         }
     }
 
@@ -124,10 +142,10 @@ private struct WorkspaceCard: View {
     let isActive: Bool
     let unreadCount: Int
     @Binding var isEditing: Bool
-    let showCloseButton: Bool
-    let showTopDivider: Bool
+    let showActionButtons: Bool
     let onRename: (String) -> Void
     let onClose: () -> Void
+    let onTogglePin: () -> Void
     var sessionBranch: String? = nil
     var sessionShortPwd: String? = nil
 
@@ -135,91 +153,91 @@ private struct WorkspaceCard: View {
     @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Divider before the first temp workspace
-            if showTopDivider {
-                Divider()
-                    .padding(.bottom, 6)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                // Title row
-                HStack {
-                    if workspace.isPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                    }
-
-                    if isEditing {
-                        TextField("Workspace name", text: $editingName, onCommit: {
-                            let trimmed = editingName.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty {
-                                onRename(trimmed)
-                            }
-                            isEditing = false
-                        })
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13, weight: .medium))
-                        .focused($isTextFieldFocused)
-                        .onExitCommand {
-                            isEditing = false
+        VStack(alignment: .leading, spacing: 4) {
+            // Title row
+            HStack {
+                if isEditing {
+                    TextField("Workspace name", text: $editingName, onCommit: {
+                        let trimmed = editingName.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty {
+                            onRename(trimmed)
                         }
-                        .onAppear {
-                            editingName = workspace.name
-                            DispatchQueue.main.async {
-                                isTextFieldFocused = true
-                            }
+                        isEditing = false
+                    })
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .medium))
+                    .focused($isTextFieldFocused)
+                    .onExitCommand {
+                        isEditing = false
+                    }
+                    .onAppear {
+                        editingName = workspace.name
+                        DispatchQueue.main.async {
+                            isTextFieldFocused = true
                         }
-                    } else {
-                        Text(workspace.name)
-                            .font(.system(size: 13, weight: isActive ? .semibold : .medium))
-                            .lineLimit(1)
                     }
-
-                    Spacer()
-
-                    if unreadCount > 0 {
-                        Text("\(unreadCount)")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor))
-                    }
-
-                    if showCloseButton {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .frame(width: 16, height: 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Color.primary.opacity(0.08))
-                            )
-                            .onTapGesture { onClose() }
-                    }
+                } else {
+                    Text(workspace.name)
+                        .font(.system(size: 13, weight: isActive ? .semibold : .medium))
+                        .lineLimit(1)
                 }
 
-                // Session info (branch, cwd) — values come from WorkspaceCardWithSession observer
-                if sessionBranch != nil || sessionShortPwd != nil {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let branch = sessionBranch {
-                            Label(branch, systemImage: "arrow.triangle.branch")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        if let shortPwd = sessionShortPwd {
-                            Label(shortPwd, systemImage: "folder")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
+                Spacer()
+
+                if unreadCount > 0 {
+                    Text("\(unreadCount)")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.accentColor))
+                }
+
+                if showActionButtons {
+                    // Pin / unpin toggle
+                    Image(systemName: workspace.isPinned ? "pin.slash" : "pin")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16, height: 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.primary.opacity(0.08))
+                        )
+                        .help(workspace.isPinned ? "Unpin" : "Pin")
+                        .onTapGesture { onTogglePin() }
+
+                    // Close button
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16, height: 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.primary.opacity(0.08))
+                        )
+                        .onTapGesture { onClose() }
                 }
             }
             .padding(.vertical, 4)
+
+            // Session info (branch, cwd)
+            if sessionBranch != nil || sessionShortPwd != nil {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let branch = sessionBranch {
+                        Label(branch, systemImage: "arrow.triangle.branch")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    if let shortPwd = sessionShortPwd {
+                        Label(shortPwd, systemImage: "folder")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.bottom, 4)
+            }
         }
     }
 }
