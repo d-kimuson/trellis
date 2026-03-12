@@ -396,11 +396,25 @@ public final class GhosttyAppWrapper {
         case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
             debugLog("[ACTION] SHOW_CHILD_EXITED")
             notifySessionClose(target: target)
+        case GHOSTTY_ACTION_MOUSE_OVER_LINK:
+            let linkAction = action.action.mouse_over_link
+            let url: String?
+            if let urlPtr = linkAction.url, linkAction.len > 0 {
+                url = String(bytes: Data(bytes: urlPtr, count: linkAction.len), encoding: .utf8)
+            } else {
+                url = nil
+            }
+            if target.tag == GHOSTTY_TARGET_SURFACE,
+               let surface = target.target.surface,
+               let session = current?.lookupSession(surface: surface) {
+                DispatchQueue.main.async {
+                    session.hoveredURL = url
+                }
+            }
         case GHOSTTY_ACTION_RENDER,
              GHOSTTY_ACTION_CELL_SIZE,
              GHOSTTY_ACTION_MOUSE_SHAPE,      // cursor shape on mouse move (noisy)
              GHOSTTY_ACTION_MOUSE_VISIBILITY,
-             GHOSTTY_ACTION_MOUSE_OVER_LINK,
              GHOSTTY_ACTION_SIZE_LIMIT,       // startup
              GHOSTTY_ACTION_QUIT_TIMER,       // startup/shutdown
              GHOSTTY_ACTION_KEY_SEQUENCE:     // key sequence notification

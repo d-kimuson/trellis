@@ -471,6 +471,76 @@ class GhosttyNSView: NSView, NSTextInputClient {
         ghostty_surface_mouse_pos(surface, pos.x, pos.y, Self.convertModifiers(event.modifierFlags))
     }
 
+    override func rightMouseDown(with event: NSEvent) {
+        // Bring focus to the clicked terminal pane before showing the menu.
+        if let surface {
+            ghosttyApp.focusedSurface = surface
+        }
+        window?.makeFirstResponder(self)
+        super.rightMouseDown(with: event)
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+
+        let copyItem = NSMenuItem(title: "Copy", action: #selector(copyToClipboard), keyEquivalent: "")
+        copyItem.target = self
+        copyItem.isEnabled = surface != nil
+        menu.addItem(copyItem)
+
+        let clipboardText = NSPasteboard.general.string(forType: .string) ?? ""
+        let pasteItem = NSMenuItem(title: "Paste", action: #selector(pasteFromClipboard), keyEquivalent: "")
+        pasteItem.target = self
+        pasteItem.isEnabled = surface != nil && !clipboardText.isEmpty
+        menu.addItem(pasteItem)
+
+        menu.addItem(.separator())
+
+        if let url = session.hoveredURL {
+            let openItem = NSMenuItem(title: "Open URL", action: #selector(openHoveredURL(_:)), keyEquivalent: "")
+            openItem.target = self
+            openItem.representedObject = url
+            menu.addItem(openItem)
+        }
+
+        let searchItem = NSMenuItem(title: "Search Web", action: #selector(searchInWeb), keyEquivalent: "")
+        searchItem.target = self
+        searchItem.isEnabled = !clipboardText.isEmpty
+        menu.addItem(searchItem)
+
+        return menu
+    }
+
+    @objc private func copyToClipboard() {
+        guard let surface else { return }
+        let action = "copy_to_clipboard"
+        action.withCString { cstr in
+            ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
+        }
+    }
+
+    @objc private func pasteFromClipboard() {
+        guard let surface else { return }
+        guard let content = NSPasteboard.general.string(forType: .string), !content.isEmpty else { return }
+        content.withCString { cstr in
+            ghostty_surface_text(surface, cstr, UInt(content.utf8.count))
+        }
+    }
+
+    @objc private func openHoveredURL(_ sender: NSMenuItem) {
+        guard let urlString = sender.representedObject as? String,
+              let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func searchInWeb() {
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://www.google.com/search?q=\(encoded)") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     override func scrollWheel(with event: NSEvent) {
         guard let surface else { return }
         // ghostty_input_scroll_mods_t is an int, need to pack precision flag

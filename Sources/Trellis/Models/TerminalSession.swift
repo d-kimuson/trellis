@@ -17,6 +17,10 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// URL pending user action (open / dismiss). Set by ghostty OPEN_URL action.
     @Published public var pendingURL: String?
 
+    /// URL currently under the mouse cursor. Set by ghostty MOUSE_OVER_LINK action.
+    /// Nil when the cursor is not hovering over a link.
+    var hoveredURL: String?
+
     /// Working directory to use when creating the ghostty surface.
     public let initialWorkingDirectory: String?
 
