@@ -131,7 +131,7 @@ struct FileTreePanelView: View {
                 previewTabPicker
             }
             Spacer()
-            Button(action: clearPreview) {
+            Button(action: state.clearPreview) {
                 Image(systemName: "xmark").font(.caption)
             }
             .buttonStyle(.borderless)
@@ -148,7 +148,7 @@ struct FileTreePanelView: View {
                     code: diff,
                     filePath: path,
                     fontSize: settings.panelFontSize,
-                    languageOverride: SyntaxHighlightWebView.diffLanguage
+                    isDiff: true
                 )
             } else if SyntaxHighlightWebView.languageForExtension(
                 (path as NSString).pathExtension.lowercased()
@@ -168,13 +168,6 @@ struct FileTreePanelView: View {
                                        fontSize: settings.panelFontSize)
             }
         }
-    }
-
-    private func clearPreview() {
-        state.selectedFilePath = nil
-        state.selectedFileContent = nil
-        state.selectedFileDiff = nil
-        state.selectedPreviewTab = .content
     }
 
     private var previewTabPicker: some View {
@@ -329,4 +322,3 @@ private struct FileNodeRow: View {
         }
     }
 }
-// dummy comment added for diff view testing

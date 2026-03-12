@@ -8,11 +8,8 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     let code: String
     let filePath: String
     let fontSize: CGFloat
-    /// When set, overrides the language auto-detected from the file extension.
-    var languageOverride: String?
-
-    /// Language identifier for unified diff format, accepted by highlight.js.
-    static let diffLanguage = "diff"
+    /// When true, renders the code as a GitHub-style diff using diff2html.
+    var isDiff: Bool = false
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -30,16 +27,15 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     // MARK: - Private
 
     private var language: String {
-        if let override = languageOverride { return override }
         let ext = (filePath as NSString).pathExtension.lowercased()
         return Self.languageForExtension(ext)
     }
 
     private func buildHTML() -> String {
-        if languageOverride == Self.diffLanguage, let d2h = Self.loadDiff2htmlResources() {
+        if isDiff, let d2h = Self.cachedDiff2htmlResources {
             return diff2htmlHTML(js: d2h.js, css: d2h.css)
         }
-        guard let resources = Self.loadHighlightResources() else {
+        guard let resources = Self.cachedHighlightResources else {
             return plainTextHTML()
         }
         return highlightedHTML(js: resources.js, lightCSS: resources.lightCSS, darkCSS: resources.darkCSS)
@@ -232,31 +228,27 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         let css: String
     }
 
-    private static func loadDiff2htmlResources() -> Diff2HtmlResources? {
+    private static let cachedHighlightResources: HighlightResources? = {
         guard
-            let jsURL = Bundle.main.url(
-                forResource: "diff2html.min", withExtension: "js", subdirectory: "diff2html"),
-            let js = try? String(contentsOf: jsURL, encoding: .utf8),
-            let cssURL = Bundle.main.url(
-                forResource: "diff2html.min", withExtension: "css", subdirectory: "diff2html"),
-            let css = try? String(contentsOf: cssURL, encoding: .utf8)
-        else { return nil }
-        return Diff2HtmlResources(js: js, css: css)
-    }
-
-    private static func loadHighlightResources() -> HighlightResources? {
-        guard
-            let jsURL = Bundle.main.url(
-                forResource: "highlight.min", withExtension: "js", subdirectory: "highlight"),
-            let js = try? String(contentsOf: jsURL, encoding: .utf8),
-            let lightURL = Bundle.main.url(
-                forResource: "github-light.min", withExtension: "css", subdirectory: "highlight"),
-            let lightCSS = try? String(contentsOf: lightURL, encoding: .utf8),
-            let darkURL = Bundle.main.url(
-                forResource: "github-dark.min", withExtension: "css", subdirectory: "highlight"),
-            let darkCSS = try? String(contentsOf: darkURL, encoding: .utf8)
+            let js = loadBundleResource(name: "highlight.min", ext: "js", subdirectory: "highlight"),
+            let lightCSS = loadBundleResource(name: "github-light.min", ext: "css", subdirectory: "highlight"),
+            let darkCSS = loadBundleResource(name: "github-dark.min", ext: "css", subdirectory: "highlight")
         else { return nil }
         return HighlightResources(js: js, lightCSS: lightCSS, darkCSS: darkCSS)
+    }()
+
+    private static let cachedDiff2htmlResources: Diff2HtmlResources? = {
+        guard
+            let js = loadBundleResource(name: "diff2html.min", ext: "js", subdirectory: "diff2html"),
+            let css = loadBundleResource(name: "diff2html.min", ext: "css", subdirectory: "diff2html")
+        else { return nil }
+        return Diff2HtmlResources(js: js, css: css)
+    }()
+
+    private static func loadBundleResource(name: String, ext: String, subdirectory: String) -> String? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: subdirectory)
+        else { return nil }
+        return try? String(contentsOf: url, encoding: .utf8)
     }
 
     // MARK: - Language detection

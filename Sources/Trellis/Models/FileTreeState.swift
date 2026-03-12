@@ -87,6 +87,14 @@ public final class FileTreeState: ObservableObject, Identifiable {
         }
     }
 
+    /// Clear the file preview selection.
+    public func clearPreview() {
+        selectedFilePath = nil
+        selectedFileContent = nil
+        selectedFileDiff = nil
+        selectedPreviewTab = .content
+    }
+
     /// Select a file and load its content for preview.
     /// If the file has a git diff, also fetches it and switches to the diff tab.
     public func selectFile(at path: String) {

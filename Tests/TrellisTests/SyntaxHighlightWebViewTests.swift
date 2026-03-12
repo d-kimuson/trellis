@@ -52,9 +52,4 @@ final class SyntaxHighlightWebViewTests: XCTestCase {
         XCTAssertEqual(SyntaxHighlightWebView.languageForExtension("bin"), "")
     }
 
-    // MARK: - diff language constant
-
-    func testDiffLanguageConstantExists() {
-        XCTAssertEqual(SyntaxHighlightWebView.diffLanguage, "diff")
-    }
 }
