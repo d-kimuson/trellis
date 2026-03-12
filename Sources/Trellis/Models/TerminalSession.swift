@@ -47,32 +47,24 @@ public final class TerminalSession: Identifiable, ObservableObject {
     }
 
     /// Detect the git branch at the given directory in background.
+    /// Must be called on the main actor to ensure thread-safe access to gitProcess.
+    @MainActor
     func updateGitBranch(at directory: String) {
-        let startDetection = { [weak self] in
-            guard let self else { return }
+        gitProcess?.terminate()
+        gitProcess = nil
 
-            self.gitProcess?.terminate()
-            self.gitProcess = nil
-
-            guard let process = Self.detectGitBranch(at: directory, completion: { [weak self] process, branch in
-                DispatchQueue.main.async {
-                    guard let self, self.gitProcess === process else { return }
-                    self.gitBranch = branch
-                    self.gitProcess = nil
-                }
-            }) else {
-                self.gitBranch = nil
-                return
+        guard let process = Self.detectGitBranch(at: directory, completion: { [weak self] process, branch in
+            DispatchQueue.main.async {
+                guard let self, self.gitProcess === process else { return }
+                self.gitBranch = branch
+                self.gitProcess = nil
             }
-
-            self.gitProcess = process
+        }) else {
+            gitBranch = nil
+            return
         }
 
-        if Thread.isMainThread {
-            startDetection()
-        } else {
-            DispatchQueue.main.async(execute: startDetection)
-        }
+        gitProcess = process
     }
 
     /// Run `git rev-parse --abbrev-ref HEAD` to get the current branch name.

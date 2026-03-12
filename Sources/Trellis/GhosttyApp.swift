@@ -371,8 +371,8 @@ public final class GhosttyAppWrapper {
                    let session = current?.lookupSession(surface: surface) {
                     DispatchQueue.main.async {
                         session.pwd = pwd
+                        session.updateGitBranch(at: pwd)
                     }
-                    session.updateGitBranch(at: pwd)
                 }
             }
         case GHOSTTY_ACTION_OPEN_URL:
