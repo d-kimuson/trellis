@@ -166,8 +166,9 @@ public enum FileNode: Identifiable, Equatable {
 
     /// Check if a file/directory name should be ignored based on patterns.
     static func shouldIgnore(name: String, patterns: [String]) -> Bool {
-        // Always ignore hidden files starting with .
-        if name.hasPrefix(".") {
+        // Ignore VCS and noisy dot-directories that degrade performance or add no value.
+        let alwaysIgnored: Set<String> = [".git", ".DS_Store", ".svn", ".hg"]
+        if alwaysIgnored.contains(name) {
             return true
         }
 

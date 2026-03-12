@@ -6,9 +6,18 @@ final class FileNodeTests: XCTestCase {
 
     // MARK: - shouldIgnore
 
-    func testShouldIgnoreHiddenFiles() {
+    func testShouldIgnoreAlwaysIgnoredDotEntries() {
         XCTAssertTrue(FileNode.shouldIgnore(name: ".git", patterns: []))
         XCTAssertTrue(FileNode.shouldIgnore(name: ".DS_Store", patterns: []))
+        XCTAssertTrue(FileNode.shouldIgnore(name: ".svn", patterns: []))
+        XCTAssertTrue(FileNode.shouldIgnore(name: ".hg", patterns: []))
+    }
+
+    func testShouldNotIgnoreDotFilesOutsideAlwaysIgnoredList() {
+        XCTAssertFalse(FileNode.shouldIgnore(name: ".claude", patterns: []))
+        XCTAssertFalse(FileNode.shouldIgnore(name: ".env", patterns: []))
+        XCTAssertFalse(FileNode.shouldIgnore(name: ".envrc", patterns: []))
+        XCTAssertFalse(FileNode.shouldIgnore(name: ".gitignore", patterns: []))
     }
 
     func testShouldIgnoreExactMatch() {
