@@ -535,4 +535,112 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertFalse(result)
         XCTAssertEqual(store.activeWorkspaceIndex, 0)
     }
+
+    // MARK: - Snapshot Restore: pwd and gitBranch
+
+    func testMakeRestoredWorkspaceSetsPwdFromSnapshot() {
+        let tabId = UUID()
+        let areaId = UUID()
+        let snapshot = WorkspaceSnapshot(
+            schemaVersion: 1,
+            id: UUID(),
+            name: "Test",
+            isPinned: true,
+            areas: [
+                AreaSnapshot(
+                    areaId: areaId,
+                    tabs: [
+                        TabSnapshot(
+                            tabId: tabId,
+                            type: "terminal",
+                            cwd: "/Users/kaito/repos/trellis",
+                            scrollback: nil,
+                            terminalCols: nil,
+                            browserURL: nil,
+                            fileTreePath: nil,
+                            gitBranch: nil
+                        )
+                    ],
+                    activeTabIndex: 0
+                )
+            ],
+            layoutSnapshot: nil,
+            savedAt: Date()
+        )
+
+        let workspace = WorkspaceStore.makeRestoredWorkspace(from: snapshot)
+        let session = workspace.allAreas.first?.tabs.first?.content.terminalSession
+        XCTAssertEqual(session?.pwd, "/Users/kaito/repos/trellis")
+    }
+
+    func testMakeRestoredWorkspaceSetsGitBranchFromSnapshot() {
+        let tabId = UUID()
+        let areaId = UUID()
+        let snapshot = WorkspaceSnapshot(
+            schemaVersion: 1,
+            id: UUID(),
+            name: "Test",
+            isPinned: true,
+            areas: [
+                AreaSnapshot(
+                    areaId: areaId,
+                    tabs: [
+                        TabSnapshot(
+                            tabId: tabId,
+                            type: "terminal",
+                            cwd: "/Users/kaito/repos/trellis",
+                            scrollback: nil,
+                            terminalCols: nil,
+                            browserURL: nil,
+                            fileTreePath: nil,
+                            gitBranch: "main"
+                        )
+                    ],
+                    activeTabIndex: 0
+                )
+            ],
+            layoutSnapshot: nil,
+            savedAt: Date()
+        )
+
+        let workspace = WorkspaceStore.makeRestoredWorkspace(from: snapshot)
+        let session = workspace.allAreas.first?.tabs.first?.content.terminalSession
+        XCTAssertEqual(session?.gitBranch, "main")
+    }
+
+    func testMakeRestoredWorkspaceNilCwdLeavesPwdNil() {
+        let tabId = UUID()
+        let areaId = UUID()
+        let snapshot = WorkspaceSnapshot(
+            schemaVersion: 1,
+            id: UUID(),
+            name: "Test",
+            isPinned: true,
+            areas: [
+                AreaSnapshot(
+                    areaId: areaId,
+                    tabs: [
+                        TabSnapshot(
+                            tabId: tabId,
+                            type: "terminal",
+                            cwd: nil,
+                            scrollback: nil,
+                            terminalCols: nil,
+                            browserURL: nil,
+                            fileTreePath: nil,
+                            gitBranch: nil
+                        )
+                    ],
+                    activeTabIndex: 0
+                )
+            ],
+            layoutSnapshot: nil,
+            savedAt: Date()
+        )
+
+        let workspace = WorkspaceStore.makeRestoredWorkspace(from: snapshot)
+        let session = workspace.allAreas.first?.tabs.first?.content.terminalSession
+        XCTAssertNil(session?.pwd)
+        XCTAssertNil(session?.gitBranch)
+    }
 }

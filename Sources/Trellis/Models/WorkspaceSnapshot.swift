@@ -49,6 +49,7 @@ struct TabSnapshot: Codable {
     let terminalCols: Int?  // terminal width at capture time; used to resize before replay
     let browserURL: String?
     let fileTreePath: String?
+    let gitBranch: String?
 }
 
 struct AreaSnapshot: Codable {

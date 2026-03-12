@@ -22,19 +22,22 @@ extension WorkspaceStore {
                     return TabSnapshot(
                         tabId: tab.id, type: "terminal",
                         cwd: session.pwd, scrollback: scrollback, terminalCols: cols,
-                        browserURL: nil, fileTreePath: nil
+                        browserURL: nil, fileTreePath: nil,
+                        gitBranch: session.gitBranch
                     )
                 case .browser(let state):
                     return TabSnapshot(
                         tabId: tab.id, type: "browser",
                         cwd: nil, scrollback: nil, terminalCols: nil,
-                        browserURL: state.currentURL.absoluteString, fileTreePath: nil
+                        browserURL: state.currentURL.absoluteString, fileTreePath: nil,
+                        gitBranch: nil
                     )
                 case .fileTree(let state):
                     return TabSnapshot(
                         tabId: tab.id, type: "fileTree",
                         cwd: nil, scrollback: nil, terminalCols: nil,
-                        browserURL: nil, fileTreePath: state.rootPath
+                        browserURL: nil, fileTreePath: state.rootPath,
+                        gitBranch: nil
                     )
                 }
             }
@@ -80,6 +83,8 @@ extension WorkspaceStore {
                         return env
                     } ?? [:]
                     let session = TerminalSession(title: "Terminal", workingDirectory: tab.cwd, envVars: envVars)
+                    session.pwd = tab.cwd
+                    session.gitBranch = tab.gitBranch
                     return Tab(id: tab.tabId, content: .terminal(session))
                 case "browser":
                     let url = tab.browserURL.flatMap { URL(string: $0) } ?? URL(string: "https://www.google.com")!
