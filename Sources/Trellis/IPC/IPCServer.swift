@@ -10,8 +10,8 @@ public final class IPCServer {
         "\(NSHomeDirectory())/.trellis/control.sock"
     }()
 
-    private unowned let store: WorkspaceStore
-    private unowned let ghosttyApp: GhosttyAppWrapper
+    private weak var store: WorkspaceStore?
+    private weak var ghosttyApp: GhosttyAppWrapper?
 
     private var serverFd: Int32 = -1
     private var serverSource: DispatchSourceRead?
@@ -191,6 +191,7 @@ public final class IPCServer {
     }
 
     private func newPanel() -> Data {
+        guard let store else { return errorResponse("store unavailable") }
         guard let workspace = store.activeWorkspace,
               let areaId = workspace.activeAreaId
         else {
@@ -210,6 +211,7 @@ public final class IPCServer {
     // MARK: - list-panels
 
     private func listPanels() -> Data {
+        guard let store else { return errorResponse("store unavailable") }
         var panels: [PanelInfo] = []
         for workspace in store.workspaces {
             for area in workspace.allAreas {
@@ -234,6 +236,7 @@ public final class IPCServer {
         let surface: ghostty_surface_t
 
         if let target {
+            guard let store else { return errorResponse("store unavailable") }
             guard target.hasPrefix("s:"),
                   let uuid = UUID(uuidString: String(target.dropFirst(2))),
                   let session = store.allSessions.first(where: { $0.id == uuid })
@@ -245,6 +248,7 @@ public final class IPCServer {
             }
             surface = s
         } else {
+            guard let ghosttyApp else { return errorResponse("app unavailable") }
             guard let s = ghosttyApp.focusedSurface else {
                 return errorResponse("no focused panel")
             }
