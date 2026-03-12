@@ -195,26 +195,6 @@ extension GhosttyNSView {
         return (row, col)
     }
 
-    /// Count total physical (visual) rows in `text`, using the same row-counting logic as
-    /// `physicalPosition`, so scroll amounts are in the same coordinate system as match positions.
-    private func physicalRowCount(in text: String, cols: Int) -> Int {
-        guard cols > 0, !text.isEmpty else { return 0 }
-        var row = 0
-        var col = 0
-        var justSoftWrapped = false
-        for scalar in text.unicodeScalars {
-            if scalar == "\n" {
-                if !justSoftWrapped { row += 1; col = 0 }
-                justSoftWrapped = false
-            } else {
-                col += 1
-                justSoftWrapped = false
-                if col >= cols { row += 1; col = 0; justSoftWrapped = true }
-            }
-        }
-        return row + (col > 0 ? 1 : 0)
-    }
-
     private func scrollToCurrentMatch() {
         guard !findMatches.isEmpty,
               session.findCurrentMatchIndex >= 1,
@@ -227,34 +207,33 @@ extension GhosttyNSView {
         let cols = max(1, Int(surfaceSize.columns))
 
         guard let screenResult = readScreenText() else { return }
-        let totalRows = physicalRowCount(in: screenResult.text, cols: cols)
-
-        // Center the match vertically.
+        // offset_start is a cell-grid offset (y * cols). Dividing by cols gives the viewport's
+        // physical row — same coordinate system as physicalPosition for ASCII content.
+        let viewportStartRow = screenResult.viewportCellOffset / max(1, cols)
         let targetFirstRow = max(0, match.line - visibleRows / 2)
-        // How many rows to scroll UP from the bottom to reach targetFirstRow.
-        // scroll_page_lines positive = UP (into scrollback). Negative values are not supported.
-        let bottomRow = max(0, totalRows - visibleRows)
-        let linesToScrollUp = max(0, bottomRow - targetFirstRow)
+        // Positive = scroll UP (older content). Negative = scroll DOWN (newer content).
+        let linesToScroll = viewportStartRow - targetFirstRow
 
-        // Scroll to bottom (establishes a known absolute position), then scroll UP to target.
-        let scrollToBottom = "scroll_to_bottom"
-        scrollToBottom.withCString { cstr in
-            _ = ghostty_surface_binding_action(surface, cstr, UInt(scrollToBottom.utf8.count))
-        }
+        findCurrentMatchExpectedViewportRow = match.line - targetFirstRow
 
-        if linesToScrollUp > 0 {
-            let action = "scroll_page_lines:\(linesToScrollUp)"
+        if linesToScroll != 0 {
+            let action = "scroll_page_lines:\(linesToScroll)"
             action.withCString { cstr in
                 _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
             }
         }
 
-        // Actual viewport start after scrolling.
-        let viewportStart = linesToScrollUp > 0 ? targetFirstRow : bottomRow
-        findCurrentMatchExpectedViewportRow = max(0, match.line - viewportStart)
-
+        let capturedMatch = match
+        let capturedCols = cols
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.drawHighlights()
+            guard let self else { return }
+            // Re-read offset_start after scroll to get the actual viewport position,
+            // correcting any rounding difference between physicalPosition and cell-grid units.
+            if let freshResult = self.readScreenText() {
+                let freshStart = freshResult.viewportCellOffset / max(1, capturedCols)
+                self.findCurrentMatchExpectedViewportRow = capturedMatch.line - freshStart
+            }
+            self.drawHighlights()
         }
     }
 
@@ -301,16 +280,17 @@ extension GhosttyNSView {
         let viewportMatches = searchMatches(in: viewportText, query: query, cols: cols)
 
         // Identify which viewport match is the "current" one (shown in orange).
-        // Match by exact (viewport row, col) — col alone causes false positives when
-        // the current match is off-screen and another match shares the same column.
+        // Guard: expectedRow outside [0, visibleRows) means match is off-screen → no orange.
+        // When in range: pick the same-column match closest to expectedRow (fuzzy, handles
+        // small coordinate rounding between physicalPosition and cell-grid units).
         let expectedRow = findCurrentMatchExpectedViewportRow
         let currentViewportMatch: FindMatch? = {
             guard session.findCurrentMatchIndex >= 1,
                   session.findCurrentMatchIndex <= findMatches.count else { return nil }
             let globalMatch = findMatches[session.findCurrentMatchIndex - 1]
-            // If expectedRow is outside the visible range the current match is off-screen.
             guard expectedRow >= 0, expectedRow < visibleRows else { return nil }
-            return viewportMatches.first { $0.line == expectedRow && $0.col == globalMatch.col }
+            let sameCol = viewportMatches.filter { $0.col == globalMatch.col }
+            return sameCol.min(by: { abs($0.line - expectedRow) < abs($1.line - expectedRow) })
         }()
 
         CATransaction.begin()
