@@ -41,13 +41,13 @@ public final class FileTreeState: ObservableObject, Identifiable {
         }
         let gitignorePath = (rootPath as NSString).appendingPathComponent(".gitignore")
         ignoredPatterns = FileNode.parseGitignore(at: gitignorePath)
+        // Re-expand directories that were open before the reload, processing parents
+        // before children so nested expansions are restored correctly.
+        // A flat loop over Set<UUID> has undefined iteration order, which caused
+        // child nodes to be processed before their parent was expanded — making
+        // them invisible in the shallow tree and silently skipped.
         rootNode = FileNode.buildTree(at: rootPath, ignoredPatterns: ignoredPatterns)
-        // Re-expand directories that were open before the reload.
-        // After buildTree, all directory children are empty (shallow), so
-        // loadChildrenIfNeeded will fire for each previously expanded node.
-        for nodeId in expandedDirectories {
-            loadChildrenIfNeeded(for: nodeId)
-        }
+            .map { restoreExpanded(in: $0) }
         reloadGitStatus()
     }
 
@@ -109,11 +109,24 @@ public final class FileTreeState: ObservableObject, Identifiable {
 
     // MARK: - Lazy Loading
 
+    /// Recursively restore expanded directories top-down in a freshly-built shallow tree.
+    /// Processing top-down ensures that a parent's children are loaded before we attempt
+    /// to expand any of its children, which was the root cause of the nested-expansion bug.
+    private func restoreExpanded(in node: FileNode) -> FileNode {
+        guard case .directory(let id, let name, let path, var children) = node else {
+            return node
+        }
+        if expandedDirectories.contains(id) && children.isEmpty {
+            children = FileNode.loadChildren(at: path, ignoredPatterns: ignoredPatterns)
+        }
+        let updatedChildren = children.map { restoreExpanded(in: $0) }
+        return .directory(id: id, name: name, path: path, children: updatedChildren)
+    }
+
     /// Load children for a directory node if they haven't been loaded yet (empty children array).
     private func loadChildrenIfNeeded(for nodeId: UUID) {
         guard let root = rootNode else { return }
 
-        // Find the node and check if children are already loaded
         guard let node = findNode(id: nodeId, in: root),
               node.isDirectory,
               node.children.isEmpty else { return }
