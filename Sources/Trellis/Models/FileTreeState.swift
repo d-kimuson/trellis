@@ -178,20 +178,33 @@ public final class FileTreeState: ObservableObject, Identifiable {
 
     // MARK: - File System Watching
 
+    /// Weak wrapper passed to FSEventStream callback via Unmanaged.passRetained.
+    /// The callback accesses FileTreeState through a weak reference, so if
+    /// the state is deallocated before the stream is torn down, the callback
+    /// safely sees nil and does nothing — eliminating the race between
+    /// FSEventStream delivery and FileTreeState deinit.
+    private final class FSEventContext {
+        weak var state: FileTreeState?
+        init(_ state: FileTreeState) { self.state = state }
+    }
+
+    private var eventContext: FSEventContext?
+
     private func startWatching() {
         guard let rootPath else { return }
 
         // C callback — must be a free function or static closure.
         let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
             guard let info else { return }
-            let state = Unmanaged<FileTreeState>.fromOpaque(info).takeUnretainedValue()
-            state.debouncedReload()
+            let context = Unmanaged<FSEventContext>.fromOpaque(info).takeUnretainedValue()
+            context.state?.debouncedReload()
         }
 
-        // passRetained increments ARC so self stays alive while the stream is active.
-        // The retained pointer is released in stopWatching after the stream is fully torn down.
-        let retained = Unmanaged.passRetained(self).toOpaque()
-        var context = FSEventStreamContext(
+        // Retain the weak-wrapper context so it stays alive while the stream is active.
+        // The wrapper is released in stopWatching after the stream is fully torn down.
+        let context = FSEventContext(self)
+        let retained = Unmanaged.passRetained(context).toOpaque()
+        var streamContext = FSEventStreamContext(
             version: 0,
             info: retained,
             retain: nil,
@@ -208,13 +221,13 @@ public final class FileTreeState: ObservableObject, Identifiable {
         guard let stream = FSEventStreamCreate(
             kCFAllocatorDefault,
             callback,
-            &context,
+            &streamContext,
             [rootPath] as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             0.3,  // seconds latency
             flags
         ) else {
-            Unmanaged<FileTreeState>.fromOpaque(retained).release()
+            Unmanaged<FSEventContext>.fromOpaque(retained).release()
             return
         }
 
@@ -222,6 +235,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
         FSEventStreamStart(stream)
         eventStream = stream
         eventStreamInfo = retained
+        eventContext = context
     }
 
     /// Debounce FS events to avoid reload storms.
@@ -243,12 +257,16 @@ public final class FileTreeState: ObservableObject, Identifiable {
             FSEventStreamRelease(stream)
             eventStream = nil
         }
-        // Release the retained reference taken in startWatching.
+        // Release the retained FSEventContext wrapper taken in startWatching.
         // Must happen after FSEventStreamRelease to guarantee no more callbacks fire.
         if let info = eventStreamInfo {
-            Unmanaged<FileTreeState>.fromOpaque(info).release()
+            Unmanaged<FSEventContext>.fromOpaque(info).release()
             eventStreamInfo = nil
         }
+        // Nil out the weak reference so any in-flight debounced work (which uses
+        // [weak self]) will also see the context as disconnected.
+        eventContext?.state = nil
+        eventContext = nil
     }
 
     deinit {

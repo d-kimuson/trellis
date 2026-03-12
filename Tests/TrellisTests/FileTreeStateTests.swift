@@ -174,6 +174,37 @@ final class FileTreeStateTests: XCTestCase {
         XCTAssertEqual(state.selectedPreviewTab, .content)
     }
 
+    // MARK: - stopWatching safety
+
+    /// After deallocation (which triggers stopWatching), no pending reload should
+    /// access the freed object. The weak-wrapper pattern in FSEventContext makes
+    /// this safe: the callback sees nil and does nothing.
+    func testDeallocAfterWatchingDoesNotCrash() {
+        var state: FileTreeState? = FileTreeState(rootPath: tempDir)
+        XCTAssertNotNil(state?.rootNode)
+        // Deallocate while the FSEventStream is active — deinit calls stopWatching.
+        state = nil
+        // If we reach here, no use-after-free occurred.
+    }
+
+    /// After changeRoot (which calls stopWatching then startWatching), reload
+    /// must operate on the new root without referencing stale state.
+    func testReloadAfterChangeRootIsConsistent() {
+        let newDir = makePath("newRoot")
+        mkdir(newDir)
+        touch(makePath("newRoot", "hello.txt"))
+
+        let state = FileTreeState(rootPath: tempDir)
+        state.changeRoot(to: newDir)
+        state.reload()
+
+        XCTAssertEqual(state.rootPath, newDir)
+        XCTAssertNotNil(state.rootNode)
+        XCTAssertTrue(
+            state.rootNode?.children.contains(where: { $0.name == "hello.txt" }) == true
+        )
+    }
+
     // MARK: - Private helpers
 
     private func findNode(named name: String, in node: FileNode) -> FileNode? {
