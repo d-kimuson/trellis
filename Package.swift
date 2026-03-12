@@ -38,6 +38,7 @@ let package = Package(
                 .linkedFramework("Foundation"),
                 .linkedFramework("IOKit"),
                 .linkedFramework("IOSurface"),
+                .linkedFramework("CoreVideo"),
                 .linkedFramework("UniformTypeIdentifiers"),
                 .linkedFramework("WebKit"),
             ]

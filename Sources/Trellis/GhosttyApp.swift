@@ -1,4 +1,5 @@
 import AppKit
+import CoreVideo
 import Foundation
 import GhosttyKit
 import SwiftUI
@@ -38,7 +39,7 @@ public final class GhosttyAppWrapper {
     static weak var current: GhosttyAppWrapper?
 
     private(set) var app: ghostty_app_t?
-    private var tickTimer: Timer?
+    private var displayLink: CVDisplayLink?
     /// The most recently focused terminal surface, used for clipboard operations.
     var focusedSurface: ghostty_surface_t?
 
@@ -121,14 +122,26 @@ public final class GhosttyAppWrapper {
             fatalError("Failed to create ghostty app")
         }
 
-        // Start tick timer for the event loop.
-        // Must run in .common mode so it fires during event tracking / modal panels,
-        // otherwise ghostty_app_tick() stalls and IO (including OSC notifications) is delayed.
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            self?.tick()
+        // Start display-link driven tick loop.
+        // CVDisplayLink fires at the native display refresh rate (60/120 Hz on ProMotion),
+        // eliminating both the fixed 60 fps cap and unnecessary wakeups on slower displays.
+        // The callback runs on a private CVDisplayLink thread, so tick() is dispatched to main.
+        var link: CVDisplayLink?
+        CVDisplayLinkCreateWithActiveCGDisplays(&link)
+        if let link {
+            CVDisplayLinkSetOutputCallback(
+                link,
+                { _, _, _, _, _, context -> CVReturn in
+                    guard let context else { return kCVReturnSuccess }
+                    let wrapper = Unmanaged<GhosttyAppWrapper>.fromOpaque(context).takeUnretainedValue()
+                    DispatchQueue.main.async { wrapper.tick() }
+                    return kCVReturnSuccess
+                },
+                Unmanaged.passUnretained(self).toOpaque()
+            )
+            CVDisplayLinkStart(link)
+            displayLink = link
         }
-        RunLoop.main.add(timer, forMode: .common)
-        tickTimer = timer
     }
 
     func tick() {
@@ -253,9 +266,9 @@ public final class GhosttyAppWrapper {
     }
 
     public func shutdown() {
-        // Stop the tick timer first so no more ghostty_app_tick calls are queued.
-        tickTimer?.invalidate()
-        tickTimer = nil
+        // Stop the display link first so no more ghostty_app_tick calls are queued.
+        if let link = displayLink { CVDisplayLinkStop(link) }
+        displayLink = nil
 
         // Free all surfaces before freeing the app.
         // This prevents ghostty from firing callbacks for these surfaces after shutdown.
@@ -477,7 +490,7 @@ public final class GhosttyAppWrapper {
     }
 
     deinit {
-        tickTimer?.invalidate()
+        if let link = displayLink { CVDisplayLinkStop(link) }
         if let app {
             ghostty_app_free(app)
         }

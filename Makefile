@@ -49,6 +49,7 @@ SWIFTC_FLAGS = \
 	-framework Foundation \
 	-framework IOKit \
 	-framework IOSurface \
+	-framework CoreVideo \
 	-framework UniformTypeIdentifiers \
 	-framework UserNotifications \
 	-framework WebKit
