@@ -12,3 +12,4 @@ docs/tmp/
 .beads/bd.sock.startlock
 .beads/daemon.lock
 .beads/daemon.log
+.beads/last-touched
