@@ -218,7 +218,11 @@ extension GhosttyNSView {
         findCurrentMatchExpectedViewportRow = max(0, match.line - targetFirstRow)
 
         if linesToScroll != 0 {
-            let action = "scroll_page_lines:\(linesToScroll)"
+            // ghostty's scroll_page_lines:N uses the scrollback-positive convention:
+            // positive N = scroll UP (into scrollback / older content)
+            // negative N = scroll DOWN (toward newest content)
+            // linesToScroll = targetFirstRow - viewportStartRow, so we negate to match.
+            let action = "scroll_page_lines:\(-linesToScroll)"
             action.withCString { cstr in
                 _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
             }
@@ -279,12 +283,22 @@ extension GhosttyNSView {
         // Search the viewport text — match.line is directly the viewport row (0 = top of screen).
         let viewportMatches = searchMatches(in: viewportText, query: query, cols: cols)
 
-        // Identify the current match by finding the viewport match closest to the expected row.
-        // findCurrentMatchExpectedViewportRow is set (and refined) by scrollToCurrentMatch().
+        // Identify which viewport match is the "current" one (shown in orange).
+        // Primary key: column — the current global match has a known col.
+        // When multiple viewport matches share the same col, use expected row as tiebreaker.
         let expectedRow = findCurrentMatchExpectedViewportRow
-        let currentViewportMatch: FindMatch? = expectedRow >= 0
-            ? viewportMatches.min { abs($0.line - expectedRow) < abs($1.line - expectedRow) }
-            : nil
+        let currentViewportMatch: FindMatch? = {
+            guard session.findCurrentMatchIndex >= 1,
+                  session.findCurrentMatchIndex <= findMatches.count else { return nil }
+            let globalCol = findMatches[session.findCurrentMatchIndex - 1].col
+            let sameCol = viewportMatches.filter { $0.col == globalCol }
+            if sameCol.count == 1 { return sameCol[0] }
+            if sameCol.count > 1 {
+                return sameCol.min { abs($0.line - expectedRow) < abs($1.line - expectedRow) }
+            }
+            // Current match not visible — no orange indicator.
+            return nil
+        }()
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
