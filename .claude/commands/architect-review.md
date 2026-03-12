@@ -47,7 +47,7 @@ allowed-tools: Read, Glob, Grep, Bash(find), Bash(wc), Bash(date)
 
 ## 出力
 
-`docs/tmp/architect-review.md` に出力してください。形式：
+`docs/tmp/architect-review/` に日付付きファイルで出力してください（例: `docs/tmp/architect-review/20260312-01.md`）。形式：
 
 ```markdown
 # Architect Review — {date}

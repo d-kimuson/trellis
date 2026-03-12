@@ -25,7 +25,7 @@ bd show    # 全タスク（epic/priority 構造）
 
 | レビュー種別 | 候補パス |
 |------------|---------|
-| アーキテクトレビュー | `docs/tmp/architect-review.md`, `docs/tmp/architect-review-*.md` |
+| アーキテクトレビュー | `docs/tmp/architect-review/*.md` |
 | セキュリティレビュー | `docs/tmp/security-review.md`, `docs/tmp/security-review-*.md` |
 | QA レビュー | `docs/tmp/qa/*.md` |
 
