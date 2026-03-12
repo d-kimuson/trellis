@@ -9,3 +9,6 @@ result
 node_modules/
 Package.resolved
 docs/tmp/
+.beads/bd.sock.startlock
+.beads/daemon.lock
+.beads/daemon.log
