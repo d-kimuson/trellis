@@ -16,7 +16,7 @@ $ARGUMENTS
 
 ```bash
 bd ready   # 未着手タスク一覧
-bd show    # 全タスク（epic/priority 構造）
+bd list --pretty --no-pager   # 全タスク一覧
 ```
 
 ### 2. レビュードキュメントの読み込み（該当する場合）
@@ -74,9 +74,43 @@ bd update <id> --priority=N
 bd dep add <id> <depends-on-id>
 ```
 
-### 4. 完了報告
+### 4. 担当とワークフローの設計
 
-作成・変更したタスクの一覧を報告する（`bd show` で確認）。
+タスクごとに「誰がどう進めるか」を判断し、適切に設定する。
+
+**担当の設定:**
+
+| 担当 | 設定方法 | beads-loop での扱い |
+|------|---------|-------------------|
+| AI のみ | assignee なし（デフォルト） | `bd ready --unassigned` で自動取得 |
+| kaito のみ | `--assignee kaito` | スキップされる |
+| kaito + AI（相談→実装） | `--assignee kaito` + description に方針 | kaito が方針決定後、assignee を外して AI に渡す |
+
+**判断基準:**
+- **AI のみ**: 仕様が明確なバグ修正、リファクタ、テスト追加
+- **kaito のみ**: 外部サービスの設定、ライセンス判断、リリース作業
+- **kaito + AI**: 仕様の設計判断が必要な機能追加、UI/UXの方向性決め
+
+```bash
+bd update <id> --assignee kaito          # kaito 担当
+bd update <id> --assignee ""             # AI に渡す（assignee 解除）
+```
+
+**動作確認の事前設計 (Acceptance Criteria):**
+
+タスク起票時に、完了後の動作確認方法を description に含める：
+
+- `[AC: auto]` — テストで担保可能。AI が自動クローズ
+- `[AC: gate]` — ユーザーの目視確認が必要。AI が human gate を作成
+
+例：
+```
+--description="... [AC: gate] 確認観点: サイドバーのアイコンサイズが視認しやすいか"
+```
+
+### 5. 完了報告
+
+作成・変更したタスクの一覧を報告する。
 
 ## 注意事項
 
