@@ -31,11 +31,17 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// All match positions in the current search result.
     var findMatches: [FindMatch] = []
 
-    /// Full text bytes from last search read, used for scrolling calculations.
+    /// Full text from last search read (kept for reference; bytes unused after refactor).
     var findTextBytes: [UInt8] = []
 
-    /// Byte offset in findTextBytes where the visible viewport starts.
+    /// Full text string from last search read.
+    var findTextContent: String = ""
+
+    /// Cell-grid offset (y * cols + x) where the visible viewport started at last read.
     var findViewportOffset: Int = 0
+
+    /// Terminal column width at last search read.
+    var findTerminalCols: Int = 0
 
     var findCancellables: Set<AnyCancellable> = []
 
