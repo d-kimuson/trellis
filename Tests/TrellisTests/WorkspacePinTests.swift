@@ -4,6 +4,7 @@ import XCTest
 
 /// Tests for WorkspaceStore pin/unpin, notification integration,
 /// session ID queries, and active area maintenance edge cases.
+@MainActor
 final class WorkspacePinTests: XCTestCase {
 
     private func makeStore() -> WorkspaceStore {

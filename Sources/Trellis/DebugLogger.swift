@@ -45,7 +45,7 @@ public func debugLog(
     let msg = message()
     let fname = (file as NSString).lastPathComponent
     let lineNum = line
-    _debugLogQueue.sync {
+    _debugLogQueue.async {
         let ts = _debugDateFormatter.string(from: Date())
         let entry = "[\(ts)] [\(fname):\(lineNum)] \(msg)\n"
         _debugLogFile?.write(Data(entry.utf8))

@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import Trellis
 
+@MainActor
 final class WorkspaceStoreTests: XCTestCase {
 
     private func makeStore() -> WorkspaceStore {
