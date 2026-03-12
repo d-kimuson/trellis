@@ -195,6 +195,26 @@ extension GhosttyNSView {
         return (row, col)
     }
 
+    /// Count total physical (visual) rows in `text`, using the same row-counting logic as
+    /// `physicalPosition`, so scroll amounts are in the same coordinate system as match positions.
+    private func physicalRowCount(in text: String, cols: Int) -> Int {
+        guard cols > 0, !text.isEmpty else { return 0 }
+        var row = 0
+        var col = 0
+        var justSoftWrapped = false
+        for scalar in text.unicodeScalars {
+            if scalar == "\n" {
+                if !justSoftWrapped { row += 1; col = 0 }
+                justSoftWrapped = false
+            } else {
+                col += 1
+                justSoftWrapped = false
+                if col >= cols { row += 1; col = 0; justSoftWrapped = true }
+            }
+        }
+        return row + (col > 0 ? 1 : 0)
+    }
+
     private func scrollToCurrentMatch() {
         guard !findMatches.isEmpty,
               session.findCurrentMatchIndex >= 1,
@@ -202,28 +222,36 @@ extension GhosttyNSView {
               let surface else { return }
 
         let match = findMatches[session.findCurrentMatchIndex - 1]
-        let visibleRows = max(1, Int(ghostty_surface_size(surface).rows))
+        let surfaceSize = ghostty_surface_size(surface)
+        let visibleRows = max(1, Int(surfaceSize.rows))
+        let cols = max(1, Int(surfaceSize.columns))
 
-        // Center the match vertically in the viewport.
+        guard let screenResult = readScreenText() else { return }
+        let totalRows = physicalRowCount(in: screenResult.text, cols: cols)
+
+        // Center the match vertically.
         let targetFirstRow = max(0, match.line - visibleRows / 2)
+        // How many rows to scroll UP from the bottom to reach targetFirstRow.
+        // scroll_page_lines positive = UP (into scrollback). Negative values are not supported.
+        let bottomRow = max(0, totalRows - visibleRows)
+        let linesToScrollUp = max(0, bottomRow - targetFirstRow)
 
-        // The match will land at this viewport-relative row after the scroll.
-        findCurrentMatchExpectedViewportRow = match.line - targetFirstRow
-
-        // Jump to an absolute position by scrolling to the top first, then
-        // scrolling down to the target. This avoids needing the current scroll position.
-        let scrollToTop = "scroll_to_top"
-        scrollToTop.withCString { cstr in
-            _ = ghostty_surface_binding_action(surface, cstr, UInt(scrollToTop.utf8.count))
+        // Scroll to bottom (establishes a known absolute position), then scroll UP to target.
+        let scrollToBottom = "scroll_to_bottom"
+        scrollToBottom.withCString { cstr in
+            _ = ghostty_surface_binding_action(surface, cstr, UInt(scrollToBottom.utf8.count))
         }
 
-        if targetFirstRow > 0 {
-            // Negative = scroll DOWN toward newer content (ghostty convention).
-            let action = "scroll_page_lines:-\(targetFirstRow)"
+        if linesToScrollUp > 0 {
+            let action = "scroll_page_lines:\(linesToScrollUp)"
             action.withCString { cstr in
                 _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
             }
         }
+
+        // Actual viewport start after scrolling.
+        let viewportStart = linesToScrollUp > 0 ? targetFirstRow : bottomRow
+        findCurrentMatchExpectedViewportRow = max(0, match.line - viewportStart)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             self?.drawHighlights()
