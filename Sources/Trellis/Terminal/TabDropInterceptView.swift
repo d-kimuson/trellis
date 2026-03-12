@@ -180,7 +180,7 @@ struct SplitDropDelegate: DropDelegate {
 final class TabDragTransfer: NSObject, NSItemProviderReading {
     let data: TabDragData
 
-    init(data: TabDragData) {
+    required init(data: TabDragData) {
         self.data = data
         super.init()
     }
@@ -194,7 +194,6 @@ final class TabDragTransfer: NSObject, NSItemProviderReading {
         typeIdentifier: String
     ) throws -> Self {
         let decoded = try JSONDecoder().decode(TabDragData.self, from: data)
-        // swiftlint:disable:next force_cast
-        return TabDragTransfer(data: decoded) as! Self
+        return Self(data: decoded)
     }
 }
