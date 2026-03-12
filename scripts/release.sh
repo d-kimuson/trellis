@@ -33,6 +33,15 @@ if git rev-parse "${TAG}" &>/dev/null; then
   exit 1
 fi
 
+# Update Info.plist version if needed
+CURRENT_VERSION=$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)
+if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
+  echo "==> Updating Info.plist: ${CURRENT_VERSION} -> ${VERSION}..."
+  plutil -replace CFBundleShortVersionString -string "${VERSION}" Resources/Info.plist
+  git add Resources/Info.plist
+  git commit -m "chore: bump version to ${VERSION}"
+fi
+
 # Build
 echo "==> Building..."
 make clean

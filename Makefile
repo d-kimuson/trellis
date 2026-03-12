@@ -66,6 +66,7 @@ app: $(BUILD_DIR)/Trellis
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources/shell-integration
 	cp $(BUILD_DIR)/Trellis $(APP_BUNDLE)/Contents/MacOS/
 	cp Resources/Info.plist $(APP_BUNDLE)/Contents/
+	plutil -replace CFBundleVersion -string "$$(git rev-parse --short HEAD)" $(APP_BUNDLE)/Contents/Info.plist
 	cp Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/
 	cp -r Resources/shell-integration/. $(APP_BUNDLE)/Contents/Resources/shell-integration/
 	codesign --force --deep --sign - $(APP_BUNDLE)
@@ -85,6 +86,7 @@ debug-bundle: $(BUILD_DIR)/Trellis-debug
 	@mkdir -p $(DEBUG_BUNDLE)/Contents/Resources/shell-integration
 	cp $(BUILD_DIR)/Trellis-debug $(DEBUG_BUNDLE)/Contents/MacOS/Trellis
 	cp Resources/Info.plist $(DEBUG_BUNDLE)/Contents/
+	plutil -replace CFBundleVersion -string "$$(git rev-parse --short HEAD)" $(DEBUG_BUNDLE)/Contents/Info.plist
 	cp Resources/AppIcon.icns $(DEBUG_BUNDLE)/Contents/Resources/
 	cp -r Resources/shell-integration/. $(DEBUG_BUNDLE)/Contents/Resources/shell-integration/
 	codesign --force --deep --sign - $(DEBUG_BUNDLE)
