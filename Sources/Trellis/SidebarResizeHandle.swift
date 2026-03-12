@@ -23,6 +23,9 @@ struct SidebarResizeHandle: View {
                     NSCursor.pop()
                 }
             }
+            .onDisappear {
+                NSCursor.pop()
+            }
             .gesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in

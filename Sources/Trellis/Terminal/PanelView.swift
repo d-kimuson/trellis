@@ -481,6 +481,9 @@ struct SplitContainer<First: View, Second: View>: View {
                     NSCursor.pop()
                 }
             }
+            .onDisappear {
+                NSCursor.pop()
+            }
     }
 }
 
