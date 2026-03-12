@@ -116,35 +116,33 @@ struct FileTreePanelView: View {
 
     private func filePreviewPane(path: String, content: String) -> some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(URL(fileURLWithPath: path).lastPathComponent)
-                    .font(.system(size: settings.panelFontSize, design: .monospaced))
-                    .lineLimit(1)
+            previewHeader(path: path)
+            previewBody(path: path, content: content)
+        }
+    }
 
-                if state.selectedFileDiff != nil {
-                    Spacer()
-                    previewTabPicker
-                }
-
+    private func previewHeader(path: String) -> some View {
+        HStack {
+            Text(URL(fileURLWithPath: path).lastPathComponent)
+                .font(.system(size: settings.panelFontSize, design: .monospaced))
+                .lineLimit(1)
+            if state.selectedFileDiff != nil {
                 Spacer()
-                Button(
-                    action: {
-                        state.selectedFilePath = nil
-                        state.selectedFileContent = nil
-                        state.selectedFileDiff = nil
-                        state.selectedPreviewTab = .content
-                    },
-                    label: {
-                        Image(systemName: "xmark")
-                            .font(.caption)
-                    }
-                )
-                .buttonStyle(.borderless)
+                previewTabPicker
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
+            Spacer()
+            Button(action: clearPreview) {
+                Image(systemName: "xmark").font(.caption)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
 
+    private func previewBody(path: String, content: String) -> some View {
+        Group {
             if state.selectedPreviewTab == .diff, let diff = state.selectedFileDiff {
                 SyntaxHighlightWebView(
                     code: diff,
@@ -161,21 +159,22 @@ struct FileTreePanelView: View {
                             .font(.system(size: settings.panelFontSize, design: .monospaced))
                             .textSelection(.enabled)
                             .padding(8)
-                            .frame(
-                                minWidth: geo.size.width,
-                                minHeight: geo.size.height,
-                                alignment: .topLeading
-                            )
+                            .frame(minWidth: geo.size.width, minHeight: geo.size.height,
+                                   alignment: .topLeading)
                     }
                 }
             } else {
-                SyntaxHighlightWebView(
-                    code: content,
-                    filePath: path,
-                    fontSize: settings.panelFontSize
-                )
+                SyntaxHighlightWebView(code: content, filePath: path,
+                                       fontSize: settings.panelFontSize)
             }
         }
+    }
+
+    private func clearPreview() {
+        state.selectedFilePath = nil
+        state.selectedFileContent = nil
+        state.selectedFileDiff = nil
+        state.selectedPreviewTab = .content
     }
 
     private var previewTabPicker: some View {
@@ -193,12 +192,15 @@ struct FileTreePanelView: View {
 
     private func tabButton(label: String, tab: PreviewTab) -> some View {
         let isSelected = state.selectedPreviewTab == tab
-        return Button(action: { state.selectedPreviewTab = tab }) {
-            Text(label)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-        }
+        return Button(
+            action: { state.selectedPreviewTab = tab },
+            label: {
+                Text(label)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+            }
+        )
         .buttonStyle(.plain)
     }
 }
@@ -327,3 +329,4 @@ private struct FileNodeRow: View {
         }
     }
 }
+// dummy comment added for diff view testing

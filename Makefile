@@ -76,6 +76,8 @@ app: $(BUILD_DIR)/Trellis
 	cp -r Resources/terminfo/. $(APP_BUNDLE)/Contents/Resources/terminfo/
 	mkdir -p $(APP_BUNDLE)/Contents/Resources/highlight
 	cp -r Resources/highlight/. $(APP_BUNDLE)/Contents/Resources/highlight/
+	mkdir -p $(APP_BUNDLE)/Contents/Resources/diff2html
+	cp -r Resources/diff2html/. $(APP_BUNDLE)/Contents/Resources/diff2html/
 	codesign --force --deep --sign - $(APP_BUNDLE)
 	@echo "App bundle created: $(APP_BUNDLE)"
 
@@ -102,6 +104,8 @@ debug-bundle: $(BUILD_DIR)/Trellis-debug
 	cp -r Resources/terminfo/. $(DEBUG_BUNDLE)/Contents/Resources/terminfo/
 	mkdir -p $(DEBUG_BUNDLE)/Contents/Resources/highlight
 	cp -r Resources/highlight/. $(DEBUG_BUNDLE)/Contents/Resources/highlight/
+	mkdir -p $(DEBUG_BUNDLE)/Contents/Resources/diff2html
+	cp -r Resources/diff2html/. $(DEBUG_BUNDLE)/Contents/Resources/diff2html/
 	codesign --force --deep --sign - $(DEBUG_BUNDLE)
 
 debug: debug-bundle

@@ -298,7 +298,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
         cancelGitDiff()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", rootPath, "diff", "HEAD", "--", path]
+        process.arguments = ["-C", rootPath, "diff", "--histogram", "HEAD", "--", path]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
