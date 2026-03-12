@@ -340,9 +340,12 @@ struct TerminalPanelWrapper: View {
                     .padding(8)
                 }
             }
-            .onAppear {
+            // Use onChange(initial: true) instead of onAppear so that closures are
+            // re-registered whenever areaId changes (e.g. after a split operation),
+            // preventing stale captures from routing focus to the wrong area.
+            .onChange(of: areaId, initial: true) { _, newAreaId in
                 session.onFocused = { [weak store] in
-                    store?.activateArea(areaId)
+                    store?.activateArea(newAreaId)
                 }
                 session.onProcessExited = { [weak store] in
                     store?.closeTerminalSession(session)
