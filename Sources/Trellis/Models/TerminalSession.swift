@@ -40,6 +40,16 @@ public final class TerminalSession: Identifiable, ObservableObject {
     /// Called when the shell process exits and the surface should be closed.
     var onProcessExited: (() -> Void)?
 
+    // MARK: - Find Bar State
+
+    @Published public var isFindVisible: Bool = false
+    @Published public var findQuery: String = ""
+    @Published public var findMatchCount: Int = 0
+    @Published public var findCurrentMatchIndex: Int = 0  // 1-based, 0 = no matches
+
+    /// Called when the user navigates to next (true) or previous (false) match.
+    var onFindNavigate: ((Bool) -> Void)?
+
     private var gitProcess: Process?
 
     public init(title: String = "Terminal", workingDirectory: String? = nil, envVars: [String: String] = [:]) {

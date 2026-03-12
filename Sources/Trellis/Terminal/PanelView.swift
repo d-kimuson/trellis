@@ -334,6 +334,9 @@ struct TerminalPanelWrapper: View {
         TerminalView(ghosttyApp: ghosttyApp, session: session)
             .id(session.id)
             .border(Color(nsColor: .separatorColor), width: 0.5)
+            .overlay(alignment: .top) {
+                FindBarView(session: sessionObserver)
+            }
             .overlay(alignment: .bottomLeading) {
                 if let url = sessionObserver.pendingURL {
                     URLSuggestBanner(url: url, onDismiss: {

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import GhosttyKit
 import SwiftUI
 
@@ -7,8 +8,8 @@ import SwiftUI
 /// Implements NSTextInputClient for proper keyboard handling (IME, Shift+key, Ctrl+key, arrows).
 class GhosttyNSView: NSView, NSTextInputClient {
     private let ghosttyApp: GhosttyAppWrapper
-    private let session: TerminalSession
-    private var surface: ghostty_surface_t?
+    let session: TerminalSession
+    var surface: ghostty_surface_t?
 
     // NSTextInputClient state
     private var imMarkedText: NSMutableAttributedString = NSMutableAttributedString()
@@ -21,6 +22,22 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// Non-nil while inside keyDown — collects text from insertText calls.
     /// Matches Ghostty's keyTextAccumulator pattern for proper IME handling.
     private var keyTextAccumulator: [String]?
+
+    // MARK: - Find Support (stored properties — methods in GhosttyNSView+Find.swift)
+
+    /// CALayer drawn on top of the terminal surface to show search match highlights.
+    let highlightLayer = CALayer()
+
+    /// All match positions in the current search result.
+    var findMatches: [FindMatch] = []
+
+    /// Full text bytes from last search read, used for scrolling calculations.
+    var findTextBytes: [UInt8] = []
+
+    /// Byte offset in findTextBytes where the visible viewport starts.
+    var findViewportOffset: Int = 0
+
+    var findCancellables: Set<AnyCancellable> = []
 
     init(ghosttyApp: GhosttyAppWrapper, session: TerminalSession) {
         self.ghosttyApp = ghosttyApp
@@ -62,6 +79,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override func layout() {
         super.layout()
+        highlightLayer.frame = bounds
         updateSurfaceSize()
     }
 
@@ -103,7 +121,44 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 ghostty_surface_set_display_id(surface, screen.displayID)
             }
         }
+
+        setupHighlightLayer()
+        setupFindSubscriptions()
         updateSurfaceSize()
+    }
+
+    private func setupHighlightLayer() {
+        highlightLayer.backgroundColor = nil
+        highlightLayer.isOpaque = false
+        highlightLayer.frame = bounds
+        highlightLayer.zPosition = 100
+        layer?.addSublayer(highlightLayer)
+    }
+
+    private func setupFindSubscriptions() {
+        findCancellables.removeAll()
+
+        // Re-run search whenever the query changes (debounced slightly).
+        session.$findQuery
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.performFind()
+            }
+            .store(in: &findCancellables)
+
+        // Wire navigation callback.
+        session.onFindNavigate = { [weak self] forward in
+            self?.navigateFind(forward: forward)
+        }
+
+        // Clear highlights when find bar is dismissed.
+        session.$isFindVisible
+            .sink { [weak self] visible in
+                if !visible {
+                    self?.clearFind()
+                }
+            }
+            .store(in: &findCancellables)
     }
 
     private func updateSurfaceSize() {
@@ -156,6 +211,17 @@ class GhosttyNSView: NSView, NSTextInputClient {
             }
             if !withShift && char == "0" {
                 ghosttyApp.resetFontSize()
+                return true
+            }
+
+            // Toggle find bar (Cmd+F)
+            if char == "f" && !withShift {
+                if session.isFindVisible {
+                    // Cmd+F while bar is open: close it and return focus to terminal
+                    session.isFindVisible = false
+                } else {
+                    session.isFindVisible = true
+                }
                 return true
             }
 
