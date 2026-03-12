@@ -25,7 +25,7 @@ struct SidebarView: View {
                     }
                     .onMove { from, to in store.movePinnedWorkspace(fromOffsets: from, toOffset: to) }
                 } header: {
-                    sectionHeader("Pinned")
+                    sectionHeader("Pinned", pinned: true)
                 }
                 .collapsible(false)
             }
@@ -86,6 +86,8 @@ struct SidebarView: View {
             sessionShortPwd: rep?.shortPwd
         )
         .tag(globalIndex)
+        .listRowSeparator(.hidden)
+        .padding(.vertical, 2)
         .onHover { hoveredIndex = $0 ? globalIndex : nil }
         .contextMenu {
             Button("Rename") { renamingIndex = globalIndex }
@@ -98,13 +100,19 @@ struct SidebarView: View {
         }
     }
 
-    private func sectionHeader(_ title: String) -> some View {
+    private func sectionHeader(_ title: String, pinned: Bool = false) -> some View {
         HStack {
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
                 .textCase(nil)
             Spacer()
-            Button(action: { store.addWorkspace() }) {
+            Button(action: {
+                store.addWorkspace()
+                if pinned {
+                    let newId = store.workspaces.last!.id
+                    store.pinWorkspace(id: newId)
+                }
+            }) {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.secondary)
