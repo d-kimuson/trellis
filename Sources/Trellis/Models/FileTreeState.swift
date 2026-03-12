@@ -2,6 +2,12 @@ import AppKit
 import CoreServices
 import Foundation
 
+/// Tab selection for the file preview pane.
+public enum PreviewTab: Equatable {
+    case content
+    case diff
+}
+
 /// Observable state for a file tree panel.
 /// Uses class (ObservableObject) for file system watcher resource ownership.
 public final class FileTreeState: ObservableObject, Identifiable {
@@ -11,6 +17,8 @@ public final class FileTreeState: ObservableObject, Identifiable {
     @Published public var expandedDirectories: Set<UUID>
     @Published public var selectedFilePath: String?
     @Published public var selectedFileContent: String?
+    @Published public var selectedFileDiff: String?
+    @Published public var selectedPreviewTab: PreviewTab = .content
     @Published public var gitStatusMap: [String: GitFileStatus] = [:]
     @Published public var dirtyDirectoryPaths: Set<String> = []
 
@@ -19,6 +27,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
     private var eventStreamInfo: UnsafeMutableRawPointer?
     private var debounceWork: DispatchWorkItem?
     private var gitStatusProcess: Process?
+    private var gitDiffProcess: Process?
 
     public init(
         id: UUID = UUID(),
@@ -54,12 +63,15 @@ public final class FileTreeState: ObservableObject, Identifiable {
     /// Change root directory and reload.
     public func changeRoot(to path: String) {
         cancelGitStatus()
+        cancelGitDiff()
         stopWatching()
         rootPath = path
         BookmarkStore.save(url: URL(fileURLWithPath: path))
         expandedDirectories = []
         selectedFilePath = nil
         selectedFileContent = nil
+        selectedFileDiff = nil
+        selectedPreviewTab = .content
         reload()
         startWatching()
     }
@@ -76,8 +88,12 @@ public final class FileTreeState: ObservableObject, Identifiable {
     }
 
     /// Select a file and load its content for preview.
+    /// If the file has a git diff, also fetches it and switches to the diff tab.
     public func selectFile(at path: String) {
         selectedFilePath = path
+        selectedFileDiff = nil
+        selectedPreviewTab = .content
+
         // Read up to 64KB to avoid loading huge files
         guard let data = FileManager.default.contents(atPath: path),
               data.count <= 64 * 1024,
@@ -86,6 +102,12 @@ public final class FileTreeState: ObservableObject, Identifiable {
             return
         }
         selectedFileContent = content
+
+        // Fetch diff only for tracked files with a non-untracked status
+        let status = gitStatusMap[path]
+        if status != nil && status != .untracked {
+            fetchGitDiff(for: path)
+        }
     }
 
     /// Open a directory picker and set the root path.
@@ -223,6 +245,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
 
     deinit {
         cancelGitStatus()
+        cancelGitDiff()
         stopWatching()
     }
 
@@ -266,5 +289,39 @@ public final class FileTreeState: ObservableObject, Identifiable {
     private func cancelGitStatus() {
         gitStatusProcess?.terminate()
         gitStatusProcess = nil
+    }
+
+    // MARK: - Git Diff
+
+    private func fetchGitDiff(for path: String) {
+        guard let rootPath else { return }
+        cancelGitDiff()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", rootPath, "diff", "HEAD", "--", path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        let targetPath = path
+        process.terminationHandler = { [weak self] proc in
+            let output: String? = proc.terminationStatus == 0
+                ? String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+                : nil
+            DispatchQueue.main.async {
+                guard let self, self.gitDiffProcess === proc else { return }
+                self.gitDiffProcess = nil
+                guard let diff = output, !diff.isEmpty,
+                      self.selectedFilePath == targetPath else { return }
+                self.selectedFileDiff = diff
+                self.selectedPreviewTab = .diff
+            }
+        }
+        try? process.run()
+        gitDiffProcess = process
+    }
+
+    private func cancelGitDiff() {
+        gitDiffProcess?.terminate()
+        gitDiffProcess = nil
     }
 }

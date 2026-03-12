@@ -120,11 +120,19 @@ struct FileTreePanelView: View {
                 Text(URL(fileURLWithPath: path).lastPathComponent)
                     .font(.system(size: settings.panelFontSize, design: .monospaced))
                     .lineLimit(1)
+
+                if state.selectedFileDiff != nil {
+                    Spacer()
+                    previewTabPicker
+                }
+
                 Spacer()
                 Button(
                     action: {
                         state.selectedFilePath = nil
                         state.selectedFileContent = nil
+                        state.selectedFileDiff = nil
+                        state.selectedPreviewTab = .content
                     },
                     label: {
                         Image(systemName: "xmark")
@@ -137,7 +145,14 @@ struct FileTreePanelView: View {
             .padding(.vertical, 4)
             .background(Color(nsColor: .controlBackgroundColor))
 
-            if SyntaxHighlightWebView.languageForExtension(
+            if state.selectedPreviewTab == .diff, let diff = state.selectedFileDiff {
+                SyntaxHighlightWebView(
+                    code: diff,
+                    filePath: path,
+                    fontSize: settings.panelFontSize,
+                    languageOverride: SyntaxHighlightWebView.diffLanguage
+                )
+            } else if SyntaxHighlightWebView.languageForExtension(
                 (path as NSString).pathExtension.lowercased()
             ).isEmpty {
                 GeometryReader { geo in
@@ -161,6 +176,30 @@ struct FileTreePanelView: View {
                 )
             }
         }
+    }
+
+    private var previewTabPicker: some View {
+        HStack(spacing: 0) {
+            tabButton(label: "content", tab: .content)
+            tabButton(label: "diff", tab: .diff)
+        }
+        .font(.system(size: settings.panelFontSize - 1, design: .monospaced))
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+
+    private func tabButton(label: String, tab: PreviewTab) -> some View {
+        let isSelected = state.selectedPreviewTab == tab
+        return Button(action: { state.selectedPreviewTab = tab }) {
+            Text(label)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -119,6 +119,61 @@ final class FileTreeStateTests: XCTestCase {
         XCTAssertFalse(subAfter.children.isEmpty, "children should be restored after reload")
     }
 
+    // MARK: - PreviewTab initial state
+
+    func testSelectedPreviewTabDefaultsToContent() {
+        let state = FileTreeState(rootPath: tempDir)
+        XCTAssertEqual(state.selectedPreviewTab, .content)
+    }
+
+    func testSelectedFileDiffNilByDefault() {
+        let state = FileTreeState(rootPath: tempDir)
+        XCTAssertNil(state.selectedFileDiff)
+    }
+
+    // MARK: - Diff tab: file without git status has no diff tab
+
+    func testSelectFileNotInGitStatusLeavesNoDiff() {
+        touch(makePath("plain.txt"))
+        let state = FileTreeState(rootPath: tempDir)
+        // gitStatusMap is empty (no git repo in tempDir), so no diff should be fetched
+        state.selectFile(at: makePath("plain.txt"))
+        XCTAssertNil(state.selectedFileDiff)
+        XCTAssertEqual(state.selectedPreviewTab, .content)
+    }
+
+    // MARK: - PreviewTab manual switch
+
+    func testManualTabSwitchToDiff() {
+        let state = FileTreeState(rootPath: tempDir)
+        state.selectedPreviewTab = .diff
+        XCTAssertEqual(state.selectedPreviewTab, .diff)
+    }
+
+    func testManualTabSwitchBackToContent() {
+        let state = FileTreeState(rootPath: tempDir)
+        state.selectedPreviewTab = .diff
+        state.selectedPreviewTab = .content
+        XCTAssertEqual(state.selectedPreviewTab, .content)
+    }
+
+    // MARK: - Selecting new file resets diff state
+
+    func testSelectingNewFileResetsDiffState() {
+        touch(makePath("a.txt"))
+        touch(makePath("b.txt"))
+        let state = FileTreeState(rootPath: tempDir)
+        // Manually set a diff to simulate a previously loaded diff
+        state.selectedFileDiff = "some diff"
+        state.selectedPreviewTab = .diff
+
+        // Select a new file (not in gitStatusMap → no diff)
+        state.selectFile(at: makePath("b.txt"))
+
+        XCTAssertNil(state.selectedFileDiff)
+        XCTAssertEqual(state.selectedPreviewTab, .content)
+    }
+
     // MARK: - Private helpers
 
     private func findNode(named name: String, in node: FileNode) -> FileNode? {

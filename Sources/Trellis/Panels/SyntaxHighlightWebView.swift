@@ -8,6 +8,11 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     let code: String
     let filePath: String
     let fontSize: CGFloat
+    /// When set, overrides the language auto-detected from the file extension.
+    var languageOverride: String? = nil
+
+    /// Language identifier for unified diff format, accepted by highlight.js.
+    static let diffLanguage = "diff"
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -25,6 +30,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     // MARK: - Private
 
     private var language: String {
+        if let override = languageOverride { return override }
         let ext = (filePath as NSString).pathExtension.lowercased()
         return Self.languageForExtension(ext)
     }
