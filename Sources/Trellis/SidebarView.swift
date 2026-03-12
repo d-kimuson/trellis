@@ -238,8 +238,11 @@ private struct WorkspaceCard: View {
                 .padding(.bottom, 4)
             }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .overlay(
             RoundedRectangle(cornerRadius: 6)
+                .inset(by: -4)
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
     }
