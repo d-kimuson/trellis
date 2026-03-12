@@ -33,8 +33,8 @@ struct SidebarView: View {
                 .collapsible(false)
             }
 
-            // Temporary workspaces section
-            if !store.tempWorkspaces.isEmpty || store.pinnedWorkspaces.isEmpty {
+            // Temporary workspaces section — always shown so the "+" button is reachable
+            if true {
                 Section {
                     ForEach(store.tempWorkspaces) { workspace in
                         workspaceRow(workspace: workspace)
@@ -239,5 +239,11 @@ private struct WorkspaceCard: View {
                 .padding(.bottom, 4)
             }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
     }
 }
