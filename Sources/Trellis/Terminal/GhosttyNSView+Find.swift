@@ -160,7 +160,6 @@ extension GhosttyNSView {
             let (row, col) = physicalPosition(of: prefix, cols: cols)
             let cellLen = query.unicodeScalars.count
             matches.append(FindMatch(line: row, col: col, cellLen: cellLen))
-            // Advance past this match (by at least 1 scalar to avoid infinite loop on empty match).
             searchFrom = text.index(after: range.lowerBound)
             if range.upperBound > searchFrom { searchFrom = range.upperBound }
         }
@@ -178,8 +177,6 @@ extension GhosttyNSView {
         var justSoftWrapped = false
         for scalar in prefix.unicodeScalars {
             if scalar == "\n" {
-                // If we just soft-wrapped (col reached terminal width), the `\n` is the trailing
-                // newline after padding — skip the row increment to avoid double-counting.
                 if !justSoftWrapped {
                     row += 1
                     col = 0
@@ -188,7 +185,6 @@ extension GhosttyNSView {
             } else {
                 col += 1
                 justSoftWrapped = false
-                // When col reaches the terminal width, the line soft-wraps to the next visual row.
                 if cols > 0 && col >= cols {
                     row += 1
                     col = 0
@@ -208,9 +204,9 @@ extension GhosttyNSView {
         let match = findMatches[session.findCurrentMatchIndex - 1]
         let surfaceSize = ghostty_surface_size(surface)
         let visibleRows = max(1, Int(surfaceSize.rows))
+        let cols = max(1, Int(surfaceSize.columns))
 
         // Re-read current viewport offset — may be stale if user scrolled manually since performFind.
-        let cols = max(1, Int(surfaceSize.columns))
         let currentViewportOffset = readScreenText().map { $0.viewportCellOffset } ?? findViewportOffset
         let viewportStartRow = currentViewportOffset / cols
 
@@ -218,24 +214,36 @@ extension GhosttyNSView {
         let targetFirstRow = max(0, match.line - visibleRows / 2)
         let linesToScroll = targetFirstRow - viewportStartRow
 
-        // The match will be at this viewport-relative row after the scroll settles.
-        findCurrentMatchExpectedViewportRow = match.line - targetFirstRow
+        // Pre-compute expected viewport row (will be refined after scroll settles).
+        findCurrentMatchExpectedViewportRow = max(0, match.line - targetFirstRow)
 
         if linesToScroll != 0 {
             let action = "scroll_page_lines:\(linesToScroll)"
             action.withCString { cstr in
                 _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
             }
+            let capturedMatch = match
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.drawHighlights()
+                guard let self else { return }
+                // Refine expected row using the actual post-scroll viewport position.
+                if let result = self.readScreenText() {
+                    let actualStart = result.viewportCellOffset / max(1, self.findTerminalCols)
+                    self.findCurrentMatchExpectedViewportRow = max(0, capturedMatch.line - actualStart)
+                }
+                self.drawHighlights()
             }
         } else {
             drawHighlights()
         }
     }
 
-    /// Schedule a debounced highlight redraw to sync positions after scroll/key events.
-    /// Safe to call frequently — only the last call within 60 ms fires.
+    /// Redraw highlights immediately. Call after any event that changes the visible viewport.
+    func redrawHighlights() {
+        guard session.isFindVisible, !findMatches.isEmpty else { return }
+        drawHighlights()
+    }
+
+    /// Schedule a debounced highlight redraw. Used for key events where ghostty may scroll async.
     func scheduleHighlightRefresh() {
         guard session.isFindVisible, !findMatches.isEmpty else { return }
         highlightRefreshWork?.cancel()
@@ -243,7 +251,7 @@ extension GhosttyNSView {
             self?.drawHighlights()
         }
         highlightRefreshWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
     }
 
     /// Redraw highlights by searching the currently visible viewport text.
@@ -254,7 +262,6 @@ extension GhosttyNSView {
         let query = session.findQuery
         guard !query.isEmpty, !findMatches.isEmpty else { clearHighlights(); return }
 
-        // Read only the currently visible viewport — no scrollback offset calculation needed.
         guard let viewportText = readViewportText() else { clearHighlights(); return }
 
         let surfaceSize = ghostty_surface_size(surface)
@@ -272,12 +279,12 @@ extension GhosttyNSView {
         // Search the viewport text — match.line is directly the viewport row (0 = top of screen).
         let viewportMatches = searchMatches(in: viewportText, query: query, cols: cols)
 
-        // Identify the current match in the viewport by finding the one closest to the
-        // expected viewport row (set by scrollToCurrentMatch to approximately visibleRows/2).
+        // Identify the current match by finding the viewport match closest to the expected row.
+        // findCurrentMatchExpectedViewportRow is set (and refined) by scrollToCurrentMatch().
         let expectedRow = findCurrentMatchExpectedViewportRow
-        let currentViewportKey: (Int, Int)? = viewportMatches
-            .min { abs($0.line - expectedRow) < abs($1.line - expectedRow) }
-            .map { ($0.line, $0.col) }
+        let currentViewportMatch: FindMatch? = expectedRow >= 0
+            ? viewportMatches.min { abs($0.line - expectedRow) < abs($1.line - expectedRow) }
+            : nil
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -292,7 +299,13 @@ extension GhosttyNSView {
             let y = bounds.height - yFromTop - cellH
             let matchW = max(CGFloat(match.cellLen) * cellW, cellW)
 
-            let isCurrent = currentViewportKey.map { $0 == match.line && $1 == match.col } ?? false
+            // Compare (line, col) explicitly — avoid ambiguous tuple-shorthand closures.
+            let isCurrent: Bool
+            if let current = currentViewportMatch {
+                isCurrent = current.line == match.line && current.col == match.col
+            } else {
+                isCurrent = false
+            }
 
             let matchLayer = CALayer()
             matchLayer.frame = CGRect(x: x, y: y, width: matchW, height: cellH)
