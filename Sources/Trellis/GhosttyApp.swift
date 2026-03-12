@@ -241,13 +241,27 @@ public final class GhosttyAppWrapper {
     }
 
     public func shutdown() {
+        // Stop the tick timer first so no more ghostty_app_tick calls are queued.
         tickTimer?.invalidate()
         tickTimer = nil
-        surfaceSessions.removeAll()
-        if let app {
-            ghostty_app_free(app)
+
+        // Free all surfaces before freeing the app.
+        // This prevents ghostty from firing callbacks for these surfaces after shutdown.
+        for key in surfaceSessions.keys {
+            if let surface = ghostty_surface_t(bitPattern: UInt(bitPattern: key)) {
+                ghostty_surface_free(surface)
+            }
         }
+        surfaceSessions.removeAll()
+
+        // Nil out app BEFORE calling ghostty_app_free so that any tick() calls
+        // already queued on the main run loop see nil and return early, preventing
+        // use-after-free of the freed app pointer.
+        let appToFree = app
         app = nil
+        if let appToFree {
+            ghostty_app_free(appToFree)
+        }
     }
 
     public func increaseFontSize() {
