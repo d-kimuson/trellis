@@ -25,12 +25,38 @@ final class PanelContentTests: XCTestCase {
         XCTAssertNil(content.terminalSession)
     }
 
+    // MARK: - TerminalSession.tabTitle
+
+    func testTerminalSessionTabTitleWithoutPwd() {
+        let session = TerminalSession(title: "Terminal 1")
+        XCTAssertEqual(session.tabTitle, "Terminal 1")
+    }
+
+    func testTerminalSessionTabTitleWithPwd() {
+        let session = TerminalSession(title: "Terminal 1")
+        session.pwd = "/Users/kaito/repos/trellis"
+        XCTAssertEqual(session.tabTitle, "trellis")
+    }
+
+    func testTerminalSessionTabTitleWithRootPwd() {
+        let session = TerminalSession(title: "Terminal 1")
+        session.pwd = "/"
+        XCTAssertEqual(session.tabTitle, "/")
+    }
+
     // MARK: - tabTitle
 
     func testTabTitleForTerminal() {
         let session = TerminalSession(title: "Terminal 1")
         let content = PanelContent.terminal(session)
         XCTAssertEqual(content.tabTitle, "Terminal 1")
+    }
+
+    func testTabTitleForTerminalWithPwd() {
+        let session = TerminalSession(title: "Terminal 1")
+        session.pwd = "/Users/kaito/repos/trellis"
+        let content = PanelContent.terminal(session)
+        XCTAssertEqual(content.tabTitle, "trellis")
     }
 
     func testTabTitleForBrowser() {

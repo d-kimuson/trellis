@@ -108,6 +108,16 @@ public final class TerminalSession: Identifiable, ObservableObject {
         }
     }
 
+    /// Display title for the tab bar.
+    /// Uses the last path component of pwd when available, otherwise falls back to title.
+    public var tabTitle: String {
+        if let pwd = pwd {
+            let lastComponent = URL(fileURLWithPath: pwd).lastPathComponent
+            return lastComponent.isEmpty ? "/" : lastComponent
+        }
+        return title
+    }
+
     /// Shortened display name of the current working directory.
     public var shortPwd: String? {
         guard let pwd else { return nil }

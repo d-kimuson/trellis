@@ -518,11 +518,7 @@ private struct TerminalTabTitle: View {
     }
 
     private var tabTitle: String {
-        if let pwd = session.pwd {
-            let lastComponent = URL(fileURLWithPath: pwd).lastPathComponent
-            return lastComponent.isEmpty ? "/" : lastComponent
-        }
-        return session.title
+        session.tabTitle
     }
 }
 
