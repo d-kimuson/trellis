@@ -45,6 +45,9 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     var findCancellables: Set<AnyCancellable> = []
 
+    /// Pending work item for debounced highlight refresh after scroll/key events.
+    var highlightRefreshWork: DispatchWorkItem?
+
     init(ghosttyApp: GhosttyAppWrapper, session: TerminalSession) {
         self.ghosttyApp = ghosttyApp
         self.session = session
@@ -299,6 +302,8 @@ class GhosttyNSView: NSView, NSTextInputClient {
             let composing = imMarkedText.length > 0 || markedTextBefore
             sendKeyToGhostty(event: event, text: event.characters, composing: composing)
         }
+        // Key events can trigger ghostty scroll (Page Up/Down, vi-mode, etc.).
+        scheduleHighlightRefresh()
     }
 
     /// Send a key event to ghostty with optional text and composing state.
@@ -618,6 +623,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
         // ghostty_input_scroll_mods_t is an int, need to pack precision flag
         let scrollMods: ghostty_input_scroll_mods_t = event.hasPreciseScrollingDeltas ? 1 : 0
         ghostty_surface_mouse_scroll(surface, event.scrollingDeltaX, event.scrollingDeltaY, scrollMods)
+        scheduleHighlightRefresh()
     }
 
     // MARK: - Helpers

@@ -211,8 +211,25 @@ extension GhosttyNSView {
         drawHighlights()
     }
 
+    /// Schedule a debounced highlight redraw to sync positions after scroll/key events.
+    /// Safe to call frequently — only the last call within 60 ms fires.
+    func scheduleHighlightRefresh() {
+        guard session.isFindVisible, !findMatches.isEmpty else { return }
+        highlightRefreshWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.refreshHighlightsAfterScroll()
+        }
+        highlightRefreshWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: work)
+    }
+
     func drawHighlights() {
         guard let surface else { clearHighlights(); return }
+
+        // Refresh viewport offset so highlights stay accurate after any scrolling.
+        if let result = readScreenText() {
+            findViewportOffset = result.viewportCellOffset
+        }
 
         let surfaceSize = ghostty_surface_size(surface)
         guard surfaceSize.cell_width_px > 0, surfaceSize.cell_height_px > 0 else {
