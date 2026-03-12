@@ -56,6 +56,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
         cancelGitStatus()
         stopWatching()
         rootPath = path
+        BookmarkStore.save(url: URL(fileURLWithPath: path))
         expandedDirectories = []
         selectedFilePath = nil
         selectedFileContent = nil

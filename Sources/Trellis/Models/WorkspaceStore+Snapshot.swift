@@ -90,7 +90,11 @@ extension WorkspaceStore {
                     let url = tab.browserURL.flatMap { URL(string: $0) } ?? URL(string: "https://www.google.com")!
                     return Tab(id: tab.tabId, content: .browser(BrowserState(url: url)))
                 case "fileTree":
-                    return Tab(id: tab.tabId, content: .fileTree(FileTreeState(rootPath: tab.fileTreePath)))
+                    // Prefer bookmark resolution (handles volume remounts / path changes).
+                    let resolvedPath: String? = tab.fileTreePath.map { path in
+                        BookmarkStore.resolve(path: path)?.path ?? path
+                    }
+                    return Tab(id: tab.tabId, content: .fileTree(FileTreeState(rootPath: resolvedPath)))
                 default:
                     return nil
                 }
