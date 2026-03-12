@@ -138,6 +138,7 @@ public final class TerminalSession: Identifiable, ObservableObject {
     }
 
     /// Mark session as inactive and free the surface.
+    /// Must be called before the session is released. The deinit will assert if this wasn't called.
     func close() {
         gitProcess?.terminate()
         gitProcess = nil
@@ -147,9 +148,11 @@ public final class TerminalSession: Identifiable, ObservableObject {
     }
 
     deinit {
-        gitProcess?.terminate()
-        gitProcess = nil
-        nsView?.destroySurface()
-        nsView = nil
+        // close() must be called before deallocation.
+        // Releasing a session without calling close() means the surface was leaked.
+        // Note: sessions created without a surface (e.g. in tests) are fine — nsView starts nil.
+        if nsView != nil {
+            assertionFailure("TerminalSession.deinit: close() was not called before deallocation")
+        }
     }
 }

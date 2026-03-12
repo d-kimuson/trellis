@@ -342,14 +342,12 @@ public final class GhosttyAppWrapper {
             if let titlePtr = setTitle.title {
                 let title = String(cString: titlePtr)
                 debugLog("[OSC] SET_TITLE title=\(title)")
-                if target.tag == GHOSTTY_TARGET_SURFACE,
-                   let surface = target.target.surface,
-                   let session = current?.lookupSession(surface: surface) {
-                    DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if target.tag == GHOSTTY_TARGET_SURFACE,
+                       let surface = target.target.surface,
+                       let session = current?.lookupSession(surface: surface) {
                         session.title = title
                     }
-                }
-                DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: .ghosttyTitleChanged,
                         object: nil,
@@ -379,10 +377,10 @@ public final class GhosttyAppWrapper {
             if let pwdPtr = pwdAction.pwd {
                 let pwd = String(cString: pwdPtr)
                 debugLog("[OSC] PWD pwd=\(pwd)")
-                if target.tag == GHOSTTY_TARGET_SURFACE,
-                   let surface = target.target.surface,
-                   let session = current?.lookupSession(surface: surface) {
-                    DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if target.tag == GHOSTTY_TARGET_SURFACE,
+                       let surface = target.target.surface,
+                       let session = current?.lookupSession(surface: surface) {
                         session.pwd = pwd
                         session.updateGitBranch(at: pwd)
                     }
@@ -393,10 +391,10 @@ public final class GhosttyAppWrapper {
             if let urlPtr = openURL.url {
                 let url = String(cString: urlPtr)
                 debugLog("[OSC] OPEN_URL url=\(url)")
-                if target.tag == GHOSTTY_TARGET_SURFACE,
-                   let surface = target.target.surface,
-                   let session = current?.lookupSession(surface: surface) {
-                    DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if target.tag == GHOSTTY_TARGET_SURFACE,
+                       let surface = target.target.surface,
+                       let session = current?.lookupSession(surface: surface) {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             session.pendingURL = url
                         }
@@ -417,10 +415,10 @@ public final class GhosttyAppWrapper {
             } else {
                 url = nil
             }
-            if target.tag == GHOSTTY_TARGET_SURFACE,
-               let surface = target.target.surface,
-               let session = current?.lookupSession(surface: surface) {
-                DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if target.tag == GHOSTTY_TARGET_SURFACE,
+                   let surface = target.target.surface,
+                   let session = current?.lookupSession(surface: surface) {
                     session.hoveredURL = url
                 }
             }
@@ -442,10 +440,10 @@ public final class GhosttyAppWrapper {
 
     /// Extract the TerminalSession from a surface target and notify it to close.
     private static func notifySessionClose(target: ghostty_target_s) {
-        guard target.tag == GHOSTTY_TARGET_SURFACE,
-              let surface = target.target.surface,
-              let session = current?.lookupSession(surface: surface) else { return }
-        DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+            guard target.tag == GHOSTTY_TARGET_SURFACE,
+                  let surface = target.target.surface,
+                  let session = current?.lookupSession(surface: surface) else { return }
             session.onProcessExited?()
         }
     }
