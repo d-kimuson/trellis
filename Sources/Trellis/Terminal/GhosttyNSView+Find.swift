@@ -204,38 +204,27 @@ extension GhosttyNSView {
         let match = findMatches[session.findCurrentMatchIndex - 1]
         let surfaceSize = ghostty_surface_size(surface)
         let visibleRows = max(1, Int(surfaceSize.rows))
-        let cols = max(1, Int(surfaceSize.columns))
 
-        guard let screenResult = readScreenText() else { return }
-        let viewportStartRow = screenResult.viewportCellOffset / max(1, cols)
         let targetFirstRow = max(0, match.line - visibleRows / 2)
-        let linesToScroll = viewportStartRow - targetFirstRow
 
-        // swiftlint:disable:next line_length
-        debugLog("[FIND] scroll: matchLine=\(match.line) cols=\(cols) visibleRows=\(visibleRows) offset_start=\(screenResult.viewportCellOffset) viewportStartRow=\(viewportStartRow) targetFirstRow=\(targetFirstRow) linesToScroll=\(linesToScroll) textLen=\(screenResult.text.count)")
-
+        // offset_start is always 0 in this ghostty version, so relative scrolling is unreliable.
+        // Use an absolute approach: scroll_to_top then scroll_page_lines:N (positive = downward).
+        // Both actions are queued synchronously before the next render frame, so no visible flash.
         findCurrentMatchExpectedViewportRow = match.line - targetFirstRow
 
-        if linesToScroll != 0 {
-            let action = "scroll_page_lines:\(linesToScroll)"
-            debugLog("[FIND] sending action: \(action)")
-            action.withCString { cstr in
-                _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
+        let scrollToTop = "scroll_to_top"
+        scrollToTop.withCString { cstr in
+            _ = ghostty_surface_binding_action(surface, cstr, UInt(scrollToTop.utf8.count))
+        }
+        if targetFirstRow > 0 {
+            let scrollDown = "scroll_page_lines:\(targetFirstRow)"
+            scrollDown.withCString { cstr in
+                _ = ghostty_surface_binding_action(surface, cstr, UInt(scrollDown.utf8.count))
             }
-        } else {
-            debugLog("[FIND] no scroll needed (linesToScroll=0)")
         }
 
-        let capturedMatch = match
-        let capturedCols = cols
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self else { return }
-            // Re-read offset_start after scroll to get the actual viewport position,
-            // correcting any rounding difference between physicalPosition and cell-grid units.
-            if let freshResult = self.readScreenText() {
-                let freshStart = freshResult.viewportCellOffset / max(1, capturedCols)
-                self.findCurrentMatchExpectedViewportRow = capturedMatch.line - freshStart
-            }
             self.drawHighlights()
         }
     }
