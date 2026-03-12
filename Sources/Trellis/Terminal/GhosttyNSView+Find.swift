@@ -140,20 +140,30 @@ extension GhosttyNSView {
     }
 
     /// Compute visual (physical) row and column for a text prefix, accounting for soft-wrapped lines.
-    /// ghostty does NOT insert `\n` at visual wrap points — long lines are a single string.
+    /// ghostty pads short lines with trailing spaces to fill the full terminal width, then appends `\n`.
+    /// Without the `justSoftWrapped` guard, the wrap-at-cols trigger and the subsequent `\n` would both
+    /// increment the row counter, causing each padded row to count as two visual rows.
     private func physicalPosition(of prefix: Substring, cols: Int) -> (row: Int, col: Int) {
         var row = 0
         var col = 0
+        var justSoftWrapped = false
         for scalar in prefix.unicodeScalars {
             if scalar == "\n" {
-                row += 1
-                col = 0
+                // If we just soft-wrapped (col reached terminal width), the `\n` is the trailing
+                // newline after padding — skip the row increment to avoid double-counting.
+                if !justSoftWrapped {
+                    row += 1
+                    col = 0
+                }
+                justSoftWrapped = false
             } else {
                 col += 1
+                justSoftWrapped = false
                 // When col reaches the terminal width, the line soft-wraps to the next visual row.
                 if cols > 0 && col >= cols {
                     row += 1
                     col = 0
+                    justSoftWrapped = true
                 }
             }
         }
