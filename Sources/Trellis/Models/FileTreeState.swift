@@ -88,13 +88,20 @@ public final class FileTreeState: ObservableObject, Identifiable {
     }
 
     /// Open a directory picker and set the root path.
-    public func openDirectoryPicker() {
+    /// - Parameter initialDirectory: Directory to show initially in the panel.
+    ///   Falls back to the current root if already set.
+    public func openDirectoryPicker(initialDirectory: String? = nil) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.message = "Choose a directory to browse"
         panel.prompt = "Open"
+
+        // Prefer the already-open root; otherwise use the caller-supplied initial directory.
+        if let dir = rootPath ?? initialDirectory {
+            panel.directoryURL = URL(fileURLWithPath: dir)
+        }
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         changeRoot(to: url.path)

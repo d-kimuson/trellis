@@ -34,6 +34,7 @@ struct SidebarView: View {
                     let isFirstTemp = !workspace.isPinned &&
                         store.workspaces.first(where: { !$0.isPinned })?.id == workspace.id &&
                         !store.pinnedWorkspaces.isEmpty
+                    let rep = workspace.representativeSession
                     WorkspaceCard(
                         workspace: workspace,
                         isActive: globalIndex == store.activeWorkspaceIndex,
@@ -47,7 +48,9 @@ struct SidebarView: View {
                         showCloseButton: hoveredIndex == globalIndex,
                         showTopDivider: isFirstTemp,
                         onRename: { newName in store.renameWorkspace(at: globalIndex, to: newName) },
-                        onClose: { requestClose(at: globalIndex) }
+                        onClose: { requestClose(at: globalIndex) },
+                        sessionBranch: rep?.gitBranch,
+                        sessionShortPwd: rep?.shortPwd
                     )
                     .tag(globalIndex)
                     .onHover { hoveredIndex = $0 ? globalIndex : nil }
@@ -125,6 +128,8 @@ private struct WorkspaceCard: View {
     let showTopDivider: Bool
     let onRename: (String) -> Void
     let onClose: () -> Void
+    var sessionBranch: String? = nil
+    var sessionShortPwd: String? = nil
 
     @State private var editingName: String = ""
     @FocusState private var isTextFieldFocused: Bool
@@ -196,38 +201,25 @@ private struct WorkspaceCard: View {
                     }
                 }
 
-                // Session info (branch, cwd)
-                if let session = workspace.representativeSession {
-                    WorkspaceSessionInfo(session: session)
+                // Session info (branch, cwd) — values come from WorkspaceCardWithSession observer
+                if sessionBranch != nil || sessionShortPwd != nil {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let branch = sessionBranch {
+                            Label(branch, systemImage: "arrow.triangle.branch")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        if let shortPwd = sessionShortPwd {
+                            Label(shortPwd, systemImage: "folder")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
                 }
             }
             .padding(.vertical, 4)
-        }
-    }
-}
-
-// MARK: - Workspace Session Info
-
-/// Observes the representative terminal session to reactively show branch/cwd.
-private struct WorkspaceSessionInfo: View {
-    @ObservedObject var session: TerminalSession
-
-    var body: some View {
-        if session.pwd != nil || session.gitBranch != nil {
-            VStack(alignment: .leading, spacing: 2) {
-                if let branch = session.gitBranch {
-                    Label(branch, systemImage: "arrow.triangle.branch")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-                if let shortPwd = session.shortPwd {
-                    Label(shortPwd, systemImage: "folder")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-            }
         }
     }
 }

@@ -56,6 +56,18 @@ public final class GhosttyAppWrapper {
         GhosttyAppWrapper.current = self
         debugLog("[STARTUP] GhosttyAppWrapper init")
 
+        // Point ghostty at our bundled resources so it can inject shell integration.
+        // This must be set before ghostty_init() so the global state picks it up.
+        // Point ghostty at our bundled resources so it can inject shell integration.
+        // GHOSTTY_RESOURCES_DIR must point to the "ghostty" subdirectory inside Resources
+        // so that ghostty computes TERMINFO = dirname(GHOSTTY_RESOURCES_DIR)/terminfo,
+        // which resolves to Resources/terminfo — where the xterm-ghostty entry is bundled.
+        if let resourcesPath = Bundle.main.resourcePath {
+            let ghosttyResourcesPath = (resourcesPath as NSString).appendingPathComponent("ghostty")
+            setenv("GHOSTTY_RESOURCES_DIR", ghosttyResourcesPath, 1)
+            debugLog("[STARTUP] GHOSTTY_RESOURCES_DIR=\(ghosttyResourcesPath)")
+        }
+
         // Initialize ghostty global state
         guard ghostty_init(0, nil) == GHOSTTY_SUCCESS else {
             fatalError("Failed to initialize ghostty")

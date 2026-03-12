@@ -178,7 +178,12 @@ struct AreaPanelView: View {
                     )
                 }
         case .fileTree(let state):
-            FileTreePanelView(state: state)
+            let session = area.tabs.compactMap { $0.content.terminalSession }.first
+            if let session {
+                FileTreePanelWithCwd(state: state, session: session)
+            } else {
+                FileTreePanelView(state: state)
+            }
         }
     }
 
@@ -522,6 +527,17 @@ private struct TerminalTabTitle: View {
 }
 
 /// Shows an unread notification badge on a terminal tab.
+/// Wraps FileTreePanelView and observes the co-located terminal session so that
+/// the workspace cwd stays current even after the terminal navigates to a new directory.
+private struct FileTreePanelWithCwd: View {
+    @ObservedObject var state: FileTreeState
+    @ObservedObject var session: TerminalSession
+
+    var body: some View {
+        FileTreePanelView(state: state, workspaceCwd: session.pwd)
+    }
+}
+
 /// Observes both the session and the notification store for reactive updates.
 private struct TabNotificationBadge: View {
     @ObservedObject var session: TerminalSession

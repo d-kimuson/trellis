@@ -3,6 +3,9 @@ import SwiftUI
 /// File tree panel showing directory contents with expand/collapse.
 struct FileTreePanelView: View {
     @ObservedObject var state: FileTreeState
+    /// Current working directory of the representative terminal session in the area.
+    /// Passed as the initial directory when no root has been selected yet.
+    var workspaceCwd: String?
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
@@ -64,7 +67,7 @@ struct FileTreePanelView: View {
             Spacer()
 
             Button(
-                action: { state.openDirectoryPicker() },
+                action: { state.openDirectoryPicker(initialDirectory: workspaceCwd) },
                 label: {
                     Image(systemName: "folder.badge.plus")
                         .font(.caption)
@@ -100,7 +103,7 @@ struct FileTreePanelView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
             Button("Open Directory") {
-                state.openDirectoryPicker()
+                state.openDirectoryPicker(initialDirectory: workspaceCwd)
             }
             .controlSize(.small)
             Spacer()

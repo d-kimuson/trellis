@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Manages workspaces, areas, tabs, and terminal sessions.
@@ -9,9 +10,13 @@ public final class WorkspaceStore: ObservableObject {
     @Published public var activeWorkspaceIndex: Int
     private var nextTerminalCounter: Int = 1
     private var autosaveTimer: Timer?
+    /// Subscriptions forwarding terminal session changes to WorkspaceStore.objectWillChange.
+    private var sessionCancellables: Set<AnyCancellable> = []
 
     /// Optional reference to the in-app notification store for marking read on focus.
     public weak var notificationStore: NotificationStore?
+    /// Retains the $workspaces subscription that rebuilds session forwarding on each change.
+    private var workspacesObservation: AnyCancellable?
 
     public init(ghosttyApp: GhosttyAppWrapper, loadSnapshots: Bool = true) {
         self.ghosttyApp = ghosttyApp
@@ -41,6 +46,13 @@ public final class WorkspaceStore: ObservableObject {
         }
         RunLoop.main.add(timer, forMode: .common)
         autosaveTimer = timer
+
+        // Forward terminal session changes (pwd, branch) to WorkspaceStore.objectWillChange
+        // so views observing the store (SidebarView, AreaPanelView, etc.) re-render on OSC 7.
+        workspacesObservation = $workspaces
+            .sink { [weak self] newWorkspaces in
+                self?.rebuildSessionSubscriptions(for: newWorkspaces)
+            }
     }
 
     deinit {
@@ -533,6 +545,27 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    /// Re-subscribes to every terminal session's objectWillChange.
+    /// Called whenever workspaces changes so new sessions are included.
+    /// When any session fires (pwd, branch, etc.), WorkspaceStore.objectWillChange
+    /// is forwarded so all observing views (SidebarView, AreaPanelView) re-render.
+    private func rebuildSessionSubscriptions(for workspaces: [Workspace]) {
+        sessionCancellables = []
+        let sessions = workspaces
+            .flatMap { $0.allAreas }
+            .flatMap { $0.tabs }
+            .compactMap { $0.content.terminalSession }
+        debugLog("[SESSION] rebuildSessionSubscriptions: \(sessions.count) sessions")
+        for session in sessions {
+            session.objectWillChange
+                .sink { [weak self] _ in
+                    debugLog("[SESSION] session objectWillChange → forwarding to WorkspaceStore")
+                    self?.objectWillChange.send()
+                }
+                .store(in: &sessionCancellables)
+        }
+    }
 
     /// Returns the pwd of the active terminal in the given area, if available.
     private func activeTerminalPwd(in areaId: UUID, workspace: Workspace?) -> String? {

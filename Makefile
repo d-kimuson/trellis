@@ -64,11 +64,15 @@ build: $(BUILD_DIR)/Trellis
 app: $(BUILD_DIR)/Trellis
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources/shell-integration
+	@mkdir -p $(APP_BUNDLE)/Contents/Resources/ghostty/shell-integration/zsh
+	@mkdir -p $(APP_BUNDLE)/Contents/Resources/terminfo
 	cp $(BUILD_DIR)/Trellis $(APP_BUNDLE)/Contents/MacOS/
 	cp Resources/Info.plist $(APP_BUNDLE)/Contents/
 	plutil -replace CFBundleVersion -string "$$(git rev-parse --short HEAD)" $(APP_BUNDLE)/Contents/Info.plist
 	cp Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/
 	cp -r Resources/shell-integration/. $(APP_BUNDLE)/Contents/Resources/shell-integration/
+	cp -r Resources/ghostty/. $(APP_BUNDLE)/Contents/Resources/ghostty/
+	cp -r Resources/terminfo/. $(APP_BUNDLE)/Contents/Resources/terminfo/
 	codesign --force --deep --sign - $(APP_BUNDLE)
 	@echo "App bundle created: $(APP_BUNDLE)"
 
@@ -84,11 +88,15 @@ $(BUILD_DIR)/Trellis-debug: $(SWIFT_FILES) $(GHOSTTY_STATIC_LIB)
 debug-bundle: $(BUILD_DIR)/Trellis-debug
 	@mkdir -p $(DEBUG_BUNDLE)/Contents/MacOS
 	@mkdir -p $(DEBUG_BUNDLE)/Contents/Resources/shell-integration
+	@mkdir -p $(DEBUG_BUNDLE)/Contents/Resources/ghostty/shell-integration/zsh
+	@mkdir -p $(DEBUG_BUNDLE)/Contents/Resources/terminfo
 	cp $(BUILD_DIR)/Trellis-debug $(DEBUG_BUNDLE)/Contents/MacOS/Trellis
 	cp Resources/Info.plist $(DEBUG_BUNDLE)/Contents/
 	plutil -replace CFBundleVersion -string "$$(git rev-parse --short HEAD)" $(DEBUG_BUNDLE)/Contents/Info.plist
 	cp Resources/AppIcon.icns $(DEBUG_BUNDLE)/Contents/Resources/
 	cp -r Resources/shell-integration/. $(DEBUG_BUNDLE)/Contents/Resources/shell-integration/
+	cp -r Resources/ghostty/. $(DEBUG_BUNDLE)/Contents/Resources/ghostty/
+	cp -r Resources/terminfo/. $(DEBUG_BUNDLE)/Contents/Resources/terminfo/
 	codesign --force --deep --sign - $(DEBUG_BUNDLE)
 
 debug: debug-bundle
