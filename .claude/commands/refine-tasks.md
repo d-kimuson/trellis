@@ -1,60 +1,85 @@
 ---
-description: 'architect-review・qa レポートを読んで bd タスクを作成する'
+description: 'bd タスクの追加・優先度調整・依存設定など、タスク管理全般を行う'
 disable-model-invocation: true
 user-invocable: true
-allowed-tools: Read, Glob, Bash(bd), Bash(ls), Bash(date)
+argument-hint: '<指示内容>'
+allowed-tools: Read, Glob, Bash(bd), AskUserQuestion
 ---
 
-`docs/tmp/architect-review.md` と `docs/tmp/qa/` 配下のレポートを読み込み、発見された問題・バグをbdタスクに変換してください。
+以下の指示に従って bd タスクを管理してください：
+
+$ARGUMENTS
 
 ## 手順
 
-### 1. ドキュメント収集
-- `docs/tmp/architect-review.md` を読む（存在する場合）
-- `docs/tmp/qa/` 配下の全`.md`ファイルを読む
-- 読んだファイルを一覧として記録しておく
+### 1. 現状確認
 
-### 2. タスク抽出ルール
+```bash
+bd ready   # 未着手タスク一覧
+bd show    # 全タスク（epic/priority 構造）
+```
 
-各問題を1つのbdタスクに変換する。以下のルールで分類：
+### 2. レビュードキュメントの読み込み（該当する場合）
 
-| レポート重大度 | bdタイプ | bd優先度 |
-|-------------|---------|---------|
+指示にレビュー結果からのタスク起票が含まれる場合、以下のパスを候補として Glob で探す：
+
+| レビュー種別 | 候補パス |
+|------------|---------|
+| アーキテクトレビュー | `docs/tmp/architect-review.md`, `docs/tmp/architect-review-*.md` |
+| セキュリティレビュー | `docs/tmp/security-review.md`, `docs/tmp/security-review-*.md` |
+| QA レビュー | `docs/tmp/qa/*.md` |
+
+ファイルが見つからない・複数候補があって判断できない場合は `AskUserQuestion` でパスを確認してから読む。
+
+### 3. タスクの起票・更新
+
+**内容が自明な場合**（指示が明確・ドキュメントに詳細あり）はそのまま実行する。
+
+**仕様や設計に判断が必要な場合**（機能の範囲・実装方針・分割粒度など）は、自分の解釈をまとめて `AskUserQuestion` で確認してから実行する。
+例：「〇〇を1タスクにまとめようと思いますがよいですか？」「△△は feature ではなく task で切ります」
+
+**タスク作成：**
+
+```bash
+bd create --title="..." --type=task|bug|feature|epic --priority=N --description="..."
+```
+
+| タイプ | 用途 |
+|--------|------|
+| bug | バグ修正 |
+| feature | 機能追加 |
+| task | その他作業 |
+| epic | 複数タスクをまとめる親 |
+
+priority: 0=緊急, 1=高, 2=中, 3=低
+
+レビュードキュメントの重大度からの変換目安：
+
+| 重大度 | タイプ | priority |
+|--------|--------|---------|
 | Critical | bug | 0 |
-| High | task | 1 |
+| High | bug/task | 1 |
 | Medium | task | 2 |
 | Low | task | 3 |
-| QAバグ発見 | bug | 1 |
-| 不足機能 | feature | 2 |
 
-### 3. タスク作成
-
-各タスクに対して：
+**優先度変更：**
 
 ```bash
-bd create --title="..." --type=task|bug|feature --priority=N --description="..."
+bd update <id> --priority=N
 ```
 
-descriptionには以下を含める：
-- 問題の概要
-- 影響・リスク
-- 改善の方向性（わかる場合）
-- ソース（`architect-review.md` or `qa/20260311-01.md`）
-
-### 4. 依存関係の設定
-
-明らかな依存関係がある場合（例：リファクタ前提の機能追加）：
+**依存関係：**
 
 ```bash
-bd dep add <issue-id> <depends-on-id>
+bd dep add <id> <depends-on-id>
 ```
 
-### 5. 完了報告
+### 4. 完了報告
 
-作成したタスクの一覧を表示してください（`bd show` で確認）。
+作成・変更したタスクの一覧を報告する（`bd show` で確認）。
 
 ## 注意事項
 
-- 同じ問題を重複してタスク化しない（既存タスクを `bd ready` で確認してから作成）
-- 巨大な問題は分割して複数タスクにする（1タスク = 1〜2時間の作業量を目安）
-- エピックが必要な場合は `--type=epic` で親タスクを先に作る
+- 既存タスクと重複しないか確認してから作成する
+- 1タスク = 1〜2時間の作業量を目安に分割する
+- 複数タスクにまたがる機能はエピックを先に作る
