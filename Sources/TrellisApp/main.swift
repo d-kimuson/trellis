@@ -33,15 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .store(in: &cancellables)
 
         // Dynamic window title: update on store changes and session pwd changes
-        store.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.updateWindowTitle()
-                    self?.subscribeToRepresentativeSession()
-                }
-            }
-            .store(in: &cancellables)
+        observeStoreForWindowTitle()
 
         // Set up notification manager
         notificationManager = NotificationManager()
@@ -103,6 +95,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func observeStoreForWindowTitle() {
+        withObservationTracking {
+            _ = store.workspaces
+            _ = store.activeWorkspaceIndex
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                updateWindowTitle()
+                subscribeToRepresentativeSession()
+                observeStoreForWindowTitle()
+            }
+        }
     }
 
     private func subscribeToRepresentativeSession() {

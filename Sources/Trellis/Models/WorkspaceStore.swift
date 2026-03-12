@@ -3,20 +3,19 @@ import SwiftUI
 
 /// Manages workspaces, areas, tabs, and terminal sessions.
 /// Successor to SessionStore.
+@Observable
 @MainActor
-public final class WorkspaceStore: ObservableObject {
+public final class WorkspaceStore {
     public let ghosttyApp: GhosttyAppWrapper
-    @Published public var workspaces: [Workspace]
-    @Published public var activeWorkspaceIndex: Int
+    public var workspaces: [Workspace]
+    public var activeWorkspaceIndex: Int
     private var nextTerminalCounter: Int = 1
-    private var autosaveTimer: Timer?
-    /// Subscriptions forwarding terminal session changes to WorkspaceStore.objectWillChange.
-    private var sessionCancellables: Set<AnyCancellable> = []
+    @ObservationIgnored private var autosaveTimer: Timer?
+    /// Subscriptions forwarding terminal session changes to WorkspaceStore observation tracking.
+    @ObservationIgnored private var sessionCancellables: Set<AnyCancellable> = []
 
     /// Optional reference to the in-app notification store for marking read on focus.
     public weak var notificationStore: NotificationStore?
-    /// Retains the $workspaces subscription that rebuilds session forwarding on each change.
-    private var workspacesObservation: AnyCancellable?
 
     public init(ghosttyApp: GhosttyAppWrapper, loadSnapshots: Bool = true) {
         self.ghosttyApp = ghosttyApp
@@ -51,12 +50,10 @@ public final class WorkspaceStore: ObservableObject {
         RunLoop.main.add(timer, forMode: .common)
         autosaveTimer = timer
 
-        // Forward terminal session changes (pwd, branch) to WorkspaceStore.objectWillChange
+        // Forward terminal session changes (pwd, branch) to WorkspaceStore observation tracking
         // so views observing the store (SidebarView, AreaPanelView, etc.) re-render on OSC 7.
-        workspacesObservation = $workspaces
-            .sink { [weak self] newWorkspaces in
-                self?.rebuildSessionSubscriptions(for: newWorkspaces)
-            }
+        rebuildSessionSubscriptions(for: workspaces)
+        startObservingWorkspaces(knownSessionIds: Set(allSessions.map(\.id)))
     }
 
     deinit {
@@ -551,9 +548,9 @@ public final class WorkspaceStore: ObservableObject {
     // MARK: - Helpers
 
     /// Re-subscribes to every terminal session's objectWillChange.
-    /// Called whenever workspaces changes so new sessions are included.
-    /// When any session fires (pwd, branch, etc.), WorkspaceStore.objectWillChange
-    /// is forwarded so all observing views (SidebarView, AreaPanelView) re-render.
+    /// Called whenever the set of sessions changes so new sessions are included.
+    /// When any session fires (pwd, branch, etc.), WorkspaceStore.workspaces is touched
+    /// to trigger @Observable tracking so observing views (SidebarView, AreaPanelView) re-render.
     private func rebuildSessionSubscriptions(for workspaces: [Workspace]) {
         sessionCancellables = []
         let sessions = workspaces
@@ -565,9 +562,30 @@ public final class WorkspaceStore: ObservableObject {
             session.objectWillChange
                 .sink { [weak self] _ in
                     debugLog("[SESSION] session objectWillChange → forwarding to WorkspaceStore")
-                    self?.objectWillChange.send()
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        // Touch workspaces to trigger @Observable tracking for observing views
+                        self.workspaces = self.workspaces
+                    }
                 }
                 .store(in: &sessionCancellables)
+        }
+    }
+
+    /// Observes `workspaces` changes using @Observable tracking.
+    /// Rebuilds session subscriptions only when the set of session IDs changes (structural change).
+    private func startObservingWorkspaces(knownSessionIds: Set<UUID>) {
+        withObservationTracking {
+            _ = workspaces
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let newSessionIds = Set(allSessions.map(\.id))
+                if newSessionIds != knownSessionIds {
+                    rebuildSessionSubscriptions(for: workspaces)
+                }
+                startObservingWorkspaces(knownSessionIds: newSessionIds)
+            }
         }
     }
 

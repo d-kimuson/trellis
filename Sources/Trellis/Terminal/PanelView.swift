@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 struct AreaLayoutView: View {
     let node: LayoutNode
     let ghosttyApp: GhosttyAppWrapper
-    @ObservedObject var store: WorkspaceStore
+    var store: WorkspaceStore
     @ObservedObject var notificationStore: NotificationStore
 
     var body: some View {
@@ -48,7 +48,7 @@ enum DropEdge: Equatable {
 struct AreaPanelView: View {
     let area: Area
     let ghosttyApp: GhosttyAppWrapper
-    @ObservedObject var store: WorkspaceStore
+    var store: WorkspaceStore
     @ObservedObject var notificationStore: NotificationStore
     var isActiveArea: Bool = false
 
@@ -319,7 +319,7 @@ struct TerminalPanelWrapper: View {
     let session: TerminalSession
     let ghosttyApp: GhosttyAppWrapper
     let areaId: UUID
-    @ObservedObject var store: WorkspaceStore
+    var store: WorkspaceStore
     @ObservedObject private var sessionObserver: TerminalSession
 
     init(session: TerminalSession, ghosttyApp: GhosttyAppWrapper, areaId: UUID, store: WorkspaceStore) {
