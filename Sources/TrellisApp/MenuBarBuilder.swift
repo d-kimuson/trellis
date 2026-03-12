@@ -9,6 +9,17 @@ func buildMainMenu() -> NSMenu {
     // App menu
     let appMenuItem = NSMenuItem()
     mainMenu.addItem(appMenuItem)
+    appMenuItem.submenu = buildAppMenu()
+
+    // View menu
+    let viewMenuItem = NSMenuItem()
+    mainMenu.addItem(viewMenuItem)
+    viewMenuItem.submenu = buildViewMenu()
+
+    return mainMenu
+}
+
+private func buildAppMenu() -> NSMenu {
     let appMenu = NSMenu()
     appMenu.addItem(
         withTitle: "About Trellis",
@@ -37,11 +48,10 @@ func buildMainMenu() -> NSMenu {
         action: #selector(NSApplication.terminate(_:)),
         keyEquivalent: "q"
     )
-    appMenuItem.submenu = appMenu
+    return appMenu
+}
 
-    // View menu
-    let viewMenuItem = NSMenuItem()
-    mainMenu.addItem(viewMenuItem)
+private func buildViewMenu() -> NSMenu {
     let viewMenu = NSMenu(title: "View")
 
     let resetFontSizeItem = NSMenuItem(
@@ -114,7 +124,15 @@ func buildMainMenu() -> NSMenu {
     toggleSidebarItem.keyEquivalentModifierMask = [.command]
     viewMenu.addItem(toggleSidebarItem)
 
-    viewMenuItem.submenu = viewMenu
+    viewMenu.addItem(NSMenuItem.separator())
 
-    return mainMenu
+    let toggleFullScreenItem = NSMenuItem(
+        title: "Enter Full Screen",
+        action: #selector(NSWindow.toggleFullScreen(_:)),
+        keyEquivalent: "f"
+    )
+    toggleFullScreenItem.keyEquivalentModifierMask = [.command, .control]
+    viewMenu.addItem(toggleFullScreenItem)
+
+    return viewMenu
 }
