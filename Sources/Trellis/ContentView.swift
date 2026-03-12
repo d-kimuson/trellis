@@ -3,15 +3,20 @@ import SwiftUI
 public struct ContentView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var notificationStore: NotificationStore
-    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject var settings: AppSettings
     @State private var showSidebar = true
     @State private var showNotifications = false
     @State private var showSettings = false
     @State private var sidebarWidth: CGFloat = 200
 
-    public init(store: WorkspaceStore, notificationStore: NotificationStore) {
+    public init(
+        store: WorkspaceStore,
+        notificationStore: NotificationStore,
+        settings: AppSettings = AppSettings.shared
+    ) {
         self._store = ObservedObject(wrappedValue: store)
         self._notificationStore = ObservedObject(wrappedValue: notificationStore)
+        self._settings = ObservedObject(wrappedValue: settings)
     }
 
     public var body: some View {

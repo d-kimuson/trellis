@@ -6,7 +6,7 @@ struct FileTreePanelView: View {
     /// Current working directory of the representative terminal session in the area.
     /// Passed as the initial directory when no root has been selected yet.
     var workspaceCwd: String?
-    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject var settings: AppSettings
 
     var body: some View {
         VSplitView {
@@ -34,7 +34,8 @@ struct FileTreePanelView: View {
                                 FileNodeRow(
                                     node: child,
                                     state: state,
-                                    depth: 0
+                                    depth: 0,
+                                    settings: settings
                                 )
                             }
                         }
@@ -154,7 +155,7 @@ private struct FileNodeRow: View {
     let node: FileNode
     @ObservedObject var state: FileTreeState
     let depth: Int
-    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject var settings: AppSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -213,7 +214,8 @@ private struct FileNodeRow: View {
                     FileNodeRow(
                         node: child,
                         state: state,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        settings: settings
                     )
                 }
             }

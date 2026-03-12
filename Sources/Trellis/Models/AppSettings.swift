@@ -6,37 +6,40 @@ import Foundation
 public final class AppSettings: ObservableObject {
     public static let shared = AppSettings()
 
+    private let defaults: UserDefaults
+
     // MARK: - Font (written to ghostty config)
 
     @Published public var fontFamily: String {
-        didSet { UserDefaults.standard.set(fontFamily, forKey: Keys.fontFamily) }
+        didSet { defaults.set(fontFamily, forKey: Keys.fontFamily) }
     }
 
     @Published public var fontSize: Double {
-        didSet { UserDefaults.standard.set(fontSize, forKey: Keys.fontSize) }
+        didSet { defaults.set(fontSize, forKey: Keys.fontSize) }
     }
 
     // MARK: - Panel Font Size (applies to non-terminal panels like file tree)
 
     @Published public var panelFontSize: Double {
-        didSet { UserDefaults.standard.set(panelFontSize, forKey: Keys.panelFontSize) }
+        didSet { defaults.set(panelFontSize, forKey: Keys.panelFontSize) }
     }
 
     // MARK: - IPC Server
 
     @Published public var ipcServerEnabled: Bool {
-        didSet { UserDefaults.standard.set(ipcServerEnabled, forKey: Keys.ipcServerEnabled) }
+        didSet { defaults.set(ipcServerEnabled, forKey: Keys.ipcServerEnabled) }
     }
 
     // MARK: - Init
 
-    private init() {
-        let storedSize = UserDefaults.standard.double(forKey: Keys.fontSize)
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let storedSize = defaults.double(forKey: Keys.fontSize)
         fontSize = storedSize > 0 ? storedSize : 13
-        fontFamily = UserDefaults.standard.string(forKey: Keys.fontFamily) ?? ""
-        let storedPanelSize = UserDefaults.standard.double(forKey: Keys.panelFontSize)
+        fontFamily = defaults.string(forKey: Keys.fontFamily) ?? ""
+        let storedPanelSize = defaults.double(forKey: Keys.panelFontSize)
         panelFontSize = storedPanelSize > 0 ? storedPanelSize : 13
-        ipcServerEnabled = UserDefaults.standard.bool(forKey: Keys.ipcServerEnabled)
+        ipcServerEnabled = defaults.bool(forKey: Keys.ipcServerEnabled)
     }
 
     // MARK: - UserDefaults Keys

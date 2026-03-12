@@ -182,7 +182,7 @@ struct AreaPanelView: View {
             if let session {
                 FileTreePanelWithCwd(state: state, session: session)
             } else {
-                FileTreePanelView(state: state)
+                FileTreePanelView(state: state, settings: AppSettings.shared)
             }
         }
     }
@@ -530,7 +530,7 @@ private struct FileTreePanelWithCwd: View {
     @ObservedObject var session: TerminalSession
 
     var body: some View {
-        FileTreePanelView(state: state, workspaceCwd: session.pwd)
+        FileTreePanelView(state: state, workspaceCwd: session.pwd, settings: AppSettings.shared)
     }
 }
 
