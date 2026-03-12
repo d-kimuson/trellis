@@ -2,6 +2,27 @@ import AppKit
 import SwiftUI
 import WebKit
 
+/// WKWebView subclass that forwards standard editing key equivalents (Cmd+C, Cmd+A).
+/// WKWebView does not override performKeyEquivalent for these, so they fall through
+/// to the system beep without this override.
+private final class EditableWKWebView: WKWebView {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.command) else {
+            return super.performKeyEquivalent(with: event)
+        }
+        switch event.charactersIgnoringModifiers {
+        case "c":
+            NSApp.sendAction(#selector(NSText.copy(_:)), to: self, from: nil)
+            return true
+        case "a":
+            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: self, from: nil)
+            return true
+        default:
+            return super.performKeyEquivalent(with: event)
+        }
+    }
+}
+
 /// WKWebView-based syntax highlight view using highlight.js (OSS: https://highlightjs.org/).
 /// Resources/highlight/highlight.min.js must be present in the app bundle.
 struct SyntaxHighlightWebView: NSViewRepresentable {
@@ -14,7 +35,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = EditableWKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.loadHTMLString(buildHTML(), baseURL: nil)
         return webView
