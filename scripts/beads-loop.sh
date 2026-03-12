@@ -95,12 +95,15 @@ check_rate_limit() {
     return 1  # 取得失敗 → 制限なしとみなす
   fi
   log "5h utilization: ${pct}% (limit: ${USAGE_LIMIT}%)"
-  (( pct >= USAGE_LIMIT ))
+  if (( pct >= USAGE_LIMIT )); then
+    return 0
+  fi
+  return 1
 }
 
 # --- Build bd ready args ---
 build_ready_args() {
-  local args=(--unassigned --quiet)
+  local args=(--unassigned --json)
   if [[ -n "$BD_PRIORITY" ]]; then
     args+=(--priority "$BD_PRIORITY")
   fi
@@ -124,19 +127,18 @@ while true; do
     break
   fi
 
-  # ready タスクの確認
+  # ready タスクの確認 (JSON でパース)
   read -ra ready_args <<< "$(build_ready_args)"
-  ready_output=$(bd ready "${ready_args[@]}" 2>/dev/null || true)
-  if [[ -z "$ready_output" ]] || echo "$ready_output" | grep -q "0 issues"; then
+  ready_json=$(bd ready "${ready_args[@]}" 2>/dev/null || echo "[]")
+  task_count=$(echo "$ready_json" | jq 'length')
+  if (( task_count == 0 )); then
     log "ready タスクなし。終了します。"
     break
   fi
-
-  task_count=$(echo "$ready_output" | grep -c '^\s*[0-9]\+\.' || true)
   log "ready タスク: ${task_count} 件"
 
   if [[ "$DRY_RUN" == true ]]; then
-    echo "$ready_output"
+    echo "$ready_json" | jq -r '.[] | "[\(.priority)] [\(.issue_type)] \(.id): \(.title)"'
     break
   fi
 
