@@ -25,45 +25,21 @@ struct SidebarView: View {
                     }
                     .onMove { from, to in store.movePinnedWorkspace(fromOffsets: from, toOffset: to) }
                 } header: {
-                    Text("Pinned")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .textCase(nil)
+                    sectionHeader("Pinned")
                 }
                 .collapsible(false)
             }
 
             // Temporary workspaces section — always shown so the "+" button is reachable
-            if true {
-                Section {
-                    ForEach(store.tempWorkspaces) { workspace in
-                        workspaceRow(workspace: workspace)
-                    }
-                    .onMove { from, to in store.moveTempWorkspace(fromOffsets: from, toOffset: to) }
-                } header: {
-                    HStack {
-                        Text("Workspaces")
-                            .font(.system(size: 13, weight: .semibold))
-                            .textCase(nil)
-                        Spacer()
-                        Button(action: { store.addWorkspace() }) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.secondary)
-                                .frame(width: 20, height: 20)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .fill(Color.primary.opacity(0.08))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help("New Workspace")
-                    }
-                    .padding(.trailing, 4)
-                    .padding(.bottom, 4)
+            Section {
+                ForEach(store.tempWorkspaces) { workspace in
+                    workspaceRow(workspace: workspace)
                 }
-                .collapsible(false)
+                .onMove { from, to in store.moveTempWorkspace(fromOffsets: from, toOffset: to) }
+            } header: {
+                sectionHeader("Workspaces")
             }
+            .collapsible(false)
         }
         .listStyle(.sidebar)
         .confirmationDialog(
@@ -120,6 +96,29 @@ struct SidebarView: View {
                 Button("Pin") { store.pinWorkspace(id: workspace.id) }
             }
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .textCase(nil)
+            Spacer()
+            Button(action: { store.addWorkspace() }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 20, height: 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(Color.primary.opacity(0.08))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("New Workspace")
+        }
+        .padding(.trailing, 4)
+        .padding(.bottom, 4)
     }
 
     private func requestClose(at index: Int) {
@@ -239,10 +238,8 @@ private struct WorkspaceCard: View {
                 .padding(.bottom, 4)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 6)
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
     }
