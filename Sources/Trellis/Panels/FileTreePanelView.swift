@@ -137,14 +137,28 @@ struct FileTreePanelView: View {
             .padding(.vertical, 4)
             .background(Color(nsColor: .controlBackgroundColor))
 
-            GeometryReader { geo in
-                ScrollView([.horizontal, .vertical]) {
-                    Text(content)
-                        .font(.system(size: settings.panelFontSize, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
+            if SyntaxHighlightWebView.languageForExtension(
+                (path as NSString).pathExtension.lowercased()
+            ).isEmpty {
+                GeometryReader { geo in
+                    ScrollView([.horizontal, .vertical]) {
+                        Text(content)
+                            .font(.system(size: settings.panelFontSize, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(8)
+                            .frame(
+                                minWidth: geo.size.width,
+                                minHeight: geo.size.height,
+                                alignment: .topLeading
+                            )
+                    }
                 }
+            } else {
+                SyntaxHighlightWebView(
+                    code: content,
+                    filePath: path,
+                    fontSize: settings.panelFontSize
+                )
             }
         }
     }

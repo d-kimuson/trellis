@@ -74,6 +74,8 @@ app: $(BUILD_DIR)/Trellis
 	cp -r Resources/shell-integration/. $(APP_BUNDLE)/Contents/Resources/shell-integration/
 	cp -r Resources/ghostty/. $(APP_BUNDLE)/Contents/Resources/ghostty/
 	cp -r Resources/terminfo/. $(APP_BUNDLE)/Contents/Resources/terminfo/
+	mkdir -p $(APP_BUNDLE)/Contents/Resources/highlight
+	cp -r Resources/highlight/. $(APP_BUNDLE)/Contents/Resources/highlight/
 	codesign --force --deep --sign - $(APP_BUNDLE)
 	@echo "App bundle created: $(APP_BUNDLE)"
 
@@ -98,6 +100,8 @@ debug-bundle: $(BUILD_DIR)/Trellis-debug
 	cp -r Resources/shell-integration/. $(DEBUG_BUNDLE)/Contents/Resources/shell-integration/
 	cp -r Resources/ghostty/. $(DEBUG_BUNDLE)/Contents/Resources/ghostty/
 	cp -r Resources/terminfo/. $(DEBUG_BUNDLE)/Contents/Resources/terminfo/
+	mkdir -p $(DEBUG_BUNDLE)/Contents/Resources/highlight
+	cp -r Resources/highlight/. $(DEBUG_BUNDLE)/Contents/Resources/highlight/
 	codesign --force --deep --sign - $(DEBUG_BUNDLE)
 
 debug: debug-bundle
