@@ -48,6 +48,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// Pending work item for debounced highlight refresh after scroll/key events.
     var highlightRefreshWork: DispatchWorkItem?
 
+    /// Expected viewport row of the current match after the most recent scroll-to-match.
+    /// Used by drawHighlights() to identify which viewport match is the "current" one (orange).
+    var findCurrentMatchExpectedViewportRow: Int = -1
+
     init(ghosttyApp: GhosttyAppWrapper, session: TerminalSession) {
         self.ghosttyApp = ghosttyApp
         self.session = session
@@ -245,6 +249,8 @@ class GhosttyNSView: NSView, NSTextInputClient {
             // Use focusedSurface so paste goes to the last-clicked terminal regardless
             // of which NSView happens to be the current first responder.
             if char == "v" {
+                // If the find bar is visible, let Cmd+V pass through to the search field.
+                if session.isFindVisible { return super.performKeyEquivalent(with: event) }
                 let pasteTarget = ghosttyApp.focusedSurface ?? surface
                 let pasteboard = NSPasteboard.general
                 if let content = pasteboard.string(forType: .string), !content.isEmpty {

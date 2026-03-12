@@ -4,7 +4,7 @@ import QuartzCore
 
 // MARK: - Supporting Types
 
-/// Result of reading all terminal text (scrollback + viewport).
+/// Result of reading terminal text via ghostty_surface_read_text.
 struct ScreenTextResult {
     let text: String
     /// Cell-grid offset (y * cols + x) where the currently visible viewport begins.
@@ -15,7 +15,7 @@ struct ScreenTextResult {
 /// A single search match position within the terminal text, in visual (physical) rows/columns.
 /// Physical rows account for soft-wrapped lines (no `\n` at wrap point in ghostty output).
 struct FindMatch {
-    let line: Int    // Visual row from top of SCREEN (including scrollback)
+    let line: Int    // Visual row (relative to the text buffer it was searched in)
     let col: Int     // Column within that visual row
     let cellLen: Int // Approximate cell width of the matched text
 }
@@ -77,6 +77,7 @@ extension GhosttyNSView {
         findTextBytes = []
         findViewportOffset = 0
         findTerminalCols = 0
+        findCurrentMatchExpectedViewportRow = -1
         session.findMatchCount = 0
         session.findCurrentMatchIndex = 0
         clearHighlights()
@@ -110,8 +111,36 @@ extension GhosttyNSView {
         guard let ptr = rawText.text, rawText.text_len > 0 else { return nil }
 
         let text = String(decoding: Data(bytes: ptr, count: Int(rawText.text_len)), as: UTF8.self)
-        // offset_start = y * cols + x in the terminal's cell grid — NOT a byte offset.
         return ScreenTextResult(text: text, viewportCellOffset: Int(rawText.offset_start))
+    }
+
+    /// Read only the currently visible viewport text.
+    /// Returned match positions are viewport-relative (row 0 = top of visible area).
+    private func readViewportText() -> String? {
+        guard let surface else { return nil }
+
+        let topLeft = ghostty_point_s(
+            tag: GHOSTTY_POINT_VIEWPORT,
+            coord: GHOSTTY_POINT_COORD_TOP_LEFT,
+            x: 0, y: 0
+        )
+        let bottomRight = ghostty_point_s(
+            tag: GHOSTTY_POINT_VIEWPORT,
+            coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT,
+            x: 0, y: 0
+        )
+        let selection = ghostty_selection_s(
+            top_left: topLeft,
+            bottom_right: bottomRight,
+            rectangle: false
+        )
+
+        var rawText = ghostty_text_s()
+        guard ghostty_surface_read_text(surface, selection, &rawText) else { return nil }
+        defer { ghostty_surface_free_text(surface, &rawText) }
+        guard let ptr = rawText.text, rawText.text_len > 0 else { return nil }
+
+        return String(decoding: Data(bytes: ptr, count: Int(rawText.text_len)), as: UTF8.self)
     }
 
     /// Find all matches of `query` using Swift string search (Unicode-aware, case-insensitive).
@@ -177,38 +206,32 @@ extension GhosttyNSView {
               let surface else { return }
 
         let match = findMatches[session.findCurrentMatchIndex - 1]
-        let cols = max(1, findTerminalCols)
-        // offset_start = y * cols + x, so dividing by cols gives the first visible visual row.
-        let viewportStartRow = findViewportOffset / cols
         let surfaceSize = ghostty_surface_size(surface)
         let visibleRows = max(1, Int(surfaceSize.rows))
 
+        // Re-read current viewport offset — may be stale if user scrolled manually since performFind.
+        let cols = max(1, Int(surfaceSize.columns))
+        let currentViewportOffset = readScreenText().map { $0.viewportCellOffset } ?? findViewportOffset
+        let viewportStartRow = currentViewportOffset / cols
+
         // Target: center the match vertically in the viewport.
-        let targetFirstRow = match.line - visibleRows / 2
+        let targetFirstRow = max(0, match.line - visibleRows / 2)
         let linesToScroll = targetFirstRow - viewportStartRow
+
+        // The match will be at this viewport-relative row after the scroll settles.
+        findCurrentMatchExpectedViewportRow = match.line - targetFirstRow
 
         if linesToScroll != 0 {
             let action = "scroll_page_lines:\(linesToScroll)"
             action.withCString { cstr in
                 _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
             }
-            // Re-read viewport offset after ghostty processes the scroll.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.refreshHighlightsAfterScroll()
+                self?.drawHighlights()
             }
         } else {
-            refreshHighlightsAfterScroll()
+            drawHighlights()
         }
-    }
-
-    private func refreshHighlightsAfterScroll() {
-        guard let result = readScreenText(), let surface else {
-            clearHighlights()
-            return
-        }
-        findViewportOffset = result.viewportCellOffset
-        findTerminalCols = Int(ghostty_surface_size(surface).columns)
-        drawHighlights()
     }
 
     /// Schedule a debounced highlight redraw to sync positions after scroll/key events.
@@ -217,19 +240,22 @@ extension GhosttyNSView {
         guard session.isFindVisible, !findMatches.isEmpty else { return }
         highlightRefreshWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.refreshHighlightsAfterScroll()
+            self?.drawHighlights()
         }
         highlightRefreshWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: work)
     }
 
+    /// Redraw highlights by searching the currently visible viewport text.
+    /// Viewport-relative match positions require no offset calculation — row 0 = top of visible area.
     func drawHighlights() {
         guard let surface else { clearHighlights(); return }
 
-        // Refresh viewport offset so highlights stay accurate after any scrolling.
-        if let result = readScreenText() {
-            findViewportOffset = result.viewportCellOffset
-        }
+        let query = session.findQuery
+        guard !query.isEmpty, !findMatches.isEmpty else { clearHighlights(); return }
+
+        // Read only the currently visible viewport — no scrollback offset calculation needed.
+        guard let viewportText = readViewportText() else { clearHighlights(); return }
 
         let surfaceSize = ghostty_surface_size(surface)
         guard surfaceSize.cell_width_px > 0, surfaceSize.cell_height_px > 0 else {
@@ -242,27 +268,36 @@ extension GhosttyNSView {
         let cellH = CGFloat(surfaceSize.cell_height_px) / scale
         let visibleRows = Int(surfaceSize.rows)
         let cols = max(1, Int(surfaceSize.columns))
-        // offset_start = y * cols + x → first visible visual row
-        let viewportStartRow = findViewportOffset / cols
+
+        // Search the viewport text — match.line is directly the viewport row (0 = top of screen).
+        let viewportMatches = searchMatches(in: viewportText, query: query, cols: cols)
+
+        // Identify the current match in the viewport by finding the one closest to the
+        // expected viewport row (set by scrollToCurrentMatch to approximately visibleRows/2).
+        let expectedRow = findCurrentMatchExpectedViewportRow
+        let currentViewportKey: (Int, Int)? = viewportMatches
+            .min { abs($0.line - expectedRow) < abs($1.line - expectedRow) }
+            .map { ($0.line, $0.col) }
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         highlightLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
 
-        for (index, match) in findMatches.enumerated() {
-            let lineInViewport = match.line - viewportStartRow
-            guard lineInViewport >= 0, lineInViewport < visibleRows else { continue }
+        for match in viewportMatches {
+            guard match.line >= 0, match.line < visibleRows else { continue }
 
             let x = CGFloat(match.col) * cellW
-            let yFromTop = CGFloat(lineInViewport) * cellH
+            let yFromTop = CGFloat(match.line) * cellH
             // CALayer/NSView macOS coordinate system: y=0 at bottom, increases upward.
             let y = bounds.height - yFromTop - cellH
             let matchW = max(CGFloat(match.cellLen) * cellW, cellW)
 
+            let isCurrent = currentViewportKey.map { $0 == match.line && $1 == match.col } ?? false
+
             let matchLayer = CALayer()
             matchLayer.frame = CGRect(x: x, y: y, width: matchW, height: cellH)
             matchLayer.cornerRadius = 2
-            matchLayer.backgroundColor = (index == session.findCurrentMatchIndex - 1)
+            matchLayer.backgroundColor = isCurrent
                 ? NSColor.systemOrange.withAlphaComponent(0.55).cgColor
                 : NSColor.systemYellow.withAlphaComponent(0.35).cgColor
             highlightLayer.addSublayer(matchLayer)
