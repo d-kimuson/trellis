@@ -196,6 +196,60 @@ final class SnapshotStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - writeScrollbackFile permissions
+
+    func testWriteScrollbackFileHasOwnerOnlyPermissions() {
+        let id = UUID()
+        let path = SnapshotStore.writeScrollbackFile("secret content", id: id)
+        XCTAssertNotNil(path)
+        if let path {
+            defer { try? FileManager.default.removeItem(atPath: path) }
+            let attrs = try? FileManager.default.attributesOfItem(atPath: path)
+            let perms = attrs?[.posixPermissions] as? Int
+            XCTAssertEqual(perms, 0o600, "Scrollback temp file must be owner-only (0600)")
+        }
+    }
+
+    // MARK: - cleanUpStaleTempFiles
+
+    func testCleanUpStaleTempFilesRemovesOldFiles() throws {
+        let id = UUID()
+        let tmpDir = NSTemporaryDirectory()
+        let path = tmpDir + "trellis-sb-\(id.uuidString).txt"
+        try "old content".write(toFile: path, atomically: true, encoding: .utf8)
+        let twoHoursAgo = Date().addingTimeInterval(-7200)
+        try FileManager.default.setAttributes([.modificationDate: twoHoursAgo], ofItemAtPath: path)
+
+        SnapshotStore.cleanUpStaleTempFiles(olderThan: 3600)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+    }
+
+    func testCleanUpStaleTempFilesKeepsRecentFiles() throws {
+        let id = UUID()
+        let tmpDir = NSTemporaryDirectory()
+        let path = tmpDir + "trellis-sb-\(id.uuidString).txt"
+        try "recent content".write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        SnapshotStore.cleanUpStaleTempFiles(olderThan: 3600)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+    }
+
+    func testCleanUpStaleTempFilesIgnoresNonTrellisFiles() throws {
+        let tmpDir = NSTemporaryDirectory()
+        let path = tmpDir + "other-app-\(UUID().uuidString).txt"
+        try "other content".write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let twoHoursAgo = Date().addingTimeInterval(-7200)
+        try FileManager.default.setAttributes([.modificationDate: twoHoursAgo], ofItemAtPath: path)
+
+        SnapshotStore.cleanUpStaleTempFiles(olderThan: 3600)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path), "Non-trellis files must not be removed")
+    }
+
     // MARK: - prepareRestoreEnv
 
     func testPrepareRestoreEnvEmptyScrollbackReturnsEmptyDict() {

@@ -24,6 +24,10 @@ public final class WorkspaceStore: ObservableObject {
         // Copy bundled shell-integration scripts to the stable app-support path
         if loadSnapshots { SnapshotStore.installShellIntegration() }
 
+        // Remove stale scrollback temp files left over from a previous run
+        // (safety net in case the shell integration script did not clean up)
+        if loadSnapshots { SnapshotStore.cleanUpStaleTempFiles() }
+
         // Restore pinned workspaces from the last snapshot
         let snapshots = loadSnapshots ? SnapshotStore.load() : []
         let pinned = snapshots.filter(\.isPinned).map { Self.makeRestoredWorkspace(from: $0) }

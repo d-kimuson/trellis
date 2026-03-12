@@ -31,6 +31,12 @@ enum SnapshotStore {
         encoder.dateEncodingStrategy = .iso8601
         if let data = try? encoder.encode(snapshots) {
             try? data.write(to: url, options: .atomic)
+            // Restrict to owner-only read/write; workspaces.json may contain scrollback
+            // with sensitive terminal output (passwords, API keys, etc.)
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: url.path
+            )
         }
     }
 
@@ -80,12 +86,33 @@ enum SnapshotStore {
     }
 
     /// Write scrollback content to a temp file; returns the file path on success.
+    /// The file is created with owner-only permissions (0600) to prevent other
+    /// users on the same machine from reading potentially sensitive terminal output.
     static func writeScrollbackFile(_ content: String, id: UUID) -> String? {
         let path = NSTemporaryDirectory() + "trellis-sb-\(id.uuidString).txt"
         guard (try? content.write(toFile: path, atomically: true, encoding: .utf8)) != nil else {
             return nil
         }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
         return path
+    }
+
+    /// Remove stale scrollback temp files (trellis-sb-*.txt) older than `age` seconds.
+    /// Called at app startup as a safety net in case the shell integration script did not run
+    /// (e.g. the shell crashed before sourcing the integration script).
+    static func cleanUpStaleTempFiles(olderThan age: TimeInterval = 3600) {
+        let tmpDir = NSTemporaryDirectory()
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(atPath: tmpDir) else { return }
+        let now = Date()
+        for file in files where file.hasPrefix("trellis-sb-") && file.hasSuffix(".txt") {
+            let path = tmpDir + file
+            guard let attrs = try? fm.attributesOfItem(atPath: path),
+                  let modDate = attrs[.modificationDate] as? Date else { continue }
+            if now.timeIntervalSince(modDate) > age {
+                try? fm.removeItem(atPath: path)
+            }
+        }
     }
 
     // MARK: - Shell Restore Environment
