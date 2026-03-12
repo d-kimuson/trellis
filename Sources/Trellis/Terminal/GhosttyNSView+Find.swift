@@ -195,35 +195,6 @@ extension GhosttyNSView {
         return (row, col)
     }
 
-    /// Count total physical (visual) rows in `text` using the same row-counting logic as
-    /// `physicalPosition`. This ensures scroll offset calculations use the exact same
-    /// coordinate system as match positions stored in `findMatches`.
-    private func physicalRowCount(in text: String, cols: Int) -> Int {
-        guard cols > 0, !text.isEmpty else { return 0 }
-        var row = 0
-        var col = 0
-        var justSoftWrapped = false
-        for scalar in text.unicodeScalars {
-            if scalar == "\n" {
-                if !justSoftWrapped {
-                    row += 1
-                    col = 0
-                }
-                justSoftWrapped = false
-            } else {
-                col += 1
-                justSoftWrapped = false
-                if col >= cols {
-                    row += 1
-                    col = 0
-                    justSoftWrapped = true
-                }
-            }
-        }
-        // Count partial final row if text doesn't end at a row boundary.
-        return row + (col > 0 ? 1 : 0)
-    }
-
     private func scrollToCurrentMatch() {
         guard !findMatches.isEmpty,
               session.findCurrentMatchIndex >= 1,
@@ -231,46 +202,31 @@ extension GhosttyNSView {
               let surface else { return }
 
         let match = findMatches[session.findCurrentMatchIndex - 1]
-        let surfaceSize = ghostty_surface_size(surface)
-        let visibleRows = max(1, Int(surfaceSize.rows))
-        let cols = max(1, Int(surfaceSize.columns))
+        let visibleRows = max(1, Int(ghostty_surface_size(surface).rows))
 
-        // Compute viewport start row using physicalRowCount — same coordinate system as
-        // findMatches positions, avoiding any offset_start / cols unit mismatch.
-        guard let screenResult = readScreenText() else { return }
-        let totalRows = physicalRowCount(in: screenResult.text, cols: cols)
-        let viewportStartRow = max(0, totalRows - visibleRows)
-
-        // Target: center the match vertically in the viewport.
+        // Center the match vertically in the viewport.
         let targetFirstRow = max(0, match.line - visibleRows / 2)
-        let linesToScroll = targetFirstRow - viewportStartRow
 
         // The match will land at this viewport-relative row after the scroll.
-        findCurrentMatchExpectedViewportRow = max(0, match.line - targetFirstRow)
+        findCurrentMatchExpectedViewportRow = match.line - targetFirstRow
 
-        if linesToScroll != 0 {
-            // ghostty scroll_page_lines convention:
-            //   positive N = scroll UP (into scrollback / older content)
-            //   negative N = scroll DOWN (toward newest content)
-            // linesToScroll = targetFirstRow - viewportStartRow, so negate to match ghostty's sign.
-            let action = "scroll_page_lines:\(-linesToScroll)"
+        // Jump to an absolute position by scrolling to the top first, then
+        // scrolling down to the target. This avoids needing the current scroll position.
+        let scrollToTop = "scroll_to_top"
+        scrollToTop.withCString { cstr in
+            _ = ghostty_surface_binding_action(surface, cstr, UInt(scrollToTop.utf8.count))
+        }
+
+        if targetFirstRow > 0 {
+            // Negative = scroll DOWN toward newer content (ghostty convention).
+            let action = "scroll_page_lines:-\(targetFirstRow)"
             action.withCString { cstr in
                 _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
             }
-            let capturedMatch = match
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                guard let self else { return }
-                // Refine expected row using physicalRowCount on fresh full-text read.
-                if let result = self.readScreenText() {
-                    let freshCols = max(1, Int(ghostty_surface_size(surface).columns))
-                    let freshTotal = self.physicalRowCount(in: result.text, cols: freshCols)
-                    let freshVpStart = max(0, freshTotal - Int(ghostty_surface_size(surface).rows))
-                    self.findCurrentMatchExpectedViewportRow = max(0, capturedMatch.line - freshVpStart)
-                }
-                self.drawHighlights()
-            }
-        } else {
-            drawHighlights()
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.drawHighlights()
         }
     }
 
@@ -317,20 +273,16 @@ extension GhosttyNSView {
         let viewportMatches = searchMatches(in: viewportText, query: query, cols: cols)
 
         // Identify which viewport match is the "current" one (shown in orange).
-        // Primary key: column — the current global match has a known col.
-        // When multiple viewport matches share the same col, use expected row as tiebreaker.
+        // Match by exact (viewport row, col) — col alone causes false positives when
+        // the current match is off-screen and another match shares the same column.
         let expectedRow = findCurrentMatchExpectedViewportRow
         let currentViewportMatch: FindMatch? = {
             guard session.findCurrentMatchIndex >= 1,
                   session.findCurrentMatchIndex <= findMatches.count else { return nil }
-            let globalCol = findMatches[session.findCurrentMatchIndex - 1].col
-            let sameCol = viewportMatches.filter { $0.col == globalCol }
-            if sameCol.count == 1 { return sameCol[0] }
-            if sameCol.count > 1 {
-                return sameCol.min { abs($0.line - expectedRow) < abs($1.line - expectedRow) }
-            }
-            // Current match not visible — no orange indicator.
-            return nil
+            let globalMatch = findMatches[session.findCurrentMatchIndex - 1]
+            // If expectedRow is outside the visible range the current match is off-screen.
+            guard expectedRow >= 0, expectedRow < visibleRows else { return nil }
+            return viewportMatches.first { $0.line == expectedRow && $0.col == globalMatch.col }
         }()
 
         CATransaction.begin()
