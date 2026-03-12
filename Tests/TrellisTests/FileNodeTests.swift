@@ -173,6 +173,37 @@ final class FileNodeTests: XCTestCase {
         XCTAssertEqual(children[0].name, "file.txt")
     }
 
+    // MARK: - stableUUID
+
+    func testStableUUIDIsDeterministic() {
+        let path = "/Users/kaito/repos/trellis/Sources/main.swift"
+        XCTAssertEqual(FileNode.stableUUID(for: path), FileNode.stableUUID(for: path))
+    }
+
+    func testStableUUIDNoCollisionForSwappedBlockPaths() {
+        // XOR ハッシュでは 16バイトブロックを入れ替えると衝突する
+        // "aaa...aaa" (16個) + "AAA...AAA" (16個) と
+        // "AAA...AAA" (16個) + "aaa...aaa" (16個) は同じXORハッシュになる
+        let path1 = "aaaaaaaaaaaaaaaaAAAAAAAAAAAAAAAA"
+        let path2 = "AAAAAAAAAAAAAAAAaaaaaaaaaaaaaaaa"
+        XCTAssertNotEqual(FileNode.stableUUID(for: path1), FileNode.stableUUID(for: path2))
+    }
+
+    func testStableUUIDDifferentPathsProduceDifferentUUIDs() {
+        XCTAssertNotEqual(
+            FileNode.stableUUID(for: "/foo/bar/baz"),
+            FileNode.stableUUID(for: "/foo/bar/qux")
+        )
+    }
+
+    func testStableUUIDVersionBitsAreSet() {
+        let uuid = FileNode.stableUUID(for: "/some/path")
+        // UUID v5: version nibble (bits 4-7 of byte 6) = 0x5
+        let uuidBytes = withUnsafeBytes(of: uuid.uuid) { Array($0) }
+        XCTAssertEqual(uuidBytes[6] >> 4, 0x5, "UUID version nibble should be 5")
+        XCTAssertEqual(uuidBytes[8] >> 6, 0x2, "UUID variant bits should be 0b10")
+    }
+
     // MARK: - replacingChildren
 
     func testReplacingChildrenUpdatesTargetNode() {

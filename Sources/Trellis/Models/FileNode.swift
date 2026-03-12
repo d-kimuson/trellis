@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Represents a node in a file system tree.
@@ -138,18 +139,14 @@ public enum FileNode: Identifiable, Equatable {
     }
 
     /// Generate a stable UUID from a file path so SwiftUI identity is preserved across reloads.
+    /// Uses SHA-256 to avoid collisions inherent in XOR-based folding.
     static func stableUUID(for path: String) -> UUID {
-        let data = Data(path.utf8)
-        var hash = [UInt8](repeating: 0, count: 16)
-        let bytes = [UInt8](data)
-        for (index, byte) in bytes.enumerated() {
-            hash[index % 16] ^= byte
-        }
+        let digest = SHA256.hash(data: Data(path.utf8))
+        var bytes = Array(digest.prefix(16))
         // Set UUID version 5 bits
-        hash[6] = (hash[6] & 0x0F) | 0x50
-        hash[8] = (hash[8] & 0x3F) | 0x80
-        let uuid = NSUUID(uuidBytes: hash) as UUID
-        return uuid
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return NSUUID(uuidBytes: bytes) as UUID
     }
 
     /// Parse a .gitignore file and return basic patterns.
