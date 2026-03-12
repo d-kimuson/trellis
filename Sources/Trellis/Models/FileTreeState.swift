@@ -16,6 +16,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
 
     private var ignoredPatterns: [String] = []
     private var eventStream: FSEventStreamRef?
+    private var eventStreamInfo: UnsafeMutableRawPointer?
     private var debounceWork: DispatchWorkItem?
     private var gitStatusProcess: Process?
 
@@ -136,9 +137,12 @@ public final class FileTreeState: ObservableObject, Identifiable {
             state.debouncedReload()
         }
 
+        // passRetained increments ARC so self stays alive while the stream is active.
+        // The retained pointer is released in stopWatching after the stream is fully torn down.
+        let retained = Unmanaged.passRetained(self).toOpaque()
         var context = FSEventStreamContext(
             version: 0,
-            info: Unmanaged.passUnretained(self).toOpaque(),
+            info: retained,
             retain: nil,
             release: nil,
             copyDescription: nil
@@ -158,11 +162,15 @@ public final class FileTreeState: ObservableObject, Identifiable {
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             0.3,  // seconds latency
             flags
-        ) else { return }
+        ) else {
+            Unmanaged<FileTreeState>.fromOpaque(retained).release()
+            return
+        }
 
         FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
         FSEventStreamStart(stream)
         eventStream = stream
+        eventStreamInfo = retained
     }
 
     /// Debounce FS events to avoid reload storms.
@@ -183,6 +191,12 @@ public final class FileTreeState: ObservableObject, Identifiable {
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
             eventStream = nil
+        }
+        // Release the retained reference taken in startWatching.
+        // Must happen after FSEventStreamRelease to guarantee no more callbacks fire.
+        if let info = eventStreamInfo {
+            Unmanaged<FileTreeState>.fromOpaque(info).release()
+            eventStreamInfo = nil
         }
     }
 
