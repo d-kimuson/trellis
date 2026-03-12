@@ -207,20 +207,23 @@ extension GhosttyNSView {
         let cols = max(1, Int(surfaceSize.columns))
 
         guard let screenResult = readScreenText() else { return }
-        // offset_start is a cell-grid offset (y * cols). Dividing by cols gives the viewport's
-        // physical row — same coordinate system as physicalPosition for ASCII content.
         let viewportStartRow = screenResult.viewportCellOffset / max(1, cols)
         let targetFirstRow = max(0, match.line - visibleRows / 2)
-        // Positive = scroll UP (older content). Negative = scroll DOWN (newer content).
         let linesToScroll = viewportStartRow - targetFirstRow
+
+        // swiftlint:disable:next line_length
+        debugLog("[FIND] scroll: matchLine=\(match.line) cols=\(cols) visibleRows=\(visibleRows) offset_start=\(screenResult.viewportCellOffset) viewportStartRow=\(viewportStartRow) targetFirstRow=\(targetFirstRow) linesToScroll=\(linesToScroll) textLen=\(screenResult.text.count)")
 
         findCurrentMatchExpectedViewportRow = match.line - targetFirstRow
 
         if linesToScroll != 0 {
             let action = "scroll_page_lines:\(linesToScroll)"
+            debugLog("[FIND] sending action: \(action)")
             action.withCString { cstr in
                 _ = ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
             }
+        } else {
+            debugLog("[FIND] no scroll needed (linesToScroll=0)")
         }
 
         let capturedMatch = match
