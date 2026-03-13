@@ -33,8 +33,9 @@ public struct AppNotification: Identifiable {
 
 /// Manages in-app notification state, separate from OS desktop notifications.
 @MainActor
-public final class NotificationStore: ObservableObject {
-    @Published public var notifications: [AppNotification] = []
+@Observable
+public final class NotificationStore {
+    public var notifications: [AppNotification] = []
 
     /// Maximum number of notifications to keep.
     private let maxCount = 100

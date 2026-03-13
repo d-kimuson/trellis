@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Popover content showing the list of in-app notifications.
 struct NotificationListView: View {
-    @ObservedObject var notificationStore: NotificationStore
+    var notificationStore: NotificationStore
     var store: WorkspaceStore
     @Binding var isPresented: Bool
 

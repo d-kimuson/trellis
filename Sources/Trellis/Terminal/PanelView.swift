@@ -7,7 +7,7 @@ struct AreaLayoutView: View {
     let node: LayoutNode
     let ghosttyApp: GhosttyAppWrapper
     var store: WorkspaceStore
-    @ObservedObject var notificationStore: NotificationStore
+    var notificationStore: NotificationStore
 
     var body: some View {
         switch node {
@@ -49,7 +49,7 @@ struct AreaPanelView: View {
     let area: Area
     let ghosttyApp: GhosttyAppWrapper
     var store: WorkspaceStore
-    @ObservedObject var notificationStore: NotificationStore
+    var notificationStore: NotificationStore
     var isActiveArea: Bool = false
 
     @State private var dropInsertIndex: Int?
@@ -537,7 +537,7 @@ private struct FileTreePanelWithCwd: View {
 /// Observes both the session and the notification store for reactive updates.
 private struct TabNotificationBadge: View {
     var session: TerminalSession
-    @ObservedObject var notificationStore: NotificationStore
+    var notificationStore: NotificationStore
 
     var body: some View {
         let count = notificationStore.unreadCount(forSession: session.id)

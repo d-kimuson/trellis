@@ -24,13 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         store.notificationStore = notificationStore
 
         // Sync unread count to Dock badge
-        notificationStore.$notifications
-            .map { notifs in notifs.count(where: { !$0.isRead }) }
-            .removeDuplicates()
-            .sink { count in
-                NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : ""
-            }
-            .store(in: &cancellables)
+        observeNotificationBadge()
 
         // Dynamic window title: update on store changes and session pwd changes
         observeStoreForWindowTitle()
@@ -96,6 +90,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func observeNotificationBadge() {
+        withObservationTracking {
+            _ = notificationStore.notifications
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let count = notificationStore.notifications.count(where: { !$0.isRead })
+                NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : ""
+                observeNotificationBadge()
+            }
+        }
     }
 
     private func observeStoreForWindowTitle() {

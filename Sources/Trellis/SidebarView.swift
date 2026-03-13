@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     var store: WorkspaceStore
-    @ObservedObject var notificationStore: NotificationStore
+    var notificationStore: NotificationStore
     @State private var renamingIndex: Int?
     @State private var hoveredIndex: Int?
     @State private var indexToClose: Int?
