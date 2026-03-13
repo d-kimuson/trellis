@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// File tree panel showing directory contents with expand/collapse.
@@ -259,6 +260,28 @@ private struct FileNodeRow: View {
                     ? Color.accentColor.opacity(0.15)
                     : Color.clear
             )
+            .contextMenu {
+                Button("Copy Relative Path") {
+                    copyToPasteboard(relativePath)
+                }
+                Button("Copy Absolute Path") {
+                    copyToPasteboard(node.path)
+                }
+                if !node.isDirectory {
+                    Button("Copy File Contents") {
+                        if let data = FileManager.default.contents(atPath: node.path),
+                           let content = String(data: data, encoding: .utf8) {
+                            copyToPasteboard(content)
+                        }
+                    }
+                }
+                Divider()
+                Button("Open in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting(
+                        [URL(fileURLWithPath: node.path)]
+                    )
+                }
+            }
 
             // Children (if expanded)
             if node.isDirectory && isExpanded {
@@ -301,6 +324,21 @@ private struct FileNodeRow: View {
         case .deleted:   return ("D", .red)
         case nil:        return nil
         }
+    }
+
+    private var relativePath: String {
+        guard let root = state.rootPath else { return node.name }
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        if node.path.hasPrefix(prefix) {
+            return String(node.path.dropFirst(prefix.count))
+        }
+        return node.name
+    }
+
+    private func copyToPasteboard(_ string: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
     }
 
     private func handleTap() {
