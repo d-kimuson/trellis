@@ -21,6 +21,8 @@ public final class FileTreeState: Identifiable {
     public var selectedFileContent: String?
     public var selectedFileDiff: String?
     public var selectedPreviewTab: PreviewTab = .content
+    public var isPreviewSearchVisible: Bool = false
+    public var previewSearchQuery: String = ""
     public var gitStatusMap: [String: GitFileStatus] = [:]
     public var dirtyDirectoryPaths: Set<String> = []
 
@@ -120,6 +122,8 @@ public final class FileTreeState: Identifiable {
         selectedFileContent = nil
         selectedFileDiff = nil
         selectedPreviewTab = .content
+        isPreviewSearchVisible = false
+        previewSearchQuery = ""
     }
 
     /// Select a file and load its content for preview.
@@ -128,6 +132,8 @@ public final class FileTreeState: Identifiable {
         selectedFilePath = path
         selectedFileDiff = nil
         selectedPreviewTab = .content
+        isPreviewSearchVisible = false
+        previewSearchQuery = ""
 
         // Read up to 64KB to avoid loading huge files
         guard let data = FileManager.default.contents(atPath: path),

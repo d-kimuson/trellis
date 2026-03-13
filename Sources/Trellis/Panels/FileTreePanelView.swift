@@ -111,6 +111,9 @@ struct FileTreePanelView: View {
     private func filePreviewPane(path: String, content: String) -> some View {
         VStack(spacing: 0) {
             previewHeader(path: path)
+            if state.isPreviewSearchVisible {
+                previewSearchBar
+            }
             previewBody(path: path, content: content)
         }
     }
@@ -125,6 +128,11 @@ struct FileTreePanelView: View {
                 previewTabPicker
             }
             Spacer()
+            Button(action: { state.isPreviewSearchVisible.toggle() }) {
+                Image(systemName: "magnifyingglass").font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .help("Find (Cmd+F)")
             Button(action: state.clearPreview) {
                 Image(systemName: "xmark").font(.caption)
             }
@@ -135,6 +143,27 @@ struct FileTreePanelView: View {
         .background(Color(nsColor: .controlBackgroundColor))
     }
 
+    private var previewSearchBar: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+                .font(.caption)
+            TextField("Find...", text: Bindable(state).previewSearchQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: settings.panelFontSize, design: .monospaced))
+                .onSubmit { /* Enter does nothing for now; live search updates on type */ }
+            Button(action: { state.isPreviewSearchVisible = false; state.previewSearchQuery = "" }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+    }
+
     private func previewBody(path: String, content: String) -> some View {
         Group {
             if state.selectedPreviewTab == .diff, let diff = state.selectedFileDiff {
@@ -142,24 +171,18 @@ struct FileTreePanelView: View {
                     code: diff,
                     filePath: path,
                     fontSize: settings.panelFontSize,
-                    isDiff: true
+                    isDiff: true,
+                    searchQuery: state.previewSearchQuery,
+                    onFindRequested: { state.isPreviewSearchVisible = true }
                 )
-            } else if SyntaxHighlightWebView.languageForExtension(
-                (path as NSString).pathExtension.lowercased()
-            ).isEmpty {
-                GeometryReader { geo in
-                    ScrollView([.horizontal, .vertical]) {
-                        Text(content)
-                            .font(.system(size: settings.panelFontSize, design: .monospaced))
-                            .textSelection(.enabled)
-                            .padding(8)
-                            .frame(minWidth: geo.size.width, minHeight: geo.size.height,
-                                   alignment: .topLeading)
-                    }
-                }
             } else {
-                SyntaxHighlightWebView(code: content, filePath: path,
-                                       fontSize: settings.panelFontSize)
+                SyntaxHighlightWebView(
+                    code: content,
+                    filePath: path,
+                    fontSize: settings.panelFontSize,
+                    searchQuery: state.previewSearchQuery,
+                    onFindRequested: { state.isPreviewSearchVisible = true }
+                )
             }
         }
     }

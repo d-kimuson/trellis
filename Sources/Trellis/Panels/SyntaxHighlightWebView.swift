@@ -2,10 +2,13 @@ import AppKit
 import SwiftUI
 import WebKit
 
-/// WKWebView subclass that forwards standard editing key equivalents (Cmd+C, Cmd+A).
+/// WKWebView subclass that forwards standard editing key equivalents (Cmd+C, Cmd+A, Cmd+F).
 /// WKWebView does not override performKeyEquivalent for these, so they fall through
 /// to the system beep without this override.
 private final class EditableWKWebView: WKWebView {
+    /// Called when the user presses Cmd+F while this view is the first responder.
+    var onFindRequested: (() -> Void)?
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         // Only handle key equivalents when this view or a descendant is the first responder.
         // performKeyEquivalent is traversed through the entire view hierarchy, so without
@@ -24,6 +27,9 @@ private final class EditableWKWebView: WKWebView {
         case "a":
             NSApp.sendAction(#selector(NSText.selectAll(_:)), to: self, from: nil)
             return true
+        case "f":
+            onFindRequested?()
+            return true
         default:
             return super.performKeyEquivalent(with: event)
         }
@@ -38,12 +44,17 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     let fontSize: CGFloat
     /// When true, renders the code as a GitHub-style diff using diff2html.
     var isDiff: Bool = false
+    /// Current search query for find-in-page. Empty string clears highlights.
+    var searchQuery: String = ""
+    /// Called when the user presses Cmd+F while the web view is focused.
+    var onFindRequested: (() -> Void)?
 
     final class Coordinator {
         var cachedCode: String = ""
         var cachedFilePath: String = ""
         var cachedFontSize: CGFloat = 0
         var cachedIsDiff: Bool = false
+        var cachedSearchQuery: String = ""
     }
 
     func makeCoordinator() -> Coordinator {
@@ -55,6 +66,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
         let webView = EditableWKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
+        webView.onFindRequested = onFindRequested
         let html = buildHTML()
         webView.loadHTMLString(html, baseURL: nil)
         let coordinator = context.coordinator
@@ -66,17 +78,52 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        if let editableWebView = webView as? EditableWKWebView {
+            editableWebView.onFindRequested = onFindRequested
+        }
+
         let coordinator = context.coordinator
-        guard code != coordinator.cachedCode
+        let contentChanged = code != coordinator.cachedCode
             || filePath != coordinator.cachedFilePath
             || fontSize != coordinator.cachedFontSize
             || isDiff != coordinator.cachedIsDiff
-        else { return }
-        webView.loadHTMLString(buildHTML(), baseURL: nil)
-        coordinator.cachedCode = code
-        coordinator.cachedFilePath = filePath
-        coordinator.cachedFontSize = fontSize
-        coordinator.cachedIsDiff = isDiff
+
+        if contentChanged {
+            webView.loadHTMLString(buildHTML(), baseURL: nil)
+            coordinator.cachedCode = code
+            coordinator.cachedFilePath = filePath
+            coordinator.cachedFontSize = fontSize
+            coordinator.cachedIsDiff = isDiff
+            coordinator.cachedSearchQuery = ""
+            // Re-run search after content loads if there's a query
+            if !searchQuery.isEmpty {
+                let query = searchQuery
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
+                        .replacingOccurrences(of: "\"", with: "\\\"")
+                    webView.evaluateJavaScript("__findInPage(\"\(escaped)\")", completionHandler: nil)
+                }
+                coordinator.cachedSearchQuery = searchQuery
+            }
+            return
+        }
+
+        if searchQuery != coordinator.cachedSearchQuery {
+            let escaped = searchQuery.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            webView.evaluateJavaScript("__findInPage(\"\(escaped)\")", completionHandler: nil)
+            coordinator.cachedSearchQuery = searchQuery
+        }
+    }
+
+    /// Navigate to the next search match.
+    static func findNext(in webView: WKWebView) {
+        webView.evaluateJavaScript("__findNext()", completionHandler: nil)
+    }
+
+    /// Navigate to the previous search match.
+    static func findPrevious(in webView: WKWebView) {
+        webView.evaluateJavaScript("__findPrev()", completionHandler: nil)
     }
 
     // MARK: - Private
@@ -107,6 +154,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         <style>
         \(css)
         \(diff2htmlOverrideCSS(mono: mono, size: size))
+        \(findHighlightCSS)
         </style>
         </head>
         <body class="d2h-auto-color-scheme">
@@ -114,6 +162,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         <script>
         \(diff2htmlRenderJS(escaped: escapeJS(code)))
         </script>
+        <script>\(findInPageJS)</script>
         </body>
         </html>
         """
@@ -181,12 +230,14 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         \(darkCSS)
         }
         \(baseCSS)
+        \(findHighlightCSS)
         </style>
         </head>
         <body>
         <pre><code class="\(lang)">\(escaped)</code></pre>
         <script>\(js)</script>
         <script>hljs.highlightAll();</script>
+        <script>\(findInPageJS)</script>
         </body>
         </html>
         """
@@ -202,9 +253,11 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         body { font-family: 'SF Mono', 'Menlo', monospace; font-size: \(size)px;
                padding: 8px; margin: 0; white-space: pre; }
         @media (prefers-color-scheme: dark) { body { color: #c9d1d9; background: #0d1117; } }
+        \(findHighlightCSS)
         </style>
         </head>
         <body>\(escapeHTML(code))</body>
+        <script>\(findInPageJS)</script>
         </html>
         """
     }
@@ -218,6 +271,72 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         pre code.hljs { padding: 0; font-size: \(size)px;
                         font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
                         background: transparent; }
+        """
+    }
+
+    // MARK: - Find in page
+
+    private var findHighlightCSS: String {
+        """
+        .__find-hl { background: #ffff00; color: #000; border-radius: 2px; }
+        .__find-cur { background: #ff9632; color: #000; }
+        @media (prefers-color-scheme: dark) {
+            .__find-hl { background: #625a00; color: #fff; }
+            .__find-cur { background: #c26800; color: #fff; }
+        }
+        """
+    }
+
+    private var findInPageJS: String {
+        """
+        var __m=[], __c=-1;
+        function __findInPage(q) {
+            __clearHL(); __m=[]; __c=-1;
+            if (!q) return;
+            var tw=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            var nodes=[];
+            while(tw.nextNode()) nodes.push(tw.currentNode);
+            var lq=q.toLowerCase();
+            nodes.forEach(function(n){
+                var t=n.textContent, lt=t.toLowerCase(), i=lt.indexOf(lq);
+                if(i===-1) return;
+                var p=n.parentNode, frags=[], last=0;
+                while(i!==-1){
+                    if(i>last) frags.push(document.createTextNode(t.substring(last,i)));
+                    var mk=document.createElement('mark');
+                    mk.className='__find-hl';
+                    mk.textContent=t.substring(i,i+q.length);
+                    frags.push(mk); __m.push(mk);
+                    last=i+q.length;
+                    i=lt.indexOf(lq,last);
+                }
+                if(last<t.length) frags.push(document.createTextNode(t.substring(last)));
+                frags.forEach(function(f){p.insertBefore(f,n);});
+                p.removeChild(n);
+            });
+            if(__m.length>0){__c=0;__m[0].classList.add('__find-cur');__m[0].scrollIntoView({block:'center'});}
+        }
+        function __findNext(){
+            if(!__m.length) return;
+            __m[__c].classList.remove('__find-cur');
+            __c=(__c+1)%__m.length;
+            __m[__c].classList.add('__find-cur');
+            __m[__c].scrollIntoView({block:'center'});
+        }
+        function __findPrev(){
+            if(!__m.length) return;
+            __m[__c].classList.remove('__find-cur');
+            __c=(__c-1+__m.length)%__m.length;
+            __m[__c].classList.add('__find-cur');
+            __m[__c].scrollIntoView({block:'center'});
+        }
+        function __clearHL(){
+            document.querySelectorAll('.__find-hl').forEach(function(mk){
+                var p=mk.parentNode;
+                p.replaceChild(document.createTextNode(mk.textContent),mk);
+                p.normalize();
+            });
+        }
         """
     }
 
@@ -253,8 +372,10 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     private static let cachedHighlightResources: HighlightResources? = {
         guard
             let js = loadBundleResource(name: "highlight.min", ext: "js", subdirectory: "highlight"),
-            let lightCSS = loadBundleResource(name: "github-light.min", ext: "css", subdirectory: "highlight"),
-            let darkCSS = loadBundleResource(name: "github-dark.min", ext: "css", subdirectory: "highlight")
+            let lightCSS = loadBundleResource(
+                name: "github-light.min", ext: "css", subdirectory: "highlight"),
+            let darkCSS = loadBundleResource(
+                name: "github-dark.min", ext: "css", subdirectory: "highlight")
         else { return nil }
         return HighlightResources(js: js, lightCSS: lightCSS, darkCSS: darkCSS)
     }()
