@@ -128,7 +128,7 @@ run_architect_review() {
   log "=== アーキテクトレビュー開始 ==="
 
   claude \
-    --permission-mode auto \
+    --dangerously-skip-permissions \
     --model opus \
     --effort high \
     -p 'teams:architect' \
@@ -140,7 +140,7 @@ run_architect_review() {
   log "アーキテクトレビュー完了。PdM セッションで issue 化します。"
 
   claude \
-    --permission-mode auto \
+    --dangerously-skip-permissions \
     -p 'teams:pdm アーキテクトレビューの結果を docs/tmp/architect-review/ の最新ファイルから読み込んで issue を起票してください' \
     --verbose \
     || {
@@ -210,7 +210,7 @@ ${gate_prompt}"
   fi
 
   claude \
-    --permission-mode auto \
+    --dangerously-skip-permissions \
     -p 'teams:dev-auto' \
     --session-id "$session_id" \
     --append-system-prompt "$system_prompt" \
@@ -225,7 +225,7 @@ ${gate_prompt}"
   if check_uncommitted; then
     log "WARNING: コミットされていない変更を検出。クリーンアップを依頼します。"
     claude \
-      --permission-mode auto \
+      --dangerously-skip-permissions \
       -p 'コミットされていない変更があります。git status を確認し、実装に関連する変更はコミットしてください。不要な変更は git restore してください。.beads/ は無視して構いません。' \
       --resume "$session_id" \
       || {
