@@ -87,8 +87,8 @@ public struct SettingsView: View {
             snapshotIPCEnabled = settings.ipcServerEnabled
             snapshotKeyBindings = settings.keyBindings
         }
-        .onChange(of: settings.fontSize) { _ in onApply() }
-        .onChange(of: settings.fontFamily) { _ in onApply() }
+        .onChange(of: settings.fontSize) { _, _ in onApply() }
+        .onChange(of: settings.fontFamily) { _, _ in onApply() }
     }
 
     // MARK: - Ghostty Section
