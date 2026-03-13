@@ -43,6 +43,9 @@ public final class FileTreeState: Identifiable {
     @ObservationIgnored private var eventStream: FSEventStreamRef?
     @ObservationIgnored private var eventStreamInfo: UnsafeMutableRawPointer?
     @ObservationIgnored private var debounceWork: DispatchWorkItem?
+    @ObservationIgnored private var reloadTask: Task<Void, Never>?
+    @ObservationIgnored private var selectFileTask: Task<Void, Never>?
+    @ObservationIgnored private var loadChildrenTask: Task<Void, Never>?
     @ObservationIgnored private var gitStatusProcess: Process?
     @ObservationIgnored private var gitDiffProcess: Process?
     @ObservationIgnored private var contentSearchProcess: Process?
@@ -57,9 +60,22 @@ public final class FileTreeState: Identifiable {
         self.expandedDirectories = []
         if let rootPath {
             gitRootPath = FileTreeState.detectGitRoot(for: rootPath)
-            reload()
+            reloadSync()
             startWatching()
         }
+    }
+
+    /// Synchronous reload for initial load (no UI mounted yet, so no freeze risk).
+    private func reloadSync() {
+        guard let rootPath else {
+            rootNode = nil
+            return
+        }
+        let gitignorePath = (rootPath as NSString).appendingPathComponent(".gitignore")
+        ignoredPatterns = FileNode.parseGitignore(at: gitignorePath)
+        rootNode = FileNode.buildTree(at: rootPath, ignoredPatterns: ignoredPatterns)
+            .map { Self.restoreExpanded(in: $0, expandedIds: expandedDirectories, ignoredPatterns: ignoredPatterns) }
+        reloadGitStatus()
     }
 
     /// Detect the git repository root for the given path.
@@ -85,21 +101,35 @@ public final class FileTreeState: Identifiable {
     }
 
     /// Reload the file tree from disk, restoring expanded directory contents.
+    /// I/O runs on a background thread to avoid blocking the main thread.
     public func reload() {
         guard let rootPath else {
             rootNode = nil
             return
         }
         let gitignorePath = (rootPath as NSString).appendingPathComponent(".gitignore")
-        ignoredPatterns = FileNode.parseGitignore(at: gitignorePath)
-        // Re-expand directories that were open before the reload, processing parents
-        // before children so nested expansions are restored correctly.
-        // A flat loop over Set<UUID> has undefined iteration order, which caused
-        // child nodes to be processed before their parent was expanded — making
-        // them invisible in the shallow tree and silently skipped.
-        rootNode = FileNode.buildTree(at: rootPath, ignoredPatterns: ignoredPatterns)
-            .map { restoreExpanded(in: $0) }
-        reloadGitStatus()
+        let patterns = FileNode.parseGitignore(at: gitignorePath)
+        ignoredPatterns = patterns
+        let expandedIds = expandedDirectories
+
+        reloadTask?.cancel()
+        reloadTask = Task.detached { [weak self] in
+            let tree = FileNode.buildTree(at: rootPath, ignoredPatterns: patterns)
+                .map { Self.restoreExpanded(in: $0, expandedIds: expandedIds, ignoredPatterns: patterns) }
+
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard let self else { return }
+                self.rootNode = tree
+                self.reloadGitStatus()
+            }
+        }
+    }
+
+    /// Wait for in-flight reload to complete (for testing).
+    func awaitReload() async {
+        await reloadTask?.value
     }
 
     /// Change root directory and reload.
@@ -146,6 +176,7 @@ public final class FileTreeState: Identifiable {
     }
 
     /// Select a file and load its content for preview.
+    /// File reading runs on a background thread to avoid blocking the main thread.
     /// If the file has a git diff, also fetches it and switches to the diff tab.
     public func selectFile(at path: String) {
         selectedFilePath = path
@@ -153,21 +184,38 @@ public final class FileTreeState: Identifiable {
         selectedPreviewTab = .content
         isPreviewSearchVisible = false
         previewSearchQuery = ""
+        selectedFileContent = nil
 
-        // Read up to 64KB to avoid loading huge files
-        guard let data = FileManager.default.contents(atPath: path),
-              data.count <= 64 * 1024,
-              let content = String(data: data, encoding: .utf8) else {
-            selectedFileContent = nil
-            return
-        }
-        selectedFileContent = content
+        selectFileTask?.cancel()
+        selectFileTask = Task.detached { [weak self] in
+            // Read up to 64KB to avoid loading huge files
+            let content: String?
+            if let data = FileManager.default.contents(atPath: path),
+               data.count <= 64 * 1024,
+               let text = String(data: data, encoding: .utf8) {
+                content = text
+            } else {
+                content = nil
+            }
 
-        // Fetch diff only for tracked files with a non-untracked status
-        let status = gitStatusMap[path]
-        if status != nil && status != .untracked {
-            fetchGitDiff(for: path)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard let self, self.selectedFilePath == path else { return }
+                self.selectedFileContent = content
+
+                // Fetch diff only for tracked files with a non-untracked status
+                let status = self.gitStatusMap[path]
+                if status != nil && status != .untracked {
+                    self.fetchGitDiff(for: path)
+                }
+            }
         }
+    }
+
+    /// Wait for in-flight file selection to complete (for testing).
+    func awaitSelectFile() async {
+        await selectFileTask?.value
     }
 
     /// Open a directory picker and set the root path.
@@ -195,19 +243,28 @@ public final class FileTreeState: Identifiable {
     /// Recursively restore expanded directories top-down in a freshly-built shallow tree.
     /// Processing top-down ensures that a parent's children are loaded before we attempt
     /// to expand any of its children, which was the root cause of the nested-expansion bug.
-    private func restoreExpanded(in node: FileNode, depth: Int = 0) -> FileNode {
+    /// Static so it can run on a background thread without capturing self.
+    private static func restoreExpanded(
+        in node: FileNode,
+        expandedIds: Set<UUID>,
+        ignoredPatterns: [String],
+        depth: Int = 0
+    ) -> FileNode {
         guard case .directory(let id, let name, let path, var children) = node else {
             return node
         }
         guard depth < FileNode.maxTraversalDepth else { return node }
-        if expandedDirectories.contains(id) && children.isEmpty {
+        if expandedIds.contains(id) && children.isEmpty {
             children = FileNode.loadChildren(at: path, ignoredPatterns: ignoredPatterns)
         }
-        let updatedChildren = children.map { restoreExpanded(in: $0, depth: depth + 1) }
+        let updatedChildren = children.map {
+            restoreExpanded(in: $0, expandedIds: expandedIds, ignoredPatterns: ignoredPatterns, depth: depth + 1)
+        }
         return .directory(id: id, name: name, path: path, children: updatedChildren)
     }
 
     /// Load children for a directory node if they haven't been loaded yet (empty children array).
+    /// I/O runs on a background thread.
     private func loadChildrenIfNeeded(for nodeId: UUID) {
         guard let root = rootNode else { return }
 
@@ -215,8 +272,22 @@ public final class FileTreeState: Identifiable {
               node.isDirectory,
               node.children.isEmpty else { return }
 
-        let children = FileNode.loadChildren(at: node.path, ignoredPatterns: ignoredPatterns)
-        rootNode = root.replacingChildren(ofNodeId: nodeId, with: children)
+        let path = node.path
+        let patterns = ignoredPatterns
+
+        loadChildrenTask = Task.detached { [weak self] in
+            let children = FileNode.loadChildren(at: path, ignoredPatterns: patterns)
+
+            await MainActor.run {
+                guard let self, let currentRoot = self.rootNode else { return }
+                self.rootNode = currentRoot.replacingChildren(ofNodeId: nodeId, with: children)
+            }
+        }
+    }
+
+    /// Wait for in-flight child loading to complete (for testing).
+    func awaitLoadChildren() async {
+        await loadChildrenTask?.value
     }
 
     private func findNode(id: UUID, in node: FileNode, depth: Int = 0) -> FileNode? {
@@ -324,6 +395,9 @@ public final class FileTreeState: Identifiable {
     }
 
     deinit {
+        reloadTask?.cancel()
+        selectFileTask?.cancel()
+        loadChildrenTask?.cancel()
         cancelGitStatus()
         cancelGitDiff()
         cancelContentSearch()

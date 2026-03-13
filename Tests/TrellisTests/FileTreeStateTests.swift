@@ -40,7 +40,7 @@ final class FileTreeStateTests: XCTestCase {
     /// Regression test for the bug where reload() iterating Set<UUID> in random order
     /// failed to restore deeply-nested expanded directories, because a child was processed
     /// before its parent (which had empty children in the freshly-built shallow tree).
-    func testReloadRestoresNestedExpandedDirectories() {
+    func testReloadRestoresNestedExpandedDirectories() async {
         // Structure: root/docs/tmp/qa/file.txt
         let docs = makePath("docs")
         let tmp  = makePath("docs", "tmp")
@@ -55,18 +55,21 @@ final class FileTreeStateTests: XCTestCase {
             return XCTFail("docs not found in root")
         }
         state.toggleExpanded(docsNode.id)
+        await state.awaitLoadChildren()
 
         // Expand tmp → qa becomes visible
         guard let tmpNode = findNode(named: "tmp", in: state.rootNode!) else {
             return XCTFail("tmp not found after expanding docs")
         }
         state.toggleExpanded(tmpNode.id)
+        await state.awaitLoadChildren()
 
         // Expand qa → file.txt becomes visible
         guard let qaNode = findNode(named: "qa", in: state.rootNode!) else {
             return XCTFail("qa not found after expanding tmp")
         }
         state.toggleExpanded(qaNode.id)
+        await state.awaitLoadChildren()
 
         // Verify qa's children are loaded before reload (re-fetch since FileNode is a value type)
         guard let qaAfterExpand = findNode(named: "qa", in: state.rootNode!) else {
@@ -76,6 +79,7 @@ final class FileTreeStateTests: XCTestCase {
 
         // Simulate reload (e.g. triggered by FSEvent)
         state.reload()
+        await state.awaitReload()
 
         // After reload, the nested expansion must be fully restored:
         // docs → tmp → qa → file.txt should all be accessible
@@ -94,7 +98,7 @@ final class FileTreeStateTests: XCTestCase {
 
     // MARK: - reload restores single expanded directory
 
-    func testReloadRestoresSingleExpandedDirectory() {
+    func testReloadRestoresSingleExpandedDirectory() async {
         let sub = makePath("sub")
         mkdir(sub)
         touch(makePath("sub", "readme.txt"))
@@ -105,6 +109,7 @@ final class FileTreeStateTests: XCTestCase {
             return XCTFail("sub not found")
         }
         state.toggleExpanded(subNode.id)
+        await state.awaitLoadChildren()
         // Re-fetch since FileNode is a value type
         guard let subAfterExpand = state.rootNode?.children.first(where: { $0.name == "sub" }) else {
             return XCTFail("sub not found after expand")
@@ -112,6 +117,7 @@ final class FileTreeStateTests: XCTestCase {
         XCTAssertFalse(subAfterExpand.children.isEmpty)
 
         state.reload()
+        await state.awaitReload()
 
         guard let subAfter = state.rootNode?.children.first(where: { $0.name == "sub" }) else {
             return XCTFail("sub not found after reload")
@@ -133,11 +139,12 @@ final class FileTreeStateTests: XCTestCase {
 
     // MARK: - Diff tab: file without git status has no diff tab
 
-    func testSelectFileNotInGitStatusLeavesNoDiff() {
+    func testSelectFileNotInGitStatusLeavesNoDiff() async {
         touch(makePath("plain.txt"))
         let state = FileTreeState(rootPath: tempDir)
         // gitStatusMap is empty (no git repo in tempDir), so no diff should be fetched
         state.selectFile(at: makePath("plain.txt"))
+        await state.awaitSelectFile()
         XCTAssertNil(state.selectedFileDiff)
         XCTAssertEqual(state.selectedPreviewTab, .content)
     }
@@ -159,7 +166,7 @@ final class FileTreeStateTests: XCTestCase {
 
     // MARK: - Selecting new file resets diff state
 
-    func testSelectingNewFileResetsDiffState() {
+    func testSelectingNewFileResetsDiffState() async {
         touch(makePath("a.txt"))
         touch(makePath("b.txt"))
         let state = FileTreeState(rootPath: tempDir)
@@ -169,6 +176,7 @@ final class FileTreeStateTests: XCTestCase {
 
         // Select a new file (not in gitStatusMap → no diff)
         state.selectFile(at: makePath("b.txt"))
+        await state.awaitSelectFile()
 
         XCTAssertNil(state.selectedFileDiff)
         XCTAssertEqual(state.selectedPreviewTab, .content)
@@ -189,14 +197,16 @@ final class FileTreeStateTests: XCTestCase {
 
     /// After changeRoot (which calls stopWatching then startWatching), reload
     /// must operate on the new root without referencing stale state.
-    func testReloadAfterChangeRootIsConsistent() {
+    func testReloadAfterChangeRootIsConsistent() async {
         let newDir = makePath("newRoot")
         mkdir(newDir)
         touch(makePath("newRoot", "hello.txt"))
 
         let state = FileTreeState(rootPath: tempDir)
         state.changeRoot(to: newDir)
+        await state.awaitReload()
         state.reload()
+        await state.awaitReload()
 
         XCTAssertEqual(state.rootPath, newDir)
         XCTAssertNotNil(state.rootNode)
@@ -271,7 +281,7 @@ final class FileTreeStateTests: XCTestCase {
 
     /// toggleExpanded (which uses findNode internally) should not crash
     /// even when the tree is very deeply nested.
-    func testToggleExpandedDoesNotCrashOnDeeplyNestedTree() {
+    func testToggleExpandedDoesNotCrashOnDeeplyNestedTree() async {
         // Create a directory structure deeper than maxTraversalDepth
         let depth = FileNode.maxTraversalDepth + 10
         var path = tempDir!
@@ -288,6 +298,7 @@ final class FileTreeStateTests: XCTestCase {
         for _ in 0..<depth {
             guard let dir = current?.children.first(where: { $0.isDirectory }) else { break }
             state.toggleExpanded(dir.id)
+            await state.awaitLoadChildren()
             // Re-fetch from updated tree
             current = findNode(named: dir.name, in: state.rootNode!)
         }
@@ -296,7 +307,7 @@ final class FileTreeStateTests: XCTestCase {
 
     /// reload (which uses restoreExpanded internally) should not crash
     /// even when many directories are expanded deeply.
-    func testReloadDoesNotCrashOnDeeplyNestedExpandedTree() {
+    func testReloadDoesNotCrashOnDeeplyNestedExpandedTree() async {
         let depth = FileNode.maxTraversalDepth + 10
         var path = tempDir!
         for i in 0..<depth {
@@ -312,11 +323,13 @@ final class FileTreeStateTests: XCTestCase {
         for _ in 0..<depth {
             guard let dir = current?.children.first(where: { $0.isDirectory }) else { break }
             state.toggleExpanded(dir.id)
+            await state.awaitLoadChildren()
             current = findNode(named: dir.name, in: state.rootNode!)
         }
 
         // reload should not crash even with deeply nested expansions
         state.reload()
+        await state.awaitReload()
         XCTAssertNotNil(state.rootNode)
     }
 
@@ -460,7 +473,7 @@ final class FileTreeStateTests: XCTestCase {
         XCTAssertFalse(result?.children.contains(where: { $0.name == "clean.swift" }) == true)
     }
 
-    func testGitDiffFilterMaintainsDirectoryHierarchy() {
+    func testGitDiffFilterMaintainsDirectoryHierarchy() async {
         mkdir(makePath("src"))
         touch(makePath("src", "changed.swift"))
         touch(makePath("src", "clean.swift"))
@@ -470,6 +483,7 @@ final class FileTreeStateTests: XCTestCase {
             return XCTFail("src not found")
         }
         state.toggleExpanded(srcNode.id)
+        await state.awaitLoadChildren()
         state.gitStatusMap = [makePath("src", "changed.swift"): .modified]
         state.isGitDiffFilterEnabled = true
         let result = state.filteredRootNode()
