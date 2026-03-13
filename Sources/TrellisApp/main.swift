@@ -256,6 +256,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             DispatchQueue.main.async {
+                let window = NSApp.keyWindow ?? NSApp.mainWindow
+
                 guard let data, error == nil,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let tagName = json["tag_name"] as? String,
@@ -264,7 +266,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let alert = NSAlert()
                     alert.messageText = "Update Check Failed"
                     alert.informativeText = "Could not reach GitHub. Check your connection."
-                    alert.runModal()
+                    if let window {
+                        alert.beginSheetModal(for: window) { _ in }
+                    } else {
+                        alert.runModal()
+                    }
                     return
                 }
 
@@ -274,15 +280,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let alert = NSAlert()
                     alert.messageText = "Trellis is up to date"
                     alert.informativeText = "Version \(currentVersion) is the latest."
-                    alert.runModal()
+                    if let window {
+                        alert.beginSheetModal(for: window) { _ in }
+                    } else {
+                        alert.runModal()
+                    }
                 } else {
                     let alert = NSAlert()
                     alert.messageText = "Update Available"
                     alert.informativeText = "Version \(latestVersion) is available (you have \(currentVersion))."
                     alert.addButton(withTitle: "Open Release Page")
                     alert.addButton(withTitle: "Cancel")
-                    if alert.runModal() == .alertFirstButtonReturn {
-                        NSWorkspace.shared.open(URL(string: htmlUrl)!)
+                    if let window {
+                        alert.beginSheetModal(for: window) { response in
+                            if response == .alertFirstButtonReturn {
+                                NSWorkspace.shared.open(URL(string: htmlUrl)!)
+                            }
+                        }
+                    } else {
+                        if alert.runModal() == .alertFirstButtonReturn {
+                            NSWorkspace.shared.open(URL(string: htmlUrl)!)
+                        }
                     }
                 }
             }

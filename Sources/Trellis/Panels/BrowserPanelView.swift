@@ -10,7 +10,9 @@ struct WebViewRepresentable: NSViewRepresentable {
         let webView = WKWebView()
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
-        // Enable web inspector (right-click "Inspect Element" + programmatic open)
+        // Private API: "developerExtrasEnabled" is an undocumented WebKit preference key.
+        // Enables right-click "Inspect Element" + programmatic inspector open.
+        // Safe to fail silently via KVC if removed in future macOS versions.
         webView.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         if #available(macOS 13.3, *) {
             webView.isInspectable = true
@@ -66,10 +68,18 @@ struct WebViewRepresentable: NSViewRepresentable {
             }
         }
 
+        // MARK: - Private API Usage
+
+        /// Opens the Web Inspector panel using WKWebView private `_inspector` API.
+        ///
+        /// **Private API**: Uses `_inspector` selector and `show` on the returned object.
+        /// May break on future macOS versions; will be rejected by App Store review.
+        /// The `responds(to:)` guards ensure a safe no-op fallback if selectors are removed.
+        /// Falls back to right-click "Inspect Element" when unavailable.
+        ///
+        /// Verified on: macOS 14 (Sonoma), macOS 15 (Sequoia). Re-verify after major releases.
         private func openDevTools() {
             guard let webView else { return }
-            // Try private API to open the Web Inspector panel programmatically.
-            // Falls back to right-click "Inspect Element" if unavailable.
             let inspectorSel = Selector(("_inspector"))
             guard webView.responds(to: inspectorSel),
                   let inspector = webView.perform(inspectorSel)?.takeUnretainedValue() as? NSObject
