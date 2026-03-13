@@ -139,9 +139,9 @@ test: $(GHOSTTY_STATIC_LIB)
 lint:
 	swiftlint lint --quiet Sources/
 
-# Run all checks via check-changed
+# Run all checks via gatecheck
 check:
-	npx -y check-changed@0.0.1-beta.4 run
+	npx -y gatecheck check
 
 clean:
 	rm -rf $(BUILD_DIR)

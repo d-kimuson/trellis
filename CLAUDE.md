@@ -9,7 +9,7 @@ Terminal app built on libghostty. macOS native app (SwiftUI + AppKit).
 - Build: Nix Flakes (Zig 0.14, mkShellNoCC) + Make + system swiftc
 - Test: XCTest via xcodebuild (SPM Package.swift defines targets)
 - Lint: SwiftLint (via Nix devShell)
-- Quality gate: check-changed (runs lint/build/test on changed files)
+- Quality gate: gatecheck (runs lint/build/test on changed files)
 - Task tracking: bd (beads) — see AGENTS.md
 
 ## Running Commands
@@ -48,7 +48,7 @@ make debug-log        # 別ターミナルで最新ログを tail -f
 .swift ファイルを変更したら、コミット前に必ず実行:
 
 ```bash
-npx -y check-changed@0.0.1-beta.4 run
+npx -y gatecheck check
 ```
 
 lint, build, test を変更ファイルに対して実行する。全チェック通過が必須。失敗したら修正して再実行。

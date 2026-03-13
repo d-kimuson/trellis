@@ -1,0 +1,28 @@
+defaults:
+  changed: untracked,unstaged,staged,branch:main
+  target: all
+checks:
+  - name: swiftlint
+    match: \.swift$
+    command: swiftlint lint --quiet --force-exclude {{ ctx.CHANGED_FILES }}
+    group: lint
+  - name: build
+    match: \.swift$
+    command: make build
+    group: build
+  - name: test
+    match: \.swift$
+    command: make test
+    group: test
+reviews:
+  - name: codex-review
+    match: .*
+    exclude: "**/*.md"
+    vars:
+      prompt: |-
+        Changed files: {{ ctx.CHANGED_FILES }}
+
+        You are a professional software architect.
+        Please review the changes above.
+        Point out any design issues, bug risks, or improvements.
+    command: codex exec --sandbox 'workspace-write' {{ vars.prompt }}
