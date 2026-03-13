@@ -4,20 +4,23 @@ public struct ContentView: View {
     var store: WorkspaceStore
     var notificationStore: NotificationStore
     @Bindable var settings: AppSettings
+    /// Called when the user requests to open Settings (gear icon or menu action).
+    var onOpenSettings: (() -> Void)?
     @State private var showSidebar = true
     @State private var showNotifications = false
-    @State private var showSettings = false
     @State private var showCommandPalette = false
     @State private var sidebarWidth: CGFloat = 200
 
     public init(
         store: WorkspaceStore,
         notificationStore: NotificationStore,
-        settings: AppSettings = AppSettings.shared
+        settings: AppSettings = AppSettings.shared,
+        onOpenSettings: (() -> Void)? = nil
     ) {
         self.store = store
         self.notificationStore = notificationStore
         self.settings = settings
+        self.onOpenSettings = onOpenSettings
     }
 
     public var body: some View {
@@ -98,14 +101,9 @@ public struct ContentView: View {
             case .toggleSidebar:
                 withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() }
             case .openSettings:
-                showSettings = true
+                onOpenSettings?()
             case .toggleCommandPalette:
                 showCommandPalette.toggle()
-            }
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView(settings: settings) {
-                store.ghosttyApp.applySettings(settings)
             }
         }
     }
@@ -118,7 +116,7 @@ public struct ContentView: View {
             .foregroundColor(.secondary)
             .frame(width: 24, height: 24)
             .contentShape(Rectangle())
-            .onTapGesture { showSettings = true }
+            .onTapGesture { onOpenSettings?() }
             .help("Settings")
             .padding(.horizontal, 4)
     }

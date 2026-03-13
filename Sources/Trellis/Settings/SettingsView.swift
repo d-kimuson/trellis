@@ -3,6 +3,8 @@ import SwiftUI
 public struct SettingsView: View {
     @Bindable var settings: AppSettings
     let onApply: () -> Void
+    /// Called when the user dismisses settings. When nil, falls back to SwiftUI `dismiss`.
+    var onClose: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -15,10 +17,14 @@ public struct SettingsView: View {
     @State private var editingAction: BindableAction?
     @State private var capturedCombo: KeyCombo?
 
-
-    public init(settings: AppSettings, onApply: @escaping () -> Void) {
+    public init(settings: AppSettings, onApply: @escaping () -> Void, onClose: (() -> Void)? = nil) {
         self.settings = settings
         self.onApply = onApply
+        self.onClose = onClose
+    }
+
+    private func closeSettings() {
+        if let onClose { onClose() } else { dismiss() }
     }
 
     public var body: some View {
@@ -29,7 +35,7 @@ public struct SettingsView: View {
                     .font(.system(size: 15, weight: .semibold))
                 Spacer()
                 Button {
-                    dismiss()
+                    closeSettings()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 16))
@@ -70,7 +76,7 @@ public struct SettingsView: View {
                 Spacer()
 
                 Button("Done") {
-                    dismiss()
+                    closeSettings()
                 }
                 .keyboardShortcut(.return)
                 .buttonStyle(.borderedProminent)

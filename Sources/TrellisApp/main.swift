@@ -14,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var notificationStore: NotificationStore!
     var ipcServer: IPCServer!
     private var sessionTitleCancellable: AnyCancellable?
+    private var settingsPanel: NSPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.migrateFromUserDefaultsIfNeeded()
@@ -46,7 +47,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.handleDesktopNotification(title: title, body: body, shouldFireDesktop: shouldFireDesktop, sourceSession: sourceSession)
         }
 
-        let contentView = ContentView(store: store, notificationStore: notificationStore)
+        let contentView = ContentView(store: store, notificationStore: notificationStore,
+                                       onOpenSettings: { [weak self] in self?.openSettingsPanel() })
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
@@ -75,6 +77,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         observeIPCServerEnabled()
+        observeKeyBindings()
+    }
+
+    private func observeKeyBindings() {
+        withObservationTracking {
+            _ = AppSettings.shared.keyBindings
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard self != nil else { return }
+                NSApp.mainMenu = buildMainMenu(keyBindings: AppSettings.shared.keyBindings)
+                self?.observeKeyBindings()
+            }
+        }
+    }
+
+    func openSettingsPanel() {
+        if let panel = settingsPanel, panel.isVisible {
+            panel.makeKeyAndOrderFront(nil)
+            return
+        }
+        let settings = AppSettings.shared
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 680),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Settings"
+        panel.isReleasedWhenClosed = false
+        let settingsView = SettingsView(
+            settings: settings,
+            onApply: { [weak self] in self?.store?.ghosttyApp.applySettings(settings) },
+            onClose: { [weak panel] in panel?.close() }
+        )
+        panel.contentView = NSHostingView(rootView: settingsView)
+        panel.center()
+        panel.makeKeyAndOrderFront(nil)
+        settingsPanel = panel
     }
 
     private func observeIPCServerEnabled() {
@@ -244,7 +284,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func openSettings(_ sender: Any?) {
-        store?.dispatch(.openSettings)
+        openSettingsPanel()
     }
 
     @objc func checkForUpdates(_ sender: Any?) {
