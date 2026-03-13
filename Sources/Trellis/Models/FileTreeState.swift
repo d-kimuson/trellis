@@ -11,6 +11,7 @@ public enum PreviewTab: Equatable {
 }
 
 /// Observable state for a file tree panel.
+/// Coordinates GitStatusProvider, FilePreviewProvider, and ContentSearchProvider.
 /// Uses class for file system watcher resource ownership.
 @Observable
 public final class FileTreeState: Identifiable {
@@ -18,19 +19,63 @@ public final class FileTreeState: Identifiable {
     public var rootPath: String?
     public var rootNode: FileNode?
     public var expandedDirectories: Set<UUID>
-    public var selectedFilePath: String?
-    public var selectedFileContent: String?
-    public var selectedFileDiff: String?
-    public var selectedPreviewTab: PreviewTab = .content
-    public var isPreviewSearchVisible: Bool = false
-    public var previewSearchQuery: String = ""
-    public var previewSearchMatchCount: Int = 0
-    public var previewSearchCurrentIndex: Int = 0
-    @ObservationIgnored public weak var previewWebView: WKWebView?
-    public var gitStatusMap: [String: GitFileStatus] = [:]
-    public var dirtyDirectoryPaths: Set<String> = []
     public var isGitDiffFilterEnabled: Bool = false
     public let reviewBridge = DiffReviewBridge()
+
+    // MARK: - Providers
+
+    public let gitStatus = GitStatusProvider()
+    public let preview = FilePreviewProvider()
+    public let contentSearch = ContentSearchProvider()
+
+    // MARK: - Forwarded: GitStatusProvider
+
+    public var gitStatusMap: [String: GitFileStatus] {
+        get { gitStatus.statusMap }
+        set { gitStatus.statusMap = newValue }
+    }
+    public var dirtyDirectoryPaths: Set<String> { gitStatus.dirtyDirectoryPaths }
+
+    // MARK: - Forwarded: FilePreviewProvider
+
+    public var selectedFilePath: String? {
+        get { preview.selectedFilePath }
+        set { preview.selectedFilePath = newValue }
+    }
+    public var selectedFileContent: String? {
+        get { preview.selectedFileContent }
+        set { preview.selectedFileContent = newValue }
+    }
+    public var selectedFileDiff: String? {
+        get { preview.selectedFileDiff }
+        set { preview.selectedFileDiff = newValue }
+    }
+    public var selectedPreviewTab: PreviewTab {
+        get { preview.selectedPreviewTab }
+        set { preview.selectedPreviewTab = newValue }
+    }
+    public var isPreviewSearchVisible: Bool {
+        get { preview.isPreviewSearchVisible }
+        set { preview.isPreviewSearchVisible = newValue }
+    }
+    public var previewSearchQuery: String {
+        get { preview.previewSearchQuery }
+        set { preview.previewSearchQuery = newValue }
+    }
+    public var previewSearchMatchCount: Int {
+        get { preview.previewSearchMatchCount }
+        set { preview.previewSearchMatchCount = newValue }
+    }
+    public var previewSearchCurrentIndex: Int {
+        get { preview.previewSearchCurrentIndex }
+        set { preview.previewSearchCurrentIndex = newValue }
+    }
+    public var previewWebView: WKWebView? {
+        get { preview.previewWebView }
+        set { preview.previewWebView = newValue }
+    }
+
+    // MARK: - Private state
 
     @ObservationIgnored private(set) var gitRootPath: String?
     @ObservationIgnored private var ignoredPatterns: [String] = []
@@ -38,10 +83,7 @@ public final class FileTreeState: Identifiable {
     @ObservationIgnored private var eventStreamInfo: UnsafeMutableRawPointer?
     @ObservationIgnored private var debounceWork: DispatchWorkItem?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
-    @ObservationIgnored private var selectFileTask: Task<Void, Never>?
     @ObservationIgnored private var loadChildrenTask: Task<Void, Never>?
-    @ObservationIgnored private var gitStatusProcess: Process?
-    @ObservationIgnored private var gitDiffProcess: Process?
 
     public init(
         id: UUID = UUID(),
@@ -67,7 +109,7 @@ public final class FileTreeState: Identifiable {
         ignoredPatterns = FileNode.parseGitignore(at: gitignorePath)
         rootNode = FileNode.buildTree(at: rootPath, ignoredPatterns: ignoredPatterns)
             .map { Self.restoreExpanded(in: $0, expandedIds: expandedDirectories, ignoredPatterns: ignoredPatterns) }
-        reloadGitStatus()
+        gitStatus.reload(gitRoot: gitRootPath)
     }
 
     /// Detect the git repository root for the given path.
@@ -114,7 +156,7 @@ public final class FileTreeState: Identifiable {
             await MainActor.run {
                 guard let self else { return }
                 self.rootNode = tree
-                self.reloadGitStatus()
+                self.gitStatus.reload(gitRoot: self.gitRootPath)
             }
         }
     }
@@ -126,17 +168,13 @@ public final class FileTreeState: Identifiable {
 
     /// Change root directory and reload.
     public func changeRoot(to path: String) {
-        cancelGitStatus()
-        cancelGitDiff()
+        gitStatus.cancel()
         stopWatching()
         rootPath = path
         gitRootPath = FileTreeState.detectGitRoot(for: path)
         BookmarkStore.save(url: URL(fileURLWithPath: path))
         expandedDirectories = []
-        selectedFilePath = nil
-        selectedFileContent = nil
-        selectedFileDiff = nil
-        selectedPreviewTab = .content
+        preview.clearPreview()
         reload()
         startWatching()
     }
@@ -154,63 +192,35 @@ public final class FileTreeState: Identifiable {
 
     /// Clear the file preview selection.
     public func clearPreview() {
-        selectedFilePath = nil
-        selectedFileContent = nil
-        selectedFileDiff = nil
-        selectedPreviewTab = .content
-        isPreviewSearchVisible = false
-        previewSearchQuery = ""
-        previewSearchMatchCount = 0
-        previewSearchCurrentIndex = 0
+        preview.clearPreview()
     }
 
     /// Navigate to the next search match in the file preview.
     public func navigateSearchNext() {
-        guard let webView = previewWebView else { return }
-        webView.evaluateJavaScript("__findNext()", completionHandler: nil)
+        preview.navigateNext()
     }
 
     /// Navigate to the previous search match in the file preview.
     public func navigateSearchPrevious() {
-        guard let webView = previewWebView else { return }
-        webView.evaluateJavaScript("__findPrev()", completionHandler: nil)
+        preview.navigatePrevious()
     }
 
     /// Select a file and load its content for preview.
     /// File reading runs on a background thread to avoid blocking the main thread.
     /// If the file has a git diff, also fetches it and switches to the diff tab.
     public func selectFile(at path: String) {
-        selectedFilePath = path
-        selectedFileDiff = nil
-        selectedPreviewTab = .content
-        isPreviewSearchVisible = false
-        previewSearchQuery = ""
-        previewSearchMatchCount = 0
-        previewSearchCurrentIndex = 0
-        selectedFileContent = nil
+        preview.resetForSelection(path: path)
+        preview.loadContent(at: path) { [weak self] loadedPath, content in
+            guard let self, self.preview.selectedFilePath == loadedPath else { return }
+            self.preview.selectedFileContent = content
 
-        selectFileTask?.cancel()
-        selectFileTask = Task.detached { [weak self] in
-            // Read up to 64KB to avoid loading huge files
-            let content: String?
-            if let data = FileManager.default.contents(atPath: path),
-               data.count <= 64 * 1024,
-               let text = String(data: data, encoding: .utf8) {
-                content = text
-            } else {
-                content = nil
-            }
-
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                guard let self, self.selectedFilePath == path else { return }
-                self.selectedFileContent = content
-
-                // Fetch diff only for tracked files with a non-untracked status
-                let status = self.gitStatusMap[path]
-                if status != nil && status != .untracked {
-                    self.fetchGitDiff(for: path)
+            let status = self.gitStatus.statusMap[loadedPath]
+            if status != nil, status != .untracked, let gitRoot = self.gitRootPath {
+                self.gitStatus.fetchDiff(for: loadedPath, gitRoot: gitRoot) { [weak self] diff in
+                    guard let self, let diff, !diff.isEmpty,
+                          self.preview.selectedFilePath == loadedPath else { return }
+                    self.preview.selectedFileDiff = diff
+                    self.preview.selectedPreviewTab = .diff
                 }
             }
         }
@@ -218,7 +228,7 @@ public final class FileTreeState: Identifiable {
 
     /// Wait for in-flight file selection to complete (for testing).
     func awaitSelectFile() async {
-        await selectFileTask?.value
+        await preview.awaitLoad()
     }
 
     /// Open a directory picker and set the root path.
@@ -399,94 +409,17 @@ public final class FileTreeState: Identifiable {
 
     deinit {
         reloadTask?.cancel()
-        selectFileTask?.cancel()
         loadChildrenTask?.cancel()
-        cancelGitStatus()
-        cancelGitDiff()
+        gitStatus.cancel()
+        preview.cancel()
         stopWatching()
-    }
-
-    // MARK: - Git Status
-
-    private func reloadGitStatus() {
-        guard let gitRoot = gitRootPath else {
-            gitStatusMap = [:]
-            dirtyDirectoryPaths = []
-            return
-        }
-        cancelGitStatus()
-        let root = gitRoot
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", root, "status", "--porcelain"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { [weak self] proc in
-            let output: String? = proc.terminationStatus == 0
-                ? String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
-                : nil
-            DispatchQueue.main.async {
-                guard let self, self.gitStatusProcess === proc else { return }
-                if let output {
-                    let map = GitFileStatus.parse(porcelainOutput: output, root: root)
-                    self.gitStatusMap = map
-                    self.dirtyDirectoryPaths = GitFileStatus.dirtyDirectories(from: map, root: root)
-                } else {
-                    self.gitStatusMap = [:]
-                    self.dirtyDirectoryPaths = []
-                }
-                self.gitStatusProcess = nil
-            }
-        }
-        try? process.run()
-        gitStatusProcess = process
-    }
-
-    private func cancelGitStatus() {
-        gitStatusProcess?.terminate()
-        gitStatusProcess = nil
-    }
-
-    // MARK: - Git Diff
-
-    private func fetchGitDiff(for path: String) {
-        guard let gitRoot = gitRootPath else { return }
-        cancelGitDiff()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", gitRoot, "diff", "--histogram", "HEAD", "--", path]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        let targetPath = path
-        process.terminationHandler = { [weak self] proc in
-            let output: String? = proc.terminationStatus == 0
-                ? String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
-                : nil
-            DispatchQueue.main.async {
-                guard let self, self.gitDiffProcess === proc else { return }
-                self.gitDiffProcess = nil
-                guard let diff = output, !diff.isEmpty,
-                      self.selectedFilePath == targetPath else { return }
-                self.selectedFileDiff = diff
-                self.selectedPreviewTab = .diff
-            }
-        }
-        try? process.run()
-        gitDiffProcess = process
-    }
-
-    private func cancelGitDiff() {
-        gitDiffProcess?.terminate()
-        gitDiffProcess = nil
     }
 
     // MARK: - Review
 
     /// Relative path of the selected file from the git root (or root path).
     public var selectedFileRelativePath: String? {
-        guard let filePath = selectedFilePath else { return nil }
+        guard let filePath = preview.selectedFilePath else { return nil }
         let root = gitRootPath ?? rootPath
         guard let root else { return URL(fileURLWithPath: filePath).lastPathComponent }
         let prefix = root.hasSuffix("/") ? root : root + "/"
@@ -506,10 +439,9 @@ public final class FileTreeState: Identifiable {
     /// Returns the original tree if the filter is not active.
     public func filteredRootNode() -> FileNode? {
         if isGitDiffFilterEnabled {
-            let changedPaths = Set(gitStatusMap.keys)
+            let changedPaths = Set(gitStatus.statusMap.keys)
             return rootNode?.filteredByPaths(changedPaths)
         }
         return rootNode
     }
-
 }
