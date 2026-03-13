@@ -1,0 +1,47 @@
+defaults:
+  changed: untracked,unstaged,staged,branch:main
+  target: all
+checks:
+  - name: swiftlint
+    match: \.swift$
+    command: swiftlint lint --quiet --force-exclude {{ ctx.CHANGED_FILES }}
+    group: lint
+  - name: build
+    match: \.swift$
+    command: make build
+    group: build
+  - name: test
+    match: \.swift$
+    command: make test
+    group: test
+reviews:
+  - name: codex-review
+    match: .*
+    exclude: "**/*.md"
+    vars:
+      prompt: |-
+        Changed files: {{ ctx.CHANGED_FILES }}
+
+        Review the current changes in this repository.
+        Before reviewing, read docs/CODING_GUIDELINE.md and use it as the primary source of truth for architecture and coding conventions.
+
+        Focus on concrete findings that are likely to cause bugs, regressions, architectural drift, or missing coverage.
+        Prioritize:
+        - layer violations across View / Store / Model / Infra / Persistence
+        - GUI-dependent code leaking into Models
+        - misuse of @Observable, @ObservationIgnored, or lossy pending action patterns
+        - concurrency or actor isolation issues, including unnecessary DispatchQueue.main.async in @MainActor contexts
+        - misuse of Task.detached, timing hacks, or unsafe async completion handling
+        - resource lifecycle problems around close()/deinit, ghostty resources, FSEvent, monitors, or callbacks
+        - SwiftUI / AppKit boundary problems such as expensive updateNSView work or NSApp / NSWindow access outside View code
+        - unsafe JS/HTML injection or undocumented/private API usage without clear justification
+        - missing tests or testability regressions, especially where DI or async helpers are expected
+
+        Output requirements:
+        - List findings first, ordered by severity.
+        - For each finding, include file path and line number when possible.
+        - Explain why it is a problem and reference the relevant guideline when possible.
+        - Suggest the smallest effective fix or follow-up.
+        - If there are no findings, say "No findings" and briefly note residual risks or untested areas.
+        - Do not start with a summary of the diff.
+    command: env -u shellHook codex exec --sandbox workspace-write {{ vars.prompt }}

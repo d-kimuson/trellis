@@ -3,7 +3,7 @@ import WebKit
 
 /// NSViewRepresentable wrapper around WKWebView.
 struct WebViewRepresentable: NSViewRepresentable {
-    @ObservedObject var state: BrowserState
+    var state: BrowserState
     var onFocused: (() -> Void)?
 
     func makeNSView(context: Context) -> WKWebView {
@@ -171,7 +171,7 @@ struct WebViewRepresentable: NSViewRepresentable {
 
 /// Browser panel with URL bar and navigation controls.
 struct BrowserPanelView: View {
-    @ObservedObject var state: BrowserState
+    var state: BrowserState
     var onFocused: (() -> Void)?
     @State private var urlText: String = ""
 

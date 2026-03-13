@@ -34,7 +34,7 @@ bd sync --status       # Check sync status
 .swift ファイルを変更したら、コミット前に必ず実行:
 
 ```bash
-npx -y check-changed@0.0.1-beta.4 run
+npx -y gatecheck check
 ```
 
 全チェック通過が必須。失敗したら修正して再実行。

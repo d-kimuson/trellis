@@ -22,6 +22,7 @@ opt_in_rules:
   - first_where
   - last_where
   - modifier_order
+  - no_magic_numbers
   - overridden_super_call
   - reduce_into
   - sorted_first_last
@@ -29,6 +30,10 @@ opt_in_rules:
   - unavailable_function
   - unowned_variable_capture
   - yoda_condition
+
+# no_magic_numbers: warnings only — staged adoption, fix violations incrementally
+no_magic_numbers:
+  severity: warning
 
 # Project-specific tuning
 line_length:
@@ -69,4 +74,21 @@ custom_rules:
     regex: '^import AppKit'
     included: "Sources/Trellis/Models/(?!TerminalSession)"
     message: "Model files must not import AppKit. Keep models GUI-independent for cross-platform support."
+    severity: warning
+
+  # Prefer Task { @MainActor in } over DispatchQueue.main.async in @MainActor contexts.
+  # Exception: background thread callbacks (e.g. terminationHandler) where DispatchQueue.main.async is appropriate.
+  no_dispatch_main_in_main_actor:
+    name: "Prefer Task { @MainActor in } over DispatchQueue.main.async"
+    regex: 'DispatchQueue\.main\.async\b'
+    message: "Prefer `Task { @MainActor in }` unless you are explicitly on a background thread. See CODING_GUIDELINE.md."
+    severity: warning
+
+  # Prevent Models (except WorkspaceStore) from calling persistence stores directly.
+  # Models should communicate via callbacks or through WorkspaceStore.
+  no_model_persistence_call:
+    name: "Models must not call persistence stores directly"
+    regex: '\b(BookmarkStore|SnapshotStore)\s*\.'
+    included: "Sources/Trellis/Models/(?!WorkspaceStore)"
+    message: "Model files should not call BookmarkStore or SnapshotStore directly. Use callbacks or WorkspaceStore. See CODING_GUIDELINE.md."
     severity: warning

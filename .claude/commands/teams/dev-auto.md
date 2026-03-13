@@ -59,10 +59,12 @@ bd update <id> --status=in_progress
 ### 4. クオリティゲート
 
 ```bash
-npx -y check-changed@0.0.1-beta.4 run
+npx -y gatecheck check
+npx -y gatecheck review
 ```
 
-全チェック（lint / build / test）が通過すること。失敗した場合は修正して再実行。
+まず `npx -y gatecheck check` を繰り返し実行し、全チェック（lint / build / test）が通過する状態にする。失敗した場合は修正して再実行。
+その後 `npx -y gatecheck review` を 1 度実行してレビュー結果を確認し、採用すべき指摘は対応する。
 
 ### 5. コミット
 

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Navigation action to be consumed by WebViewRepresentable.
 public enum BrowserNavigationAction {
@@ -10,13 +11,13 @@ public enum BrowserNavigationAction {
 }
 
 /// Observable state for a browser panel.
-/// Uses class (ObservableObject) because WKWebView owns resources.
-public final class BrowserState: ObservableObject, Identifiable {
+@Observable
+public final class BrowserState: Identifiable {
     public let id: UUID
-    @Published public var currentURL: URL
-    @Published public var canGoBack: Bool
-    @Published public var canGoForward: Bool
-    @Published public var isLoading: Bool
+    public var currentURL: URL
+    public var canGoBack: Bool
+    public var canGoForward: Bool
+    public var isLoading: Bool
     /// Direct action dispatch. Set by WebViewRepresentable.Coordinator on makeNSView.
     /// Call this instead of setting pendingAction to avoid lost/double-fire races.
     public var performAction: ((BrowserNavigationAction) -> Void)?
