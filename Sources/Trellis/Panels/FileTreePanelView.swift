@@ -3,7 +3,7 @@ import SwiftUI
 
 /// File tree panel showing directory contents with expand/collapse.
 struct FileTreePanelView: View {
-    @ObservedObject var state: FileTreeState
+    var state: FileTreeState
     /// Current working directory of the representative terminal session in the area.
     /// Passed as the initial directory when no root has been selected yet.
     var workspaceCwd: String?
@@ -195,7 +195,7 @@ struct FileTreePanelView: View {
 /// A single row in the file tree, recursively rendering children for directories.
 private struct FileNodeRow: View {
     let node: FileNode
-    @ObservedObject var state: FileTreeState
+    var state: FileTreeState
     let depth: Int
     @ObservedObject var settings: AppSettings
 

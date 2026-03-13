@@ -525,7 +525,7 @@ private struct TerminalTabTitle: View {
 /// Wraps FileTreePanelView and observes the co-located terminal session so that
 /// the workspace cwd stays current even after the terminal navigates to a new directory.
 private struct FileTreePanelWithCwd: View {
-    @ObservedObject var state: FileTreeState
+    var state: FileTreeState
     var session: TerminalSession
     var onFocused: (() -> Void)?
 

@@ -1,6 +1,7 @@
 import AppKit
 import CoreServices
 import Foundation
+import Observation
 
 /// Tab selection for the file preview pane.
 public enum PreviewTab: Equatable {
@@ -9,25 +10,26 @@ public enum PreviewTab: Equatable {
 }
 
 /// Observable state for a file tree panel.
-/// Uses class (ObservableObject) for file system watcher resource ownership.
-public final class FileTreeState: ObservableObject, Identifiable {
+/// Uses class for file system watcher resource ownership.
+@Observable
+public final class FileTreeState: Identifiable {
     public let id: UUID
-    @Published public var rootPath: String?
-    @Published public var rootNode: FileNode?
-    @Published public var expandedDirectories: Set<UUID>
-    @Published public var selectedFilePath: String?
-    @Published public var selectedFileContent: String?
-    @Published public var selectedFileDiff: String?
-    @Published public var selectedPreviewTab: PreviewTab = .content
-    @Published public var gitStatusMap: [String: GitFileStatus] = [:]
-    @Published public var dirtyDirectoryPaths: Set<String> = []
+    public var rootPath: String?
+    public var rootNode: FileNode?
+    public var expandedDirectories: Set<UUID>
+    public var selectedFilePath: String?
+    public var selectedFileContent: String?
+    public var selectedFileDiff: String?
+    public var selectedPreviewTab: PreviewTab = .content
+    public var gitStatusMap: [String: GitFileStatus] = [:]
+    public var dirtyDirectoryPaths: Set<String> = []
 
-    private var ignoredPatterns: [String] = []
-    private var eventStream: FSEventStreamRef?
-    private var eventStreamInfo: UnsafeMutableRawPointer?
-    private var debounceWork: DispatchWorkItem?
-    private var gitStatusProcess: Process?
-    private var gitDiffProcess: Process?
+    @ObservationIgnored private var ignoredPatterns: [String] = []
+    @ObservationIgnored private var eventStream: FSEventStreamRef?
+    @ObservationIgnored private var eventStreamInfo: UnsafeMutableRawPointer?
+    @ObservationIgnored private var debounceWork: DispatchWorkItem?
+    @ObservationIgnored private var gitStatusProcess: Process?
+    @ObservationIgnored private var gitDiffProcess: Process?
 
     public init(
         id: UUID = UUID(),
@@ -188,7 +190,7 @@ public final class FileTreeState: ObservableObject, Identifiable {
         init(_ state: FileTreeState) { self.state = state }
     }
 
-    private var eventContext: FSEventContext?
+    @ObservationIgnored private var eventContext: FSEventContext?
 
     private func startWatching() {
         guard let rootPath else { return }
