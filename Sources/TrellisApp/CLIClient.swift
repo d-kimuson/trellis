@@ -2,10 +2,21 @@ import Foundation
 
 // MARK: - CLI Mode Entry
 
+/// Checks if the binary was invoked with CLI arguments and runs CLI mode if so.
+/// Any flag-like argument (--version, --help, etc.) or known subcommand triggers CLI mode.
+/// This function may terminate the process via exit(); if it returns, GUI mode should start.
+func checkAndRunCLIMode() {
+    let args = Array(CommandLine.arguments.dropFirst())
+    guard let subcommand = args.first,
+          subcommand.hasPrefix("-") || ["list-panels", "new-panel", "send-keys"].contains(subcommand)
+    else { return }
+    runCLIMode(args: args)
+}
+
 /// Called when the binary is invoked with CLI subcommand arguments.
 /// Connects to the running Trellis IPC server, sends the command, and exits.
 /// This function always terminates the process via exit().
-func runCLIMode(args: [String]) {
+private func runCLIMode(args: [String]) {
     let subcommand = args[0]
 
     switch subcommand {

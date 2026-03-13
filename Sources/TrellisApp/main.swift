@@ -358,16 +358,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 }
 
-// CLI mode: when invoked as `trellis list-panels` or `trellis send-keys ...`,
-// connect to the IPC socket and exit without starting the GUI.
-let cliArgs = Array(CommandLine.arguments.dropFirst())
-// Any flag-like arg (--version, --help, etc.) or known subcommand → CLI mode
-if let subcommand = cliArgs.first,
-   subcommand.hasPrefix("-") || ["list-panels", "new-panel", "send-keys"].contains(subcommand) {
-    runCLIMode(args: cliArgs)
-}
+// CLI mode check: exits early if invoked as a CLI subcommand (e.g. `trellis list-panels`).
+checkAndRunCLIMode()
 
-// Entry point
+// GUI entry point
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 
