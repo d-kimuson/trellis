@@ -53,3 +53,20 @@ identifier_name:
     - id
     - x
     - y
+
+# Custom rules for Trellis architecture enforcement
+custom_rules:
+  # Prevent regression to ObservableObject — project has unified on @Observable.
+  no_observable_object:
+    name: "Use @Observable instead of ObservableObject"
+    regex: ':\s*ObservableObject\b'
+    message: "This project uses @Observable (Swift 5.9+). Do not use ObservableObject."
+    severity: error
+
+  # Prevent Model layer from importing AppKit (GUI independence requirement).
+  no_appkit_in_models:
+    name: "Models must not import AppKit"
+    regex: '^import AppKit'
+    included: "Sources/Trellis/Models/(?!TerminalSession)"
+    message: "Model files must not import AppKit. Keep models GUI-independent for cross-platform support."
+    severity: warning
