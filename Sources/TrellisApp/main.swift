@@ -16,6 +16,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var sessionTitleCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppSettings.migrateFromUserDefaultsIfNeeded()
+
         ghosttyApp = GhosttyAppWrapper()
 
         store = WorkspaceStore(ghosttyApp: ghosttyApp)
