@@ -2,7 +2,7 @@
 description: '未確認 gate を操作フローごとにまとめて確認サマリーを出力し、kimuson の結果を受けて処理する'
 disable-model-invocation: true
 user-invocable: true
-allowed-tools: Bash(bd), Bash(git), Read, Glob, Grep, AskUserQuestion
+allowed-tools: Bash(bd), Bash(git), Bash(make), Read, Glob, Grep, AskUserQuestion
 ---
 
 未確認 gate を一覧し、**機能エリア・操作フローごとにまとめた**動作確認サマリーを出力する。
@@ -32,7 +32,15 @@ bd show <gate-id>   # 各 gate の詳細確認
 - 同じ画面・機能エリアを操作するもの
 - 共通の前提操作（ビルド・起動・特定の状態セットアップ）が必要なもの
 
-### 3. 確認サマリーの出力
+### 3. ビルドと起動
+
+サマリー出力前にビルド・起動を実行する。kimuson がすぐに確認に入れるようにする:
+
+```bash
+make build && make run
+```
+
+### 4. 確認サマリーの出力
 
 以下フォーマットで出力する。**issue ごとではなく操作フローごとに提示する。**
 
@@ -40,10 +48,7 @@ bd show <gate-id>   # 各 gate の詳細確認
 
 ## 動作確認
 
-**ビルド:**
-```
-make build && make run
-```
+アプリは起動済みです。
 
 ---
 
@@ -79,7 +84,7 @@ make build && make run
 
 ---
 
-### 4. kimuson の確認結果を受けて処理する
+### 5. kimuson の確認結果を受けて処理する
 
 #### OK の場合 → gate を close し、ブランチを main にマージ、タスクを close
 
@@ -122,7 +127,7 @@ bd update <task-id> --status=open
 
 gate は open のまま維持する（タスクが再実装・再クローズされるまでブロック継続）。
 
-### 5. 処理後の確認
+### 6. 処理後の確認
 
 ```bash
 bd list --type=gate --status=open --no-pager
