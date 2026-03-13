@@ -199,15 +199,12 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 return true
             }
 
-            // Handle Cmd+V paste directly via ghostty_surface_text
-            // (ghostty's keybinding system doesn't trigger read_clipboard_cb)
+            // Cmd+V: delegate to ghostty's paste flow (handles bracketed paste)
             if char == "v" {
                 let pasteTarget = ghosttyApp.focusedSurface ?? surface
-                let pasteboard = NSPasteboard.general
-                if let content = pasteboard.string(forType: .string), !content.isEmpty {
-                    content.withCString { cstr in
-                        ghostty_surface_text(pasteTarget, cstr, UInt(content.utf8.count))
-                    }
+                let action = "paste_from_clipboard"
+                action.withCString { cstr in
+                    ghostty_surface_binding_action(pasteTarget, cstr, UInt(action.utf8.count))
                 }
                 return true
             }
@@ -588,9 +585,9 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     @objc private func pasteFromClipboard() {
         guard let surface else { return }
-        guard let content = NSPasteboard.general.string(forType: .string), !content.isEmpty else { return }
-        content.withCString { cstr in
-            ghostty_surface_text(surface, cstr, UInt(content.utf8.count))
+        let action = "paste_from_clipboard"
+        action.withCString { cstr in
+            ghostty_surface_binding_action(surface, cstr, UInt(action.utf8.count))
         }
     }
 
