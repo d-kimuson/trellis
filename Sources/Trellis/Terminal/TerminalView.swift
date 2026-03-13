@@ -189,7 +189,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
             // Command palette (Cmd+Shift+P)
             if withShift && char == "p" {
-                NotificationCenter.default.post(name: .toggleCommandPalette, object: nil)
+                ghosttyApp.store?.dispatch(.toggleCommandPalette)
                 return true
             }
 

@@ -159,9 +159,9 @@ private func executeCommand(_ command: AppCommand, store: WorkspaceStore) {
 
     // UI
     case "ui.toggleSidebar":
-        NotificationCenter.default.post(name: .toggleSidebar, object: nil)
+        store.dispatch(.toggleSidebar)
     case "ui.openSettings":
-        NotificationCenter.default.post(name: .openSettings, object: nil)
+        store.dispatch(.openSettings)
 
     // Font
     case "font.increase":

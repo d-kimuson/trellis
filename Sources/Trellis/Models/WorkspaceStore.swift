@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// UI actions dispatched from menus, keyboard shortcuts, and command palette.
+public enum UIAction: Equatable {
+    case toggleSidebar
+    case openSettings
+    case toggleCommandPalette
+}
+
 /// Manages workspaces, areas, tabs, and terminal sessions.
 /// Successor to SessionStore.
 @Observable
@@ -13,6 +20,13 @@ public final class WorkspaceStore {
 
     /// Optional reference to the in-app notification store for marking read on focus.
     public weak var notificationStore: NotificationStore?
+
+    /// Pending UI action for ContentView to observe and consume.
+    public var pendingUIAction: UIAction?
+
+    public func dispatch(_ action: UIAction) {
+        pendingUIAction = action
+    }
 
     public init(ghosttyApp: GhosttyAppWrapper, loadSnapshots: Bool = true) {
         self.ghosttyApp = ghosttyApp

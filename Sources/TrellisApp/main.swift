@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ghosttyApp = GhosttyAppWrapper()
 
         store = WorkspaceStore(ghosttyApp: ghosttyApp)
+        ghosttyApp.store = store
         notificationStore = NotificationStore()
         store.notificationStore = notificationStore
 
@@ -225,8 +226,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func toggleSidebar(_ sender: Any?) {
-        // Post notification for ContentView to handle
-        NotificationCenter.default.post(name: .toggleSidebar, object: nil)
+        store?.dispatch(.toggleSidebar)
     }
 
     @objc func increaseFontSize(_ sender: Any?) {
@@ -242,7 +242,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func openSettings(_ sender: Any?) {
-        NotificationCenter.default.post(name: .openSettings, object: nil)
+        store?.dispatch(.openSettings)
     }
 
     @objc func checkForUpdates(_ sender: Any?) {

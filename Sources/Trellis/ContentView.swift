@@ -91,14 +91,17 @@ public struct ContentView: View {
                     }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
-            withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
-            showSettings = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
-            showCommandPalette.toggle()
+        .onChange(of: store.pendingUIAction) { _, action in
+            guard let action else { return }
+            store.pendingUIAction = nil
+            switch action {
+            case .toggleSidebar:
+                withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() }
+            case .openSettings:
+                showSettings = true
+            case .toggleCommandPalette:
+                showCommandPalette.toggle()
+            }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(settings: settings) {

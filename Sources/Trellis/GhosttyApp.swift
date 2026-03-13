@@ -20,18 +20,6 @@ enum GhosttyFontSizeChange {
     }
 }
 
-/// Notification posted when a ghostty surface title changes.
-/// userInfo contains "title" (String).
-extension Notification.Name {
-    public static let ghosttyTitleChanged = Notification.Name("ghosttyTitleChanged")
-    /// Toggle sidebar visibility.
-    public static let toggleSidebar = Notification.Name("toggleSidebar")
-    /// Open the settings panel.
-    public static let openSettings = Notification.Name("openSettings")
-    /// Toggle the command palette.
-    public static let toggleCommandPalette = Notification.Name("toggleCommandPalette")
-}
-
 /// Wrapper around the libghostty app instance.
 /// Manages the global ghostty state and provides surface creation.
 @MainActor
@@ -49,6 +37,9 @@ public final class GhosttyAppWrapper {
     /// shouldFireDesktop is true when the source surface is not the currently focused surface.
     /// sourceSession is the TerminalSession that fired the notification (nil if not found).
     public var onDesktopNotification: ((String, String, Bool, TerminalSession?) -> Void)?
+
+    /// Back-reference to the workspace store for dispatching UI actions from NSView subclasses.
+    public weak var store: WorkspaceStore?
 
     public init() {
         debugLog("[STARTUP] GhosttyAppWrapper init")
@@ -332,11 +323,6 @@ public final class GhosttyAppWrapper {
                        let session = wrapper.lookupSession(surface: surface) {
                         session.title = title
                     }
-                    NotificationCenter.default.post(
-                        name: .ghosttyTitleChanged,
-                        object: nil,
-                        userInfo: ["title": title]
-                    )
                 }
             }
         case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
