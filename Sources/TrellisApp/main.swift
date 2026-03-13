@@ -79,6 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         observeIPCServerEnabled()
         observeKeyBindings()
+        setupTouchBar()
     }
 
     private func observeKeyBindings() {
@@ -247,6 +248,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         true
     }
 
+    // MARK: - Touch Bar
+
+    private enum TouchBarID {
+        static let bar = NSTouchBar.CustomizationIdentifier("dev.kimuson.Trellis.touchbar")
+        static let splitH = NSTouchBarItem.Identifier("dev.kimuson.Trellis.splitH")
+        static let splitV = NSTouchBarItem.Identifier("dev.kimuson.Trellis.splitV")
+        static let closeTab = NSTouchBarItem.Identifier("dev.kimuson.Trellis.closeTab")
+        static let sidebar = NSTouchBarItem.Identifier("dev.kimuson.Trellis.sidebar")
+    }
+
+    private func setupTouchBar() {
+        let bar = NSTouchBar()
+        bar.customizationIdentifier = TouchBarID.bar
+        bar.delegate = self
+        bar.defaultItemIdentifiers = [
+            TouchBarID.sidebar,
+            .fixedSpaceSmall,
+            TouchBarID.splitH,
+            TouchBarID.splitV,
+            .fixedSpaceSmall,
+            TouchBarID.closeTab,
+        ]
+        window.touchBar = bar
+    }
+
     // MARK: - Menu Actions
 
     @objc func splitHorizontal(_ sender: Any?) {
@@ -356,6 +382,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
         }.resume()
+    }
+}
+
+// MARK: - NSTouchBarDelegate
+
+extension AppDelegate: NSTouchBarDelegate {
+    func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+        switch identifier {
+        case TouchBarID.splitH:
+            let btn = NSButton(title: "Split ⊞", target: self, action: #selector(splitHorizontal(_:)))
+            item.view = btn
+        case TouchBarID.splitV:
+            let btn = NSButton(title: "Split ⊟", target: self, action: #selector(splitVertical(_:)))
+            item.view = btn
+        case TouchBarID.closeTab:
+            let btn = NSButton(title: "✕ Tab", target: self, action: #selector(closeTab(_:)))
+            item.view = btn
+        case TouchBarID.sidebar:
+            let btn = NSButton(title: "⇥ Sidebar", target: self, action: #selector(toggleSidebar(_:)))
+            item.view = btn
+        default:
+            return nil
+        }
+        return item
     }
 }
 
