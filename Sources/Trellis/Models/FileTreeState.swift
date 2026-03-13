@@ -84,6 +84,7 @@ public final class FileTreeState: Identifiable {
     @ObservationIgnored private var debounceWork: DispatchWorkItem?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var loadChildrenTask: Task<Void, Never>?
+    @ObservationIgnored private var gitRootDetectionTask: Task<Void, Never>?
 
     public init(
         id: UUID = UUID(),
@@ -93,9 +94,9 @@ public final class FileTreeState: Identifiable {
         self.rootPath = rootPath
         self.expandedDirectories = []
         if let rootPath {
-            gitRootPath = FileTreeState.detectGitRoot(for: rootPath)
             reloadSync()
             startWatching()
+            scheduleGitRootDetection(for: rootPath)
         }
     }
 
@@ -171,12 +172,32 @@ public final class FileTreeState: Identifiable {
         gitStatus.cancel()
         stopWatching()
         rootPath = path
-        gitRootPath = FileTreeState.detectGitRoot(for: path)
+        gitRootPath = nil
         BookmarkStore.save(url: URL(fileURLWithPath: path))
         expandedDirectories = []
         preview.clearPreview()
         reload()
         startWatching()
+        scheduleGitRootDetection(for: path)
+    }
+
+    /// Detect git root in the background and update gitRootPath + status on completion.
+    private func scheduleGitRootDetection(for path: String) {
+        gitRootDetectionTask?.cancel()
+        gitRootDetectionTask = Task.detached { [weak self] in
+            let root = Self.detectGitRoot(for: path)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.rootPath == path else { return }
+                self.gitRootPath = root
+                self.gitStatus.reload(gitRoot: self.gitRootPath)
+            }
+        }
+    }
+
+    /// Wait for in-flight git root detection to complete (for testing).
+    func awaitGitRootDetection() async {
+        await gitRootDetectionTask?.value
     }
 
     /// Toggle expansion state of a directory node.
@@ -410,6 +431,7 @@ public final class FileTreeState: Identifiable {
     deinit {
         reloadTask?.cancel()
         loadChildrenTask?.cancel()
+        gitRootDetectionTask?.cancel()
         gitStatus.cancel()
         preview.cancel()
         stopWatching()
