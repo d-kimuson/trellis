@@ -82,17 +82,6 @@ struct FileTreePanelView: View {
             .buttonStyle(.borderless)
             .help("Open Directory")
 
-            if state.rootPath != nil {
-                Button(
-                    action: { state.reload() },
-                    label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                    }
-                )
-                .buttonStyle(.borderless)
-                .help("Refresh")
-            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
