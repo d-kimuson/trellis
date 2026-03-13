@@ -7,6 +7,7 @@ struct FileTreePanelView: View {
     /// Passed as the initial directory when no root has been selected yet.
     var workspaceCwd: String?
     @ObservedObject var settings: AppSettings
+    var onFocused: (() -> Void)?
 
     var body: some View {
         VSplitView {
@@ -18,6 +19,9 @@ struct FileTreePanelView: View {
                     .frame(minHeight: 80)
             }
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            onFocused?()
+        })
     }
 
     // MARK: - Tree Pane

@@ -265,6 +265,16 @@ public final class GhosttyAppWrapper {
         }
     }
 
+    /// Set focus=false on every registered surface.
+    /// Called when focus moves to a non-terminal area (sidebar, file tree, etc.).
+    func defocusAllSurfaces() {
+        for key in surfaceSessions.keys {
+            if let surface = ghostty_surface_t(bitPattern: UInt(bitPattern: key)) {
+                ghostty_surface_set_focus(surface, false)
+            }
+        }
+    }
+
     public func shutdown() {
         // Stop the display link first so no more ghostty_app_tick calls are queued.
         if let link = displayLink { CVDisplayLinkStop(link) }

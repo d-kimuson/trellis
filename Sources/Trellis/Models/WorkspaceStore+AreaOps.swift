@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 // MARK: - Area Operations
@@ -86,5 +87,16 @@ extension WorkspaceStore {
         workspaces[activeWorkspaceIndex] = workspace
         let sessionIds = area.tabs.compactMap { $0.content.terminalSession?.id }
         notificationStore?.markAsRead(sessionIds: sessionIds)
+    }
+
+    /// Deactivate all areas — no panel has focus.
+    /// Resigns terminal first responder and defocuses all ghostty surfaces.
+    public func deactivateAllAreas() {
+        guard var workspace = activeWorkspace else { return }
+        guard workspace.activeAreaId != nil else { return }
+        workspace.activeAreaId = nil
+        workspaces[activeWorkspaceIndex] = workspace
+        ghosttyApp.defocusAllSurfaces()
+        NSApp.keyWindow?.makeFirstResponder(nil)
     }
 }

@@ -45,11 +45,17 @@ public struct ContentView: View {
             }
             .frame(width: 32)
             .background(Color(nsColor: .windowBackgroundColor))
+            .simultaneousGesture(TapGesture().onEnded {
+                store.deactivateAllAreas()
+            })
 
             // Sidebar — always in tree, animated width to avoid view destruction issues
             SidebarView(store: store, notificationStore: notificationStore)
                 .frame(width: showSidebar ? sidebarWidth : 0)
                 .clipped()
+                .simultaneousGesture(TapGesture().onEnded {
+                    store.deactivateAllAreas()
+                })
 
             if showSidebar {
                 SidebarResizeHandle(sidebarWidth: $sidebarWidth)

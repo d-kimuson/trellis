@@ -178,11 +178,15 @@ struct AreaPanelView: View {
                     )
                 }
         case .fileTree(let state):
+            let onFileTreeFocused = {
+                store.activateArea(area.id)
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
             let session = area.tabs.compactMap { $0.content.terminalSession }.first
             if let session {
-                FileTreePanelWithCwd(state: state, session: session)
+                FileTreePanelWithCwd(state: state, session: session, onFocused: onFileTreeFocused)
             } else {
-                FileTreePanelView(state: state, settings: AppSettings.shared)
+                FileTreePanelView(state: state, settings: AppSettings.shared, onFocused: onFileTreeFocused)
             }
         }
     }
@@ -296,11 +300,12 @@ struct AreaPanelView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 store.selectTab(in: area.id, at: index)
-                // Restore keyboard focus to the terminal surface when switching tabs.
-                // Without this, the previously-focused terminal stays first responder and
-                // receives Cmd+V / other key events even after tab switching.
                 if case .terminal(let session) = tab.content, let nsView = session.nsView {
+                    // Restore keyboard focus to the terminal surface when switching tabs.
                     NSApp.keyWindow?.makeFirstResponder(nsView)
+                } else {
+                    // Non-terminal tab: resign terminal first responder so cursor stops blinking.
+                    NSApp.keyWindow?.makeFirstResponder(nil)
                 }
             }
             .draggable(dragData)
@@ -531,9 +536,10 @@ private struct TerminalTabTitle: View {
 private struct FileTreePanelWithCwd: View {
     @ObservedObject var state: FileTreeState
     @ObservedObject var session: TerminalSession
+    var onFocused: (() -> Void)?
 
     var body: some View {
-        FileTreePanelView(state: state, workspaceCwd: session.pwd, settings: AppSettings.shared)
+        FileTreePanelView(state: state, workspaceCwd: session.pwd, settings: AppSettings.shared, onFocused: onFocused)
     }
 }
 
