@@ -7,6 +7,13 @@ import WebKit
 /// to the system beep without this override.
 private final class EditableWKWebView: WKWebView {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Only handle key equivalents when this view or a descendant is the first responder.
+        // performKeyEquivalent is traversed through the entire view hierarchy, so without
+        // this guard, preview panes in non-active areas would steal Cmd+A / Cmd+C.
+        guard let responder = window?.firstResponder as? NSView,
+              responder === self || responder.isDescendant(of: self)
+        else { return super.performKeyEquivalent(with: event) }
+
         guard event.modifierFlags.contains(.command) else {
             return super.performKeyEquivalent(with: event)
         }
