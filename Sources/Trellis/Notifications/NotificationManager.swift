@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import UserNotifications
 
@@ -57,6 +58,11 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
             if let error {
                 print("Failed to send notification: \(error.localizedDescription)")
             }
+        }
+
+        // Bounce the Dock icon when the app is not active
+        if !NSApp.isActive {
+            NSApp.requestUserAttention(.informationalRequest)
         }
     }
 
