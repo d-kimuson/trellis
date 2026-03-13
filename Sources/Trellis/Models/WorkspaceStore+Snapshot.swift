@@ -14,7 +14,7 @@ extension WorkspaceStore {
             let tabSnapshots = area.tabs.map { tab -> TabSnapshot in
                 switch tab.content {
                 case .terminal(let session):
-                    let surf = session.surface
+                    let surf = ghosttyApp.surface(for: session)
                     let scrollback: String? = surf.flatMap {
                         ghosttyApp.readScrollback(surface: $0).map { SnapshotStore.truncate($0) }
                     }

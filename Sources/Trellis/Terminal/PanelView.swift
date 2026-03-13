@@ -132,7 +132,7 @@ struct AreaPanelView: View {
         let activeTab = area.tabs.indices.contains(area.activeTabIndex)
             ? area.tabs[area.activeTabIndex] : nil
         guard case .terminal(let session) = activeTab?.content,
-              let nsView = session.surfaceView?.nsView else { return }
+              let nsView = ghosttyApp.surfaceView(for: session)?.nsView else { return }
         // Defer to next run loop so SwiftUI layout is settled before requesting focus.
         DispatchQueue.main.async {
             guard let window = NSApp.keyWindow,
@@ -332,7 +332,7 @@ struct AreaPanelView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 store.selectTab(in: area.id, at: index)
-                if case .terminal(let session) = tab.content, let nsView = session.surfaceView?.nsView {
+                if case .terminal(let session) = tab.content, let nsView = ghosttyApp.surfaceView(for: session)?.nsView {
                     // Restore keyboard focus to the terminal surface when switching tabs.
                     NSApp.keyWindow?.makeFirstResponder(nsView)
                 } else {

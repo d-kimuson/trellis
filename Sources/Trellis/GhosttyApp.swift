@@ -33,6 +33,12 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
     /// in C callbacks by validating sessions through a managed dictionary instead.
     private var surfaceSessions: [UnsafeRawPointer: TerminalSession] = [:]
 
+    /// Session ID → Surface reverse lookup (complement of surfaceSessions).
+    private var sessionSurfaces: [UUID: ghostty_surface_t] = [:]
+
+    /// Session ID → Surface view (owns the NSView lifecycle while the session is active).
+    private var sessionViews: [UUID: any TerminalSurfaceView] = [:]
+
     /// Called synchronously on the main thread when OSC 9/777 desktop notification arrives.
     /// Parameters: (title, body, shouldFireDesktop, sourceSession)
     /// shouldFireDesktop is true when the source surface is not the currently focused surface.
@@ -214,11 +220,32 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
     public func registerSession(surface: ghostty_surface_t, session: TerminalSession) {
         let key = UnsafeRawPointer(surface)
         surfaceSessions[key] = session
+        sessionSurfaces[session.id] = surface
     }
 
     public func unregisterSession(surface: ghostty_surface_t) {
         let key = UnsafeRawPointer(surface)
+        if let session = surfaceSessions[key] {
+            sessionSurfaces.removeValue(forKey: session.id)
+        }
         surfaceSessions.removeValue(forKey: key)
+    }
+
+    public func surface(for session: TerminalSession) -> ghostty_surface_t? {
+        sessionSurfaces[session.id]
+    }
+
+    public func surfaceView(for session: TerminalSession) -> (any TerminalSurfaceView)? {
+        sessionViews[session.id]
+    }
+
+    public func setSurfaceView(_ view: any TerminalSurfaceView, for session: TerminalSession) {
+        sessionViews[session.id] = view
+    }
+
+    public func closeSession(_ session: TerminalSession) {
+        sessionViews[session.id]?.destroySurface()
+        sessionViews.removeValue(forKey: session.id)
     }
 
     public func lookupSession(surface: ghostty_surface_t) -> TerminalSession? {
@@ -257,6 +284,8 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
             }
         }
         surfaceSessions.removeAll()
+        sessionSurfaces.removeAll()
+        sessionViews.removeAll()
 
         // Nil out app BEFORE calling ghostty_app_free so that any tick() calls
         // already queued on the main run loop see nil and return early, preventing
@@ -456,7 +485,7 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
     /// Send raw text to the given session's terminal surface.
     /// Returns false if the session's surface is not yet ready.
     public func sendText(_ text: String, to session: TerminalSession) -> Bool {
-        guard let surface = session.surface else { return false }
+        guard let surface = surface(for: session) else { return false }
         text.withCString { cstr in
             ghostty_surface_text(surface, cstr, UInt(text.utf8.count))
         }

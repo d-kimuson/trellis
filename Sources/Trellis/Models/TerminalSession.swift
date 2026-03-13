@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 
 /// Represents a single terminal session with an associated libghostty surface.
 /// Owns the GhosttyNSView so it survives SwiftUI view hierarchy rebuilds.
@@ -26,13 +26,6 @@ public final class TerminalSession: Identifiable {
 
     /// Additional environment variables to set when creating the ghostty surface.
     public let initialEnvVars: [String: String]
-
-    // Opaque pointer to ghostty surface - managed by the surface view
-    @ObservationIgnored var surface: UnsafeMutableRawPointer?
-
-    /// The view hosting this session's terminal surface.
-    /// Stored here so SwiftUI layout changes don't destroy and recreate it.
-    @ObservationIgnored var surfaceView: (any TerminalSurfaceView)?
 
     /// Called when the terminal view receives mouse focus (clicked).
     @ObservationIgnored var onFocused: (() -> Void)?
@@ -139,22 +132,11 @@ public final class TerminalSession: Identifiable {
         return pwd
     }
 
-    /// Mark session as inactive and free the surface.
-    /// Must be called before the session is released. The deinit will assert if this wasn't called.
+    /// Mark session as inactive.
+    /// Surface cleanup is handled by the caller via GhosttyAppProviding.closeSession(_:).
     func close() {
         gitProcess?.terminate()
         gitProcess = nil
         isActive = false
-        surfaceView?.destroySurface()
-        surfaceView = nil
-    }
-
-    deinit {
-        // close() must be called before deallocation.
-        // Releasing a session without calling close() means the surface was leaked.
-        // Note: sessions created without a surface (e.g. in tests) are fine — nsView starts nil.
-        if surfaceView != nil {
-            assertionFailure("TerminalSession.deinit: close() was not called before deallocation")
-        }
     }
 }

@@ -54,6 +54,7 @@ extension WorkspaceStore {
 
         // Close the terminal session
         if let session = area.tabs[tabIndex].content.terminalSession {
+            ghosttyApp.closeSession(session)
             session.close()
         }
 

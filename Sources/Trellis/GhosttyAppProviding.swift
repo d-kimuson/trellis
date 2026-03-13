@@ -27,6 +27,18 @@ public protocol GhosttyAppProviding: AnyObject {
     func defocusAllSurfaces(except focused: ghostty_surface_t)
     func defocusAllSurfaces()
 
+    /// Retrieve the ghostty surface associated with a session (session → surface reverse lookup).
+    func surface(for session: TerminalSession) -> ghostty_surface_t?
+
+    /// Retrieve the surface view associated with a session.
+    func surfaceView(for session: TerminalSession) -> (any TerminalSurfaceView)?
+
+    /// Register a surface view for a session.
+    func setSurfaceView(_ view: any TerminalSurfaceView, for session: TerminalSession)
+
+    /// Tear down the surface and view for a session. Called when the session is closed.
+    func closeSession(_ session: TerminalSession)
+
     func shutdown()
     func increaseFontSize()
     func decreaseFontSize()

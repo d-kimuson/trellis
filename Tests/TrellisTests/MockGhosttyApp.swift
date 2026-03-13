@@ -26,6 +26,11 @@ final class MockGhosttyApp: GhosttyAppProviding {
     func defocusAllSurfaces(except focused: ghostty_surface_t) {}
     func defocusAllSurfaces() {}
 
+    func surface(for session: TerminalSession) -> ghostty_surface_t? { nil }
+    func surfaceView(for session: TerminalSession) -> (any TerminalSurfaceView)? { nil }
+    func setSurfaceView(_ view: any TerminalSurfaceView, for session: TerminalSession) {}
+    func closeSession(_ session: TerminalSession) {}
+
     func shutdown() {}
     func increaseFontSize() {}
     func decreaseFontSize() {}

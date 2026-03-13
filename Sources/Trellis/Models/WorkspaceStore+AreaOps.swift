@@ -44,6 +44,7 @@ extension WorkspaceStore {
         if let area = workspace.layout.findArea(id: areaId) {
             for tab in area.tabs {
                 if let session = tab.content.terminalSession {
+                    ghosttyApp.closeSession(session)
                     session.close()
                 }
             }
