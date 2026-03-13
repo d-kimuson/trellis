@@ -3,7 +3,7 @@ description: 'バージョンをリリースする（CHANGELOG更新 → GitHub 
 disable-model-invocation: true
 user-invocable: true
 argument-hint: '[version]'
-allowed-tools: Read, Glob, Grep, Bash(git), Bash(gh), Bash(date), Bash(plutil), Write, Edit
+allowed-tools: Read, Glob, Grep, Bash(git), Bash(gh), Bash(date), Bash(plutil), Bash(./scripts/generate-licenses.sh), Write, Edit
 ---
 
 Trellis のリリース作業を行います。引数にバージョン番号を指定してください（例: `/release 0.2.0`）。省略した場合は `Resources/Info.plist` から読み取ります。
@@ -59,7 +59,15 @@ git log $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-paren
 - 削除・廃止 → Removed
 - セキュリティ関連 → Security
 
-### 3. CHANGELOG.md 更新
+### 3. サードパーティライセンス更新
+
+```bash
+./scripts/generate-licenses.sh
+```
+
+生成された `THIRD_PARTY_LICENSES` に差分があればコミット対象に含める（ステップ 5 でまとめてコミット）。
+
+### 4. CHANGELOG.md 更新
 
 `CHANGELOG.md` の `## [Unreleased]` の直下に新しいエントリを挿入する:
 
@@ -74,14 +82,14 @@ git log $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-paren
 
 挿入後、必ずユーザーに内容を確認してもらう。ユーザーの承認なしに次のステップへ進まないこと。
 
-### 4. CHANGELOG をコミット
+### 5. リリースコミット
 
 ```bash
-git add CHANGELOG.md
+git add CHANGELOG.md THIRD_PARTY_LICENSES
 git commit -m "chore: release v${VERSION}"
 ```
 
-### 5. リリーススクリプト実行
+### 6. リリーススクリプト実行
 
 ```bash
 ./scripts/release.sh ${VERSION}
@@ -93,7 +101,7 @@ git commit -m "chore: release v${VERSION}"
 - git タグの作成・プッシュ
 - GitHub Release の作成（汎用テンプレートのノート付き）
 
-### 6. GitHub Release ノートを更新
+### 7. GitHub Release ノートを更新
 
 スクリプト実行後、CHANGELOG のエントリをベースに Release Note を更新する:
 
@@ -124,7 +132,7 @@ NOTES
 
 "What's New" セクションには CHANGELOG から該当バージョンのエントリをそのまま転記する（セクション構成・文言を変えない）。
 
-### 7. 完了報告
+### 8. 完了報告
 
 リリースURLを表示して完了を伝える:
 ```
