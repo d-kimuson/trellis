@@ -100,30 +100,40 @@ enum SnapshotStore {
     /// Remove stale scrollback temp files (trellis-sb-*.txt) older than `age` seconds.
     /// Called at app startup as a safety net in case the shell integration script did not run
     /// (e.g. the shell crashed before sourcing the integration script).
+    ///
+    /// trellis-sb-* files live in NSTemporaryDirectory (written by the app).
+    /// trellis-running-* files live in /tmp (written by the shell integration).
     static func cleanUpStaleTempFiles(olderThan age: TimeInterval = 3600) {
-        let tmpDir = NSTemporaryDirectory()
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(atPath: tmpDir) else { return }
         let now = Date()
-        let isTrellisTemp = { (f: String) -> Bool in
-            (f.hasPrefix("trellis-sb-") || f.hasPrefix("trellis-running-")) && f.hasSuffix(".txt")
-        }
-        for file in files where isTrellisTemp(file) {
-            let path = tmpDir + file
-            guard let attrs = try? fm.attributesOfItem(atPath: path),
-                  let modDate = attrs[.modificationDate] as? Date else { continue }
-            if now.timeIntervalSince(modDate) > age {
-                try? fm.removeItem(atPath: path)
+
+        func cleanDir(_ dir: String, matching prefix: (String) -> Bool) {
+            guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return }
+            for file in files where prefix(file) && file.hasSuffix(".txt") {
+                let path = dir + file
+                guard let attrs = try? fm.attributesOfItem(atPath: path),
+                      let modDate = attrs[.modificationDate] as? Date else { continue }
+                if now.timeIntervalSince(modDate) > age {
+                    try? fm.removeItem(atPath: path)
+                }
             }
         }
+
+        // Scrollback files (written by app)
+        cleanDir(NSTemporaryDirectory()) { $0.hasPrefix("trellis-sb-") }
+        // Running-command files (written by shell integration at /tmp)
+        cleanDir("/tmp/") { $0.hasPrefix("trellis-running-") }
     }
 
     // MARK: - Running Command Tracking
 
     /// Read the running command for a session from its temp file.
     /// Returns nil if no command is running (file absent or empty).
+    ///
+    /// Shell integration writes to /tmp (not NSTemporaryDirectory) because the shell
+    /// does not know the app's per-session temp dir. Read from /tmp to match.
     static func readRunningCommand(sessionId: UUID) -> String? {
-        let path = NSTemporaryDirectory() + "trellis-running-\(sessionId.uuidString).txt"
+        let path = "/tmp/trellis-running-\(sessionId.uuidString).txt"
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

@@ -322,7 +322,8 @@ final class SnapshotStoreTests: XCTestCase {
 
     func testReadRunningCommandReturnsContentWhenFileExists() throws {
         let id = UUID()
-        let path = NSTemporaryDirectory() + "trellis-running-\(id.uuidString).txt"
+        // Shell integration writes to /tmp (not NSTemporaryDirectory)
+        let path = "/tmp/trellis-running-\(id.uuidString).txt"
         try "make build".write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
@@ -332,7 +333,7 @@ final class SnapshotStoreTests: XCTestCase {
 
     func testReadRunningCommandTrimsWhitespace() throws {
         let id = UUID()
-        let path = NSTemporaryDirectory() + "trellis-running-\(id.uuidString).txt"
+        let path = "/tmp/trellis-running-\(id.uuidString).txt"
         try "npm test\n".write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
@@ -342,7 +343,7 @@ final class SnapshotStoreTests: XCTestCase {
 
     func testReadRunningCommandReturnsNilForEmptyFile() throws {
         let id = UUID()
-        let path = NSTemporaryDirectory() + "trellis-running-\(id.uuidString).txt"
+        let path = "/tmp/trellis-running-\(id.uuidString).txt"
         try "".write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
@@ -353,8 +354,8 @@ final class SnapshotStoreTests: XCTestCase {
 
     func testCleanUpStaleTempFilesRemovesOldRunningCommandFiles() throws {
         let id = UUID()
-        let tmpDir = NSTemporaryDirectory()
-        let path = tmpDir + "trellis-running-\(id.uuidString).txt"
+        // Running-command files are written by the shell to /tmp
+        let path = "/tmp/trellis-running-\(id.uuidString).txt"
         try "old command".write(toFile: path, atomically: true, encoding: .utf8)
         let twoHoursAgo = Date().addingTimeInterval(-7200)
         try FileManager.default.setAttributes([.modificationDate: twoHoursAgo], ofItemAtPath: path)
@@ -366,8 +367,7 @@ final class SnapshotStoreTests: XCTestCase {
 
     func testCleanUpStaleTempFilesKeepsRecentRunningCommandFiles() throws {
         let id = UUID()
-        let tmpDir = NSTemporaryDirectory()
-        let path = tmpDir + "trellis-running-\(id.uuidString).txt"
+        let path = "/tmp/trellis-running-\(id.uuidString).txt"
         try "recent command".write(toFile: path, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
