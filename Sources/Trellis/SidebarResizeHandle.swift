@@ -4,6 +4,7 @@ struct SidebarResizeHandle: View {
     @Binding var sidebarWidth: CGFloat
     @State private var isDragging = false
     @State private var dragStartWidth: CGFloat = 0
+    @State private var cursorPushed = false
 
     private static let minWidth: CGFloat = 120
     private static let maxWidth: CGFloat = 400
@@ -18,13 +19,22 @@ struct SidebarResizeHandle: View {
             .contentShape(Rectangle())
             .onHover { hovering in
                 if hovering {
-                    NSCursor.resizeLeftRight.push()
+                    if !cursorPushed {
+                        NSCursor.resizeLeftRight.push()
+                        cursorPushed = true
+                    }
                 } else {
-                    NSCursor.pop()
+                    if cursorPushed {
+                        NSCursor.pop()
+                        cursorPushed = false
+                    }
                 }
             }
             .onDisappear {
-                NSCursor.pop()
+                if cursorPushed {
+                    NSCursor.pop()
+                    cursorPushed = false
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)

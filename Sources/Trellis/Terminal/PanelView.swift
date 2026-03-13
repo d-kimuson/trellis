@@ -412,6 +412,7 @@ struct SplitContainer<First: View, Second: View>: View {
 
     @State private var isDragging = false
     @State private var localRatio: Double?
+    @State private var cursorPushed = false
 
     private let dividerThickness: CGFloat = 4
     private let minRatio: Double = 0.15
@@ -476,17 +477,26 @@ struct SplitContainer<First: View, Second: View>: View {
             )
             .onHover { hovering in
                 if hovering {
-                    NSCursor(image: isHorizontal
-                        ? NSCursor.resizeUpDown.image
-                        : NSCursor.resizeLeftRight.image,
-                        hotSpot: NSPoint(x: 8, y: 8)
-                    ).push()
+                    if !cursorPushed {
+                        NSCursor(image: isHorizontal
+                            ? NSCursor.resizeUpDown.image
+                            : NSCursor.resizeLeftRight.image,
+                            hotSpot: NSPoint(x: 8, y: 8)
+                        ).push()
+                        cursorPushed = true
+                    }
                 } else {
-                    NSCursor.pop()
+                    if cursorPushed {
+                        NSCursor.pop()
+                        cursorPushed = false
+                    }
                 }
             }
             .onDisappear {
-                NSCursor.pop()
+                if cursorPushed {
+                    NSCursor.pop()
+                    cursorPushed = false
+                }
             }
     }
 }
