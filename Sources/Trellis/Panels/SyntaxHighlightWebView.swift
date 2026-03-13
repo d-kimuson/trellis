@@ -192,8 +192,8 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     private func diff2htmlHTML(js: String, css: String) -> String {
         let size = Int(fontSize)
         let mono = "'SF Mono', 'Menlo', 'Monaco', monospace"
+        let reviewCSS = reviewBridge != nil ? "<style>\(DiffReviewScripts.css)</style>" : ""
         let reviewScripts = reviewBridge != nil ? """
-        <style>\(DiffReviewScripts.css)</style>
         <script>\(DiffReviewScripts.js)</script>
         """ : ""
         return """
@@ -206,13 +206,15 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         \(diff2htmlOverrideCSS(mono: mono, size: size))
         \(findHighlightCSS)
         </style>
+        \(reviewCSS)
+        <script>\(js)</script>
+        <script>\(findInPageJS)</script>
         </head>
         <body class="d2h-auto-color-scheme">
-        <script>\(js)</script>
+        <div id="diff-content"></div>
         <script>
         \(diff2htmlRenderJS(escaped: escapeJS(code)))
         </script>
-        <script>\(findInPageJS)</script>
         \(reviewScripts)
         </body>
         </html>
@@ -261,7 +263,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         var diff = "\(escaped)";
         var html = Diff2Html.html(diff, { drawFileList: false, matching: 'lines',
                                           outputFormat: 'line-by-line' });
-        document.body.innerHTML = html;
+        document.getElementById('diff-content').innerHTML = html;
         """
     }
 
