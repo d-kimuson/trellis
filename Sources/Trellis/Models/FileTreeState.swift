@@ -24,6 +24,7 @@ public final class FileTreeState: Identifiable {
     public var gitStatusMap: [String: GitFileStatus] = [:]
     public var dirtyDirectoryPaths: Set<String> = []
 
+    @ObservationIgnored private(set) var gitRootPath: String?
     @ObservationIgnored private var ignoredPatterns: [String] = []
     @ObservationIgnored private var eventStream: FSEventStreamRef?
     @ObservationIgnored private var eventStreamInfo: UnsafeMutableRawPointer?
@@ -38,10 +39,33 @@ public final class FileTreeState: Identifiable {
         self.id = id
         self.rootPath = rootPath
         self.expandedDirectories = []
-        if rootPath != nil {
+        if let rootPath {
+            gitRootPath = FileTreeState.detectGitRoot(for: rootPath)
             reload()
             startWatching()
         }
+    }
+
+    /// Detect the git repository root for the given path.
+    /// Returns nil if the path is not inside a git repository.
+    public static func detectGitRoot(for path: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", path, "rev-parse", "--show-toplevel"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+        guard process.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8) else { return nil }
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Reload the file tree from disk, restoring expanded directory contents.
@@ -68,6 +92,7 @@ public final class FileTreeState: Identifiable {
         cancelGitDiff()
         stopWatching()
         rootPath = path
+        gitRootPath = FileTreeState.detectGitRoot(for: path)
         BookmarkStore.save(url: URL(fileURLWithPath: path))
         expandedDirectories = []
         selectedFilePath = nil
@@ -280,13 +305,13 @@ public final class FileTreeState: Identifiable {
     // MARK: - Git Status
 
     private func reloadGitStatus() {
-        guard let rootPath else {
+        guard let gitRoot = gitRootPath else {
             gitStatusMap = [:]
             dirtyDirectoryPaths = []
             return
         }
         cancelGitStatus()
-        let root = rootPath
+        let root = gitRoot
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-C", root, "status", "--porcelain"]
@@ -322,11 +347,11 @@ public final class FileTreeState: Identifiable {
     // MARK: - Git Diff
 
     private func fetchGitDiff(for path: String) {
-        guard let rootPath else { return }
+        guard let gitRoot = gitRootPath else { return }
         cancelGitDiff()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", rootPath, "diff", "--histogram", "HEAD", "--", path]
+        process.arguments = ["-C", gitRoot, "diff", "--histogram", "HEAD", "--", path]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice

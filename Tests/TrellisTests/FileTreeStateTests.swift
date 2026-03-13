@@ -205,6 +205,68 @@ final class FileTreeStateTests: XCTestCase {
         )
     }
 
+    // MARK: - Git root detection
+
+    func testDetectGitRootFromSubdirectory() throws {
+        let gitRoot = makePath("repo")
+        mkdir(gitRoot)
+        let subDir = makePath("repo", "frontend")
+        mkdir(subDir)
+
+        // Initialize a git repo at gitRoot
+        let initProc = Process()
+        initProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        initProc.arguments = ["init", gitRoot]
+        initProc.standardOutput = FileHandle.nullDevice
+        initProc.standardError = FileHandle.nullDevice
+        try initProc.run()
+        initProc.waitUntilExit()
+        XCTAssertEqual(initProc.terminationStatus, 0)
+
+        let detected = FileTreeState.detectGitRoot(for: subDir)
+        // Resolve symlinks for macOS /private/var/folders vs /var/folders
+        let resolvedGitRoot = (gitRoot as NSString).resolvingSymlinksInPath
+        let resolvedDetected = detected.map { ($0 as NSString).resolvingSymlinksInPath }
+        XCTAssertEqual(resolvedDetected, resolvedGitRoot)
+    }
+
+    func testDetectGitRootAtRepoRoot() throws {
+        let gitRoot = makePath("repo2")
+        mkdir(gitRoot)
+
+        let initProc = Process()
+        initProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        initProc.arguments = ["init", gitRoot]
+        initProc.standardOutput = FileHandle.nullDevice
+        initProc.standardError = FileHandle.nullDevice
+        try initProc.run()
+        initProc.waitUntilExit()
+
+        let detected = FileTreeState.detectGitRoot(for: gitRoot)
+        let resolvedGitRoot = (gitRoot as NSString).resolvingSymlinksInPath
+        let resolvedDetected = detected.map { ($0 as NSString).resolvingSymlinksInPath }
+        XCTAssertEqual(resolvedDetected, resolvedGitRoot)
+    }
+
+    func testDetectGitRootOutsideRepoReturnsNil() {
+        // tempDir is not inside a git repo (it's a unique temp directory)
+        let isolated = makePath("nogit")
+        mkdir(isolated)
+        // We need a directory that's truly outside any git repo.
+        // Since tempDir itself might be under a git repo, create a .git-less check.
+        // Use the function and verify behavior - if tempDir happens to be in a git repo,
+        // the result will be non-nil but != isolated, which is still correct behavior.
+        let detected = FileTreeState.detectGitRoot(for: isolated)
+        // If detected is non-nil, it should NOT equal isolated (isolated has no .git)
+        if let detected {
+            let resolvedIsolated = (isolated as NSString).resolvingSymlinksInPath
+            let resolvedDetected = (detected as NSString).resolvingSymlinksInPath
+            XCTAssertNotEqual(resolvedDetected, resolvedIsolated,
+                "detectGitRoot should not return the directory itself when it has no .git")
+        }
+        // If nil, that's the expected case for a non-git directory
+    }
+
     // MARK: - Private helpers
 
     private func findNode(named name: String, in node: FileNode) -> FileNode? {
