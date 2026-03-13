@@ -402,8 +402,10 @@ public final class GhosttyAppWrapper {
             break
         case GHOSTTY_ACTION_PROGRESS_REPORT: // OSC progress (e.g. Claude Code spinner)
             debugLog("[ACTION] PROGRESS_REPORT")
+            return true
         default:
             debugLog("[ACTION] unhandled tag=\(action.tag)")
+            return false
         }
         return true
     }
