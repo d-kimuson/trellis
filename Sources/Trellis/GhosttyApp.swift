@@ -1,5 +1,4 @@
 import AppKit
-import CoreVideo
 import Foundation
 import GhosttyKit
 import SwiftUI
@@ -36,7 +35,6 @@ extension Notification.Name {
 @MainActor
 public final class GhosttyAppWrapper {
     private(set) var app: ghostty_app_t?
-    private var displayLink: CVDisplayLink?
     /// The most recently focused terminal surface, used for clipboard operations.
     var focusedSurface: ghostty_surface_t?
 
@@ -120,26 +118,6 @@ public final class GhosttyAppWrapper {
             fatalError("Failed to create ghostty app")
         }
 
-        // Start display-link driven tick loop.
-        // CVDisplayLink fires at the native display refresh rate (60/120 Hz on ProMotion),
-        // eliminating both the fixed 60 fps cap and unnecessary wakeups on slower displays.
-        // The callback runs on a private CVDisplayLink thread, so tick() is dispatched to main.
-        var link: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&link)
-        if let link {
-            CVDisplayLinkSetOutputCallback(
-                link,
-                { _, _, _, _, _, context -> CVReturn in
-                    guard let context else { return kCVReturnSuccess }
-                    let wrapper = Unmanaged<GhosttyAppWrapper>.fromOpaque(context).takeUnretainedValue()
-                    DispatchQueue.main.async { wrapper.tick() }
-                    return kCVReturnSuccess
-                },
-                Unmanaged.passUnretained(self).toOpaque()
-            )
-            CVDisplayLinkStart(link)
-            displayLink = link
-        }
     }
 
     func tick() {
@@ -274,10 +252,6 @@ public final class GhosttyAppWrapper {
     }
 
     public func shutdown() {
-        // Stop the display link first so no more ghostty_app_tick calls are queued.
-        if let link = displayLink { CVDisplayLinkStop(link) }
-        displayLink = nil
-
         // Free all surfaces before freeing the app.
         // This prevents ghostty from firing callbacks for these surfaces after shutdown.
         for key in surfaceSessions.keys {
@@ -496,7 +470,6 @@ public final class GhosttyAppWrapper {
     }
 
     deinit {
-        if let link = displayLink { CVDisplayLinkStop(link) }
         if let app {
             ghostty_app_free(app)
         }
