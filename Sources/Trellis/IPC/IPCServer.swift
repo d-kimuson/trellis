@@ -304,7 +304,7 @@ public final class IPCServer {
             else {
                 return errorResponse("session not found: \(target)")
             }
-            guard let s = session.surface else {
+            guard let app = ghosttyApp, let s = app.surface(for: session) else {
                 return errorResponse("surface not ready for: \(target)")
             }
             surface = s

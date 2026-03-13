@@ -116,7 +116,6 @@ class GhosttyNSView: NSView, NSTextInputClient {
             workingDirectory: session.initialWorkingDirectory,
             envVars: session.initialEnvVars
         )
-        session.surface = surface
         ghosttyApp.focusedSurface = surface
         if let surface {
             ghosttyApp.registerSession(surface: surface, session: session)
@@ -676,7 +675,6 @@ class GhosttyNSView: NSView, NSTextInputClient {
             ghostty_surface_free(surface)
         }
         surface = nil
-        session.surface = nil
     }
 
     deinit {
@@ -723,11 +721,11 @@ struct TerminalView: NSViewRepresentable {
     let session: TerminalSession
 
     func makeNSView(context: Context) -> GhosttyNSView {
-        if let existing = session.surfaceView as? GhosttyNSView {
+        if let existing = ghosttyApp.surfaceView(for: session) as? GhosttyNSView {
             return existing
         }
         let view = GhosttyNSView(ghosttyApp: ghosttyApp, session: session)
-        session.surfaceView = view
+        ghosttyApp.setSurfaceView(view, for: session)
         return view
     }
 

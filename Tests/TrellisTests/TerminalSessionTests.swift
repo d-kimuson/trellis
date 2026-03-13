@@ -13,13 +13,6 @@ final class TerminalSessionTests: XCTestCase {
         XCTAssertFalse(session.isActive)
     }
 
-    func testCloseNilsOutSurfaceView() {
-        let session = TerminalSession(title: "Test")
-        // surfaceView starts nil; close() should handle that gracefully
-        session.close()
-        XCTAssertNil(session.surfaceView)
-    }
-
     func testSessionCanBeReleasedAfterClose() {
         // Verify no assertion fires when close() is called before deallocation.
         var session: TerminalSession? = TerminalSession(title: "Test")

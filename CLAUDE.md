@@ -106,3 +106,5 @@ deps/ghostty/          # Cloned ghostty source (gitignored)
 - Prefer value types (struct/enum) over classes where possible
 - Models: Pure data + functions, avoid mutable shared state
 - SwiftUI views: Keep thin, delegate logic to models/stores
+
+詳細なコーディング規約は [docs/CODING_GUIDELINE.md](docs/CODING_GUIDELINE.md) を参照。
