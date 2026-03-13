@@ -57,7 +57,9 @@ public final class TerminalSession: Identifiable {
         self.title = title
         self.isActive = true
         self.initialWorkingDirectory = workingDirectory
-        self.initialEnvVars = envVars
+        var merged = envVars
+        merged["TRELLIS_SESSION_ID"] = self.id.uuidString
+        self.initialEnvVars = merged
     }
 
     /// Detect the git branch at the given directory in background.

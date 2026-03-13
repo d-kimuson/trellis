@@ -105,7 +105,10 @@ enum SnapshotStore {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(atPath: tmpDir) else { return }
         let now = Date()
-        for file in files where file.hasPrefix("trellis-sb-") && file.hasSuffix(".txt") {
+        let isTrellisTemp = { (f: String) -> Bool in
+            (f.hasPrefix("trellis-sb-") || f.hasPrefix("trellis-running-")) && f.hasSuffix(".txt")
+        }
+        for file in files where isTrellisTemp(file) {
             let path = tmpDir + file
             guard let attrs = try? fm.attributesOfItem(atPath: path),
                   let modDate = attrs[.modificationDate] as? Date else { continue }
@@ -113,6 +116,29 @@ enum SnapshotStore {
                 try? fm.removeItem(atPath: path)
             }
         }
+    }
+
+    // MARK: - Running Command Tracking
+
+    /// Read the running command for a session from its temp file.
+    /// Returns nil if no command is running (file absent or empty).
+    static func readRunningCommand(sessionId: UUID) -> String? {
+        let path = NSTemporaryDirectory() + "trellis-running-\(sessionId.uuidString).txt"
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Append a notice about an interrupted command to scrollback content.
+    /// Returns the modified scrollback, or nil if both inputs are nil/empty.
+    static func appendRunningCommandNotice(scrollback: String?, runningCommand: String?) -> String? {
+        guard let cmd = runningCommand, !cmd.isEmpty else { return scrollback }
+        // Yellow ANSI text so it stands out but isn't alarming
+        let notice = "\n\u{001B}[33m[trellis] interrupted: \(cmd)\u{001B}[0m"
+        if let sb = scrollback {
+            return sb + notice
+        }
+        return notice
     }
 
     // MARK: - Shell Restore Environment

@@ -312,4 +312,97 @@ final class SnapshotStoreTests: XCTestCase {
         )
         XCTAssertNil(env["TRELLIS_TERMINAL_COLS"])
     }
+
+    // MARK: - readRunningCommand
+
+    func testReadRunningCommandReturnsNilForMissingFile() {
+        let id = UUID()
+        XCTAssertNil(SnapshotStore.readRunningCommand(sessionId: id))
+    }
+
+    func testReadRunningCommandReturnsContentWhenFileExists() throws {
+        let id = UUID()
+        let path = NSTemporaryDirectory() + "trellis-running-\(id.uuidString).txt"
+        try "make build".write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let result = SnapshotStore.readRunningCommand(sessionId: id)
+        XCTAssertEqual(result, "make build")
+    }
+
+    func testReadRunningCommandTrimsWhitespace() throws {
+        let id = UUID()
+        let path = NSTemporaryDirectory() + "trellis-running-\(id.uuidString).txt"
+        try "npm test\n".write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let result = SnapshotStore.readRunningCommand(sessionId: id)
+        XCTAssertEqual(result, "npm test")
+    }
+
+    func testReadRunningCommandReturnsNilForEmptyFile() throws {
+        let id = UUID()
+        let path = NSTemporaryDirectory() + "trellis-running-\(id.uuidString).txt"
+        try "".write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        XCTAssertNil(SnapshotStore.readRunningCommand(sessionId: id))
+    }
+
+    // MARK: - cleanUpStaleTempFiles: running command files
+
+    func testCleanUpStaleTempFilesRemovesOldRunningCommandFiles() throws {
+        let id = UUID()
+        let tmpDir = NSTemporaryDirectory()
+        let path = tmpDir + "trellis-running-\(id.uuidString).txt"
+        try "old command".write(toFile: path, atomically: true, encoding: .utf8)
+        let twoHoursAgo = Date().addingTimeInterval(-7200)
+        try FileManager.default.setAttributes([.modificationDate: twoHoursAgo], ofItemAtPath: path)
+
+        SnapshotStore.cleanUpStaleTempFiles(olderThan: 3600)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+    }
+
+    func testCleanUpStaleTempFilesKeepsRecentRunningCommandFiles() throws {
+        let id = UUID()
+        let tmpDir = NSTemporaryDirectory()
+        let path = tmpDir + "trellis-running-\(id.uuidString).txt"
+        try "recent command".write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        SnapshotStore.cleanUpStaleTempFiles(olderThan: 3600)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+    }
+
+    // MARK: - appendRunningCommandNotice
+
+    func testAppendRunningCommandNoticeReturnsOriginalWhenNoCommand() {
+        let result = SnapshotStore.appendRunningCommandNotice(scrollback: "hello", runningCommand: nil)
+        XCTAssertEqual(result, "hello")
+    }
+
+    func testAppendRunningCommandNoticeReturnsOriginalWhenEmptyCommand() {
+        let result = SnapshotStore.appendRunningCommandNotice(scrollback: "hello", runningCommand: "")
+        XCTAssertEqual(result, "hello")
+    }
+
+    func testAppendRunningCommandNoticeAppendsNotice() {
+        let result = SnapshotStore.appendRunningCommandNotice(scrollback: "hello", runningCommand: "make build")
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result!.contains("make build"))
+        XCTAssertTrue(result!.hasPrefix("hello\n"))
+    }
+
+    func testAppendRunningCommandNoticeWorksWithNilScrollback() {
+        let result = SnapshotStore.appendRunningCommandNotice(scrollback: nil, runningCommand: "make build")
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result!.contains("make build"))
+    }
+
+    func testAppendRunningCommandNoticeReturnsNilWhenBothNil() {
+        let result = SnapshotStore.appendRunningCommandNotice(scrollback: nil, runningCommand: nil)
+        XCTAssertNil(result)
+    }
 }

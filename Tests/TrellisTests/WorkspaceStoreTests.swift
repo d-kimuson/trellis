@@ -558,7 +558,8 @@ final class WorkspaceStoreTests: XCTestCase {
                             terminalCols: nil,
                             browserURL: nil,
                             fileTreePath: nil,
-                            gitBranch: nil
+                            gitBranch: nil,
+                            runningCommand: nil
                         )
                     ],
                     activeTabIndex: 0
@@ -593,7 +594,8 @@ final class WorkspaceStoreTests: XCTestCase {
                             terminalCols: nil,
                             browserURL: nil,
                             fileTreePath: nil,
-                            gitBranch: "main"
+                            gitBranch: "main",
+                            runningCommand: nil
                         )
                     ],
                     activeTabIndex: 0
@@ -628,7 +630,8 @@ final class WorkspaceStoreTests: XCTestCase {
                             terminalCols: nil,
                             browserURL: nil,
                             fileTreePath: nil,
-                            gitBranch: nil
+                            gitBranch: nil,
+                            runningCommand: nil
                         )
                     ],
                     activeTabIndex: 0

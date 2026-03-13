@@ -50,6 +50,7 @@ struct TabSnapshot: Codable {
     let browserURL: String?
     let fileTreePath: String?
     let gitBranch: String?
+    let runningCommand: String?  // command that was executing at snapshot time
 }
 
 struct AreaSnapshot: Codable {
