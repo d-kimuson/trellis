@@ -6,7 +6,7 @@ import SwiftUI
 /// Handles input forwarding, resize, and Metal rendering.
 /// Implements NSTextInputClient for proper keyboard handling (IME, Shift+key, Ctrl+key, arrows).
 class GhosttyNSView: NSView, NSTextInputClient {
-    private let ghosttyApp: any GhosttyAppProviding
+    let ghosttyApp: any GhosttyAppProviding
     let session: TerminalSession
     var surface: ghostty_surface_t?
 
@@ -329,9 +329,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
             text.withCString { cstr in
                 key.text = cstr
                 _ = ghostty_surface_key(surface, key)
+                broadcastKey(key)
             }
         } else {
             _ = ghostty_surface_key(surface, key)
+            broadcastKey(key)
         }
     }
 
@@ -402,6 +404,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
             text.withCString { cstr in
                 ghostty_surface_text(surface, cstr, UInt(text.utf8.count))
             }
+            broadcastText(text)
         }
     }
 

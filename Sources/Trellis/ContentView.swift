@@ -42,6 +42,9 @@ public struct ContentView: View {
                 // Notification bell
                 notificationBell
 
+                // Broadcast input toggle
+                broadcastButton
+
                 // Settings gear
                 settingsButton
 
@@ -107,6 +110,20 @@ public struct ContentView: View {
                 showCommandPalette.toggle()
             }
         }
+    }
+
+    // MARK: - Broadcast Button
+
+    private var broadcastButton: some View {
+        let isOn = store.activeWorkspace?.isBroadcastEnabled ?? false
+        return Image(systemName: "dot.radiowaves.left.and.right")
+            .font(.system(size: 16))
+            .foregroundColor(isOn ? .accentColor : .secondary)
+            .frame(width: 24, height: 24)
+            .contentShape(Rectangle())
+            .onTapGesture { store.toggleBroadcastInput() }
+            .help(isOn ? "Broadcast Input: On (click to disable)" : "Broadcast Input: Off (click to enable)")
+            .padding(.horizontal, 4)
     }
 
     // MARK: - Settings Button

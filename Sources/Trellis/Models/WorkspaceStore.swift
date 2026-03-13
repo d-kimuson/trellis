@@ -88,6 +88,13 @@ public final class WorkspaceStore {
         }
     }
 
+    /// Toggles broadcast input mode for the active workspace.
+    /// When enabled, key input sent to any terminal is also broadcast to all other terminals in the workspace.
+    public func toggleBroadcastInput() {
+        guard activeWorkspaceIndex < workspaces.count else { return }
+        workspaces[activeWorkspaceIndex].isBroadcastEnabled.toggle()
+    }
+
     // MARK: - Helpers
 
     /// Returns the pwd of the active terminal in the given area, if available.
