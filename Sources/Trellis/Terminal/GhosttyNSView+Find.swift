@@ -116,7 +116,7 @@ extension GhosttyNSView {
 
     /// Read only the currently visible viewport text.
     /// Returned match positions are viewport-relative (row 0 = top of visible area).
-    private func readViewportText() -> String? {
+    func readViewportText() -> String? {
         guard let surface else { return nil }
 
         let topLeft = ghostty_point_s(

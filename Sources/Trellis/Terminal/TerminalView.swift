@@ -679,6 +679,22 @@ class GhosttyNSView: NSView, NSTextInputClient {
     deinit {
         destroySurface()
     }
+
+    // MARK: - Accessibility (VoiceOver)
+
+    override func isAccessibilityElement() -> Bool { true }
+
+    override func accessibilityRole() -> NSAccessibility.Role? { .textArea }
+
+    override func accessibilityRoleDescription() -> String? { "terminal" }
+
+    override func accessibilityLabel() -> String? {
+        session.title ?? "Terminal"
+    }
+
+    override func accessibilityValue() -> Any? {
+        readViewportText()
+    }
 }
 
 // MARK: - TerminalSurfaceView conformance
