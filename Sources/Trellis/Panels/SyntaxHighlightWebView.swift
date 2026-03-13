@@ -32,17 +32,44 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     /// When true, renders the code as a GitHub-style diff using diff2html.
     var isDiff: Bool = false
 
+    final class Coordinator {
+        var cachedCode: String = ""
+        var cachedFilePath: String = ""
+        var cachedFontSize: CGFloat = 0
+        var cachedIsDiff: Bool = false
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
         let webView = EditableWKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
-        webView.loadHTMLString(buildHTML(), baseURL: nil)
+        let html = buildHTML()
+        webView.loadHTMLString(html, baseURL: nil)
+        let coordinator = context.coordinator
+        coordinator.cachedCode = code
+        coordinator.cachedFilePath = filePath
+        coordinator.cachedFontSize = fontSize
+        coordinator.cachedIsDiff = isDiff
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        let coordinator = context.coordinator
+        guard code != coordinator.cachedCode
+            || filePath != coordinator.cachedFilePath
+            || fontSize != coordinator.cachedFontSize
+            || isDiff != coordinator.cachedIsDiff
+        else { return }
         webView.loadHTMLString(buildHTML(), baseURL: nil)
+        coordinator.cachedCode = code
+        coordinator.cachedFilePath = filePath
+        coordinator.cachedFontSize = fontSize
+        coordinator.cachedIsDiff = isDiff
     }
 
     // MARK: - Private
