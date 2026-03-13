@@ -45,12 +45,10 @@ make debug-log        # 別ターミナルで最新ログを tail -f
 
 ## Quality Gate (MUST follow)
 
-.swift ファイルを変更したら、コミット前にまず `npx -y gatecheck check` を繰り返し実行し、全チェックが通る状態にする。
-その後 `npx -y gatecheck review` を 1 度実行してレビュー結果を確認し、採用すべき指摘は対応する。
+.swift ファイルを変更したら、コミット前に必ず実行:
 
 ```bash
 npx -y gatecheck check
-npx -y gatecheck review
 ```
 
 lint, build, test を変更ファイルに対して実行する。全チェック通過が必須。失敗したら修正して再実行。
