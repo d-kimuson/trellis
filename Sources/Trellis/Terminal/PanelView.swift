@@ -80,6 +80,12 @@ struct AreaPanelView: View {
                             }
                         }
                     }
+                    .onChange(of: area.activeTabIndex) { _, _ in
+                        restoreTerminalFocus()
+                    }
+                    .onChange(of: isActiveArea) { _, active in
+                        if active { restoreTerminalFocus() }
+                    }
                     .overlay { splitPreview(size: geo.size) }
                     .onDrop(
                         of: [.tabDragData],
@@ -111,6 +117,26 @@ struct AreaPanelView: View {
                 .stroke(Color.accentColor, lineWidth: isActiveArea ? 2 : 0)
                 .allowsHitTesting(false)
         )
+    }
+
+    // MARK: - Focus Restoration
+
+    /// Restore keyboard focus to the active terminal tab's NSView.
+    /// Called when the active tab or active area changes so that keyboard input
+    /// (Ctrl+B, etc.) is reliably routed to the terminal.
+    private func restoreTerminalFocus() {
+        guard isActiveArea else { return }
+        let activeTab = area.tabs.indices.contains(area.activeTabIndex)
+            ? area.tabs[area.activeTabIndex] : nil
+        guard case .terminal(let session) = activeTab?.content,
+              let nsView = session.nsView else { return }
+        // Defer to next run loop so SwiftUI layout is settled before requesting focus.
+        DispatchQueue.main.async {
+            guard let window = NSApp.keyWindow,
+                  window.firstResponder !== nsView else { return }
+            debugLog("[FOCUS] restoreTerminalFocus: making firstResponder nsView=\(ObjectIdentifier(nsView))")
+            window.makeFirstResponder(nsView)
+        }
     }
 
     // MARK: - Drop Edge Detection
