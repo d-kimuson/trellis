@@ -7,6 +7,7 @@ public struct ContentView: View {
     @State private var showSidebar = true
     @State private var showNotifications = false
     @State private var showSettings = false
+    @State private var showCommandPalette = false
     @State private var sidebarWidth: CGFloat = 200
 
     public init(
@@ -76,11 +77,28 @@ public struct ContentView: View {
             }
         }
         .frame(minWidth: 800, minHeight: 500)
+        .overlay(alignment: .top) {
+            if showCommandPalette {
+                Color.black.opacity(0.2)
+                    .ignoresSafeArea()
+                    .onTapGesture { showCommandPalette = false }
+                    .overlay(alignment: .top) {
+                        CommandPaletteView(
+                            store: store,
+                            isPresented: $showCommandPalette
+                        )
+                        .padding(.top, 50)
+                    }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
             withAnimation(.easeInOut(duration: 0.2)) { showSidebar.toggle() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
             showSettings = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
+            showCommandPalette.toggle()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(settings: settings) {

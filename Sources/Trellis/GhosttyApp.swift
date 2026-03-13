@@ -28,6 +28,8 @@ extension Notification.Name {
     public static let toggleSidebar = Notification.Name("toggleSidebar")
     /// Open the settings panel.
     public static let openSettings = Notification.Name("openSettings")
+    /// Toggle the command palette.
+    public static let toggleCommandPalette = Notification.Name("toggleCommandPalette")
 }
 
 /// Wrapper around the libghostty app instance.

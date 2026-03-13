@@ -213,6 +213,12 @@ class GhosttyNSView: NSView, NSTextInputClient {
             let char = event.charactersIgnoringModifiers?.lowercased() ?? ""
             let withShift = event.modifierFlags.contains(.shift)
 
+            // Command palette (Cmd+Shift+P)
+            if withShift && char == "p" {
+                NotificationCenter.default.post(name: .toggleCommandPalette, object: nil)
+                return true
+            }
+
             // Font size shortcuts — handle directly so they always reach GhosttyAppWrapper.
             // keyCode 24 = the +/= key (US: Shift+= → "+", JIS: base key is already "+").
             // Check both "+" and "=" to handle US and JIS keyboard layouts.
