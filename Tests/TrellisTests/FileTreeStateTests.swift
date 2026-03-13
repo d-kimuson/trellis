@@ -215,7 +215,48 @@ final class FileTreeStateTests: XCTestCase {
         )
     }
 
-    // MARK: - Git root detection
+    // MARK: - Git root detection (async)
+
+    func testInitDoesNotBlockMainThread() async throws {
+        // detectGitRoot runs asynchronously — gitRootPath is nil immediately after init
+        // and populated once the background task completes.
+        let gitRoot = makePath("async-repo")
+        mkdir(gitRoot)
+        let initProc = Process()
+        initProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        initProc.arguments = ["init", gitRoot]
+        initProc.standardOutput = FileHandle.nullDevice
+        initProc.standardError = FileHandle.nullDevice
+        try initProc.run()
+        initProc.waitUntilExit()
+
+        let state = FileTreeState(rootPath: gitRoot)
+        // gitRootPath is nil right after init (detection is async)
+        XCTAssertNil(state.gitRootPath, "gitRootPath should not be set synchronously in init")
+        await state.awaitGitRootDetection()
+        XCTAssertNotNil(state.gitRootPath, "gitRootPath should be set after async detection")
+    }
+
+    func testChangeRootDoesNotBlockMainThread() async throws {
+        let gitRoot = makePath("async-repo2")
+        mkdir(gitRoot)
+        let initProc = Process()
+        initProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        initProc.arguments = ["init", gitRoot]
+        initProc.standardOutput = FileHandle.nullDevice
+        initProc.standardError = FileHandle.nullDevice
+        try initProc.run()
+        initProc.waitUntilExit()
+
+        let state = FileTreeState(rootPath: tempDir)
+        state.changeRoot(to: gitRoot)
+        // gitRootPath is nil immediately after changeRoot (detection is async)
+        XCTAssertNil(state.gitRootPath, "gitRootPath should not be set synchronously in changeRoot")
+        await state.awaitGitRootDetection()
+        XCTAssertNotNil(state.gitRootPath, "gitRootPath should be set after async detection")
+    }
+
+    // MARK: - Git root detection (static)
 
     func testDetectGitRootFromSubdirectory() throws {
         let gitRoot = makePath("repo")

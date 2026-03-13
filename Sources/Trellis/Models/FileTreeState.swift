@@ -40,6 +40,7 @@ public final class FileTreeState: Identifiable {
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var selectFileTask: Task<Void, Never>?
     @ObservationIgnored private var loadChildrenTask: Task<Void, Never>?
+    @ObservationIgnored private var gitRootDetectionTask: Task<Void, Never>?
     @ObservationIgnored private var gitStatusProcess: Process?
     @ObservationIgnored private var gitDiffProcess: Process?
 
@@ -51,9 +52,9 @@ public final class FileTreeState: Identifiable {
         self.rootPath = rootPath
         self.expandedDirectories = []
         if let rootPath {
-            gitRootPath = FileTreeState.detectGitRoot(for: rootPath)
             reloadSync()
             startWatching()
+            scheduleGitRootDetection(for: rootPath)
         }
     }
 
@@ -130,7 +131,7 @@ public final class FileTreeState: Identifiable {
         cancelGitDiff()
         stopWatching()
         rootPath = path
-        gitRootPath = FileTreeState.detectGitRoot(for: path)
+        gitRootPath = nil
         BookmarkStore.save(url: URL(fileURLWithPath: path))
         expandedDirectories = []
         selectedFilePath = nil
@@ -139,6 +140,26 @@ public final class FileTreeState: Identifiable {
         selectedPreviewTab = .content
         reload()
         startWatching()
+        scheduleGitRootDetection(for: path)
+    }
+
+    /// Detect git root in the background and update gitRootPath + status on completion.
+    private func scheduleGitRootDetection(for path: String) {
+        gitRootDetectionTask?.cancel()
+        gitRootDetectionTask = Task.detached { [weak self] in
+            let root = Self.detectGitRoot(for: path)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.rootPath == path else { return }
+                self.gitRootPath = root
+                self.reloadGitStatus()
+            }
+        }
+    }
+
+    /// Wait for in-flight git root detection to complete (for testing).
+    func awaitGitRootDetection() async {
+        await gitRootDetectionTask?.value
     }
 
     /// Toggle expansion state of a directory node.
@@ -401,6 +422,7 @@ public final class FileTreeState: Identifiable {
         reloadTask?.cancel()
         selectFileTask?.cancel()
         loadChildrenTask?.cancel()
+        gitRootDetectionTask?.cancel()
         cancelGitStatus()
         cancelGitDiff()
         stopWatching()
