@@ -81,11 +81,21 @@ make build && make run
 
 ### 4. kimuson の確認結果を受けて処理する
 
-#### OK の場合 → gate を close し、関連タスクを close
+#### OK の場合 → gate を close し、ブランチを main にマージ、タスクを close
 
 ```bash
+# gate を close
 bd close <gate-id> --reason="kimuson 動作確認 OK"
-bd close <task-id> --reason="gate 通過、動作確認完了"
+
+# タスクのブランチを main にマージ
+# ブランチ名は bd state <task-id> branch で取得
+branch=$(bd state <task-id> branch)
+git checkout main
+git merge "$branch" --no-ff -m "merge: <タスクタイトル> ($branch)"
+git branch -d "$branch"
+
+# タスクを close
+bd close <task-id> --reason="gate 通過、動作確認完了、main にマージ済み"
 ```
 
 #### NG の場合 → comment に問題を記録し、タスクを open に戻す

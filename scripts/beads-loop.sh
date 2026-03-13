@@ -189,25 +189,48 @@ while true; do
     break
   fi
 
-  # セッション ID を生成
-  session_id=$(uuidgen)
-  log "セッション開始: ${session_id}"
-
-  # Gate count チェック — open gate が多い場合は追加のシステムプロンプトを付与
-  gate_prompt=""
+  # --- タスク選択 ---
+  # Gate count に応じて選択対象を絞る
   gate_count=$(get_open_gate_count)
   if (( gate_count >= MAX_GATES )); then
     log "open gate: ${gate_count} 件 (>= ${MAX_GATES})。gate:not-required タスクを優先します。"
-    gate_prompt="open gate が ${MAX_GATES} 件に達しています。gate:not-required ラベルのタスクを優先して選んでください。gate:not-required のタスクがない場合は停止してください。"
+    # gate:not-required ラベル付きの ready タスクから1件目を取得
+    task_id=$(bd ready --unassigned --label gate:not-required --json 2>/dev/null \
+      | jq -r '.[0].id // empty' 2>/dev/null)
+    if [[ -z "$task_id" ]]; then
+      log "gate:not-required の ready タスクなし。gate が消化されるまで停止します。"
+      break
+    fi
+  else
+    # 通常: ready の1件目（priority 順）
+    task_id=$(echo "$ready_json" | jq -r '.[0].id // empty')
   fi
 
-  # Claude Code で /teams/dev-auto を実行
-  # --append-system-prompt でセッション ID を AI に伝える（継続メモに記録させるため）
-  system_prompt="session-id: ${session_id}"
-  if [[ -n "$gate_prompt" ]]; then
-    system_prompt="${system_prompt}
-${gate_prompt}"
+  if [[ -z "$task_id" ]]; then
+    log "タスク ID を取得できませんでした。終了します。"
+    break
   fi
+  log "タスク選択: ${task_id}"
+
+  # --- セッション ID を生成 ---
+  session_id=$(uuidgen)
+  log "セッション開始: ${session_id}"
+
+  # --- ブランチ作成 ---
+  branch_name="dev/${task_id}"
+  git checkout -b "$branch_name" || {
+    log "ERROR: ブランチ ${branch_name} の作成に失敗。終了します。"
+    break
+  }
+  log "ブランチ作成: ${branch_name}"
+
+  # --- set-state でメタデータ記録 ---
+  bd set-state "$task_id" branch="$branch_name" --reason "beads-loop で自動作成" 2>/dev/null || true
+  bd set-state "$task_id" session="$session_id" --reason "beads-loop セッション開始" 2>/dev/null || true
+
+  # --- Claude Code で teams:dev-auto を実行 ---
+  system_prompt="session-id: ${session_id}
+task-id: ${task_id}"
 
   claude \
     --dangerously-skip-permissions \
@@ -221,7 +244,7 @@ ${gate_prompt}"
 
   log "セッション完了: ${session_id}"
 
-  # コミット漏れチェック
+  # --- コミット漏れチェック ---
   if check_uncommitted; then
     log "WARNING: コミットされていない変更を検出。クリーンアップを依頼します。"
     claude \
@@ -235,9 +258,14 @@ ${gate_prompt}"
     if check_uncommitted; then
       log "ERROR: クリーンアップ後もコミットされていない変更が残っています。手動確認してください。"
       git status -- ':!.beads/'
+      git checkout main
       exit 1
     fi
   fi
+
+  # --- main に戻る ---
+  git checkout main
+  log "main に復帰"
 
   count=$((count + 1))
   tasks_since_architect=$((tasks_since_architect + 1))
