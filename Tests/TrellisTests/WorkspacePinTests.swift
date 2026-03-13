@@ -8,7 +8,7 @@ import XCTest
 final class WorkspacePinTests: XCTestCase {
 
     private func makeStore() -> WorkspaceStore {
-        WorkspaceStore(ghosttyApp: GhosttyAppWrapper(), loadSnapshots: false)
+        WorkspaceStore(ghosttyApp: MockGhosttyApp(), loadSnapshots: false)
     }
 
     // MARK: - Pin / Unpin Sort Order

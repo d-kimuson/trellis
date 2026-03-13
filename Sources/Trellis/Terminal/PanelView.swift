@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 /// Recursively renders the layout tree as split views with draggable dividers.
 struct AreaLayoutView: View {
     let node: LayoutNode
-    let ghosttyApp: GhosttyAppWrapper
+    let ghosttyApp: any GhosttyAppProviding
     var store: WorkspaceStore
     var notificationStore: NotificationStore
 
@@ -47,7 +47,7 @@ enum DropEdge: Equatable {
 /// Supports drag & drop for tab movement and area splitting.
 struct AreaPanelView: View {
     let area: Area
-    let ghosttyApp: GhosttyAppWrapper
+    let ghosttyApp: any GhosttyAppProviding
     var store: WorkspaceStore
     var notificationStore: NotificationStore
     var isActiveArea: Bool = false
@@ -348,7 +348,7 @@ struct AreaPanelView: View {
 /// Wraps a terminal view for embedding in an area panel.
 struct TerminalPanelWrapper: View {
     let session: TerminalSession
-    let ghosttyApp: GhosttyAppWrapper
+    let ghosttyApp: any GhosttyAppProviding
     let areaId: UUID
     var store: WorkspaceStore
 

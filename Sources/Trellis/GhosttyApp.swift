@@ -23,10 +23,10 @@ enum GhosttyFontSizeChange {
 /// Wrapper around the libghostty app instance.
 /// Manages the global ghostty state and provides surface creation.
 @MainActor
-public final class GhosttyAppWrapper {
+public final class GhosttyAppWrapper: GhosttyAppProviding {
     private(set) var app: ghostty_app_t?
     /// The most recently focused terminal surface, used for clipboard operations.
-    var focusedSurface: ghostty_surface_t?
+    public var focusedSurface: ghostty_surface_t?
 
     /// Surface → Session lookup table. Avoids use-after-free risk from raw Unmanaged pointers
     /// in C callbacks by validating sessions through a managed dictionary instead.
@@ -118,7 +118,7 @@ public final class GhosttyAppWrapper {
         ghostty_app_tick(app)
     }
 
-    func createSurface(
+    public func createSurface(
         for view: NSView,
         userdata: UnsafeMutableRawPointer? = nil,
         workingDirectory: String? = nil,
@@ -164,14 +164,14 @@ public final class GhosttyAppWrapper {
     }
 
     /// Return the current terminal column count for the given surface.
-    func terminalColumns(surface: ghostty_surface_t) -> Int {
+    public func terminalColumns(surface: ghostty_surface_t) -> Int {
         Int(ghostty_surface_size(surface).columns)
     }
 
     /// Read the current viewport text from the given surface.
     /// Uses VIEWPORT (not SCREEN) so the captured text is formatted at the current terminal
     /// width — replaying it via cat at the same width will not cause column misalignment.
-    func readScrollback(surface: ghostty_surface_t) -> String? {
+    public func readScrollback(surface: ghostty_surface_t) -> String? {
         let topLeft = ghostty_point_s(
             tag: GHOSTTY_POINT_VIEWPORT,
             coord: GHOSTTY_POINT_COORD_TOP_LEFT,
@@ -207,17 +207,17 @@ public final class GhosttyAppWrapper {
 
     // MARK: - Surface Session Registry
 
-    func registerSession(surface: ghostty_surface_t, session: TerminalSession) {
+    public func registerSession(surface: ghostty_surface_t, session: TerminalSession) {
         let key = UnsafeRawPointer(surface)
         surfaceSessions[key] = session
     }
 
-    func unregisterSession(surface: ghostty_surface_t) {
+    public func unregisterSession(surface: ghostty_surface_t) {
         let key = UnsafeRawPointer(surface)
         surfaceSessions.removeValue(forKey: key)
     }
 
-    func lookupSession(surface: ghostty_surface_t) -> TerminalSession? {
+    public func lookupSession(surface: ghostty_surface_t) -> TerminalSession? {
         let key = UnsafeRawPointer(surface)
         return surfaceSessions[key]
     }
@@ -226,7 +226,7 @@ public final class GhosttyAppWrapper {
     /// Called from becomeFirstResponder so that ghostty cursor blink state
     /// is correct even when AppKit skips resignFirstResponder (e.g. during
     /// view hierarchy restructuring on split).
-    func defocusAllSurfaces(except focused: ghostty_surface_t) {
+    public func defocusAllSurfaces(except focused: ghostty_surface_t) {
         for key in surfaceSessions.keys {
             let surface = ghostty_surface_t(bitPattern: UInt(bitPattern: key))
             guard let surface, surface != focused else { continue }
@@ -236,7 +236,7 @@ public final class GhosttyAppWrapper {
 
     /// Set focus=false on every registered surface.
     /// Called when focus moves to a non-terminal area (sidebar, file tree, etc.).
-    func defocusAllSurfaces() {
+    public func defocusAllSurfaces() {
         for key in surfaceSessions.keys {
             if let surface = ghostty_surface_t(bitPattern: UInt(bitPattern: key)) {
                 ghostty_surface_set_focus(surface, false)

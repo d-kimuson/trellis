@@ -11,7 +11,7 @@ public final class IPCServer {
     }()
 
     private weak var store: WorkspaceStore?
-    private weak var ghosttyApp: GhosttyAppWrapper?
+    private weak var ghosttyApp: (any GhosttyAppProviding)?
 
     private var serverFd: Int32 = -1
     private var serverSource: DispatchSourceRead?
@@ -24,7 +24,7 @@ public final class IPCServer {
     /// Maximum write buffer size per client before disconnecting (256 KB)
     private static let maxWriteBufferSize = 256 * 1024
 
-    public init(store: WorkspaceStore, ghosttyApp: GhosttyAppWrapper) {
+    public init(store: WorkspaceStore, ghosttyApp: any GhosttyAppProviding) {
         self.store = store
         self.ghosttyApp = ghosttyApp
     }

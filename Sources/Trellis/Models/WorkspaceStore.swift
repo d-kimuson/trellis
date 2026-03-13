@@ -12,7 +12,7 @@ public enum UIAction: Equatable {
 @Observable
 @MainActor
 public final class WorkspaceStore {
-    public let ghosttyApp: GhosttyAppWrapper
+    public let ghosttyApp: any GhosttyAppProviding
     public var workspaces: [Workspace]
     public var activeWorkspaceIndex: Int
     private var nextTerminalCounter: Int = 1
@@ -28,7 +28,7 @@ public final class WorkspaceStore {
         pendingUIAction = action
     }
 
-    public init(ghosttyApp: GhosttyAppWrapper, loadSnapshots: Bool = true) {
+    public init(ghosttyApp: any GhosttyAppProviding, loadSnapshots: Bool = true) {
         self.ghosttyApp = ghosttyApp
 
         // Copy bundled shell-integration scripts to the stable app-support path

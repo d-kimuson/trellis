@@ -6,7 +6,7 @@ import SwiftUI
 /// Handles input forwarding, resize, and Metal rendering.
 /// Implements NSTextInputClient for proper keyboard handling (IME, Shift+key, Ctrl+key, arrows).
 class GhosttyNSView: NSView, NSTextInputClient {
-    private let ghosttyApp: GhosttyAppWrapper
+    private let ghosttyApp: any GhosttyAppProviding
     let session: TerminalSession
     var surface: ghostty_surface_t?
 
@@ -52,7 +52,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// Used by drawHighlights() to identify which viewport match is the "current" one (orange).
     var findCurrentMatchExpectedViewportRow: Int = -1
 
-    init(ghosttyApp: GhosttyAppWrapper, session: TerminalSession) {
+    init(ghosttyApp: any GhosttyAppProviding, session: TerminalSession) {
         self.ghosttyApp = ghosttyApp
         self.session = session
         super.init(frame: .zero)
@@ -716,7 +716,7 @@ extension NSScreen {
 /// Reuses the NSView stored on TerminalSession so that layout changes
 /// (split, tab switch) don't destroy the terminal surface.
 struct TerminalView: NSViewRepresentable {
-    let ghosttyApp: GhosttyAppWrapper
+    let ghosttyApp: any GhosttyAppProviding
     let session: TerminalSession
 
     func makeNSView(context: Context) -> GhosttyNSView {
