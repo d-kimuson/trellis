@@ -220,7 +220,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         <body class="d2h-auto-color-scheme">
         <div id="diff-content"></div>
         <script>
-        \(diff2htmlRenderJS(escaped: escapeJS(code)))
+        \(diff2htmlRenderJS(escaped: Self.escapeJS(code)))
         </script>
         \(reviewScripts)
         </body>
@@ -414,12 +414,13 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
-    private func escapeJS(_ text: String) -> String {
+    static func escapeJS(_ text: String) -> String {
         text
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "</script>", with: "<\\/script>", options: .caseInsensitive)
     }
 
     // MARK: - Resource loading
