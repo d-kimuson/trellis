@@ -52,4 +52,21 @@ final class SyntaxHighlightWebViewTests: XCTestCase {
         XCTAssertEqual(SyntaxHighlightWebView.languageForExtension("bin"), "")
     }
 
+    // MARK: - escapeJS
+
+    func testEscapeJSBasic() {
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("hello"), "hello")
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("back\\slash"), "back\\\\slash")
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("say \"hi\""), "say \\\"hi\\\"")
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("line1\nline2"), "line1\\nline2")
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("line1\rline2"), "line1\\rline2")
+    }
+
+    func testEscapeJSScriptTag() {
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("</script>"), "<\\/script>")
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("</SCRIPT>"), "<\\/script>")
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("foo</script>bar"), "foo<\\/script>bar")
+        XCTAssertEqual(SyntaxHighlightWebView.escapeJS("nested</script></script>"), "nested<\\/script><\\/script>")
+    }
+
 }
