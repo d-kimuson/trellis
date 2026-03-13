@@ -9,6 +9,12 @@ public enum PreviewTab: Equatable {
     case diff
 }
 
+/// Search mode for the file tree search bar.
+public enum TreeSearchMode: Equatable {
+    case filename
+    case content
+}
+
 /// Observable state for a file tree panel.
 /// Uses class for file system watcher resource ownership.
 @Observable
@@ -25,6 +31,10 @@ public final class FileTreeState: Identifiable {
     public var previewSearchQuery: String = ""
     public var gitStatusMap: [String: GitFileStatus] = [:]
     public var dirtyDirectoryPaths: Set<String> = []
+    public var isTreeSearchVisible: Bool = false
+    public var treeSearchQuery: String = ""
+    public var treeSearchMode: TreeSearchMode = .filename
+    public var contentSearchResults: Set<String>?
 
     @ObservationIgnored private(set) var gitRootPath: String?
     @ObservationIgnored private var ignoredPatterns: [String] = []
@@ -33,6 +43,8 @@ public final class FileTreeState: Identifiable {
     @ObservationIgnored private var debounceWork: DispatchWorkItem?
     @ObservationIgnored private var gitStatusProcess: Process?
     @ObservationIgnored private var gitDiffProcess: Process?
+    @ObservationIgnored private var contentSearchProcess: Process?
+    @ObservationIgnored private var contentSearchDebounce: DispatchWorkItem?
 
     public init(
         id: UUID = UUID(),
@@ -92,6 +104,7 @@ public final class FileTreeState: Identifiable {
     public func changeRoot(to path: String) {
         cancelGitStatus()
         cancelGitDiff()
+        cancelContentSearch()
         stopWatching()
         rootPath = path
         gitRootPath = FileTreeState.detectGitRoot(for: path)
@@ -101,6 +114,10 @@ public final class FileTreeState: Identifiable {
         selectedFileContent = nil
         selectedFileDiff = nil
         selectedPreviewTab = .content
+        isTreeSearchVisible = false
+        treeSearchQuery = ""
+        treeSearchMode = .filename
+        contentSearchResults = nil
         reload()
         startWatching()
     }
@@ -307,6 +324,7 @@ public final class FileTreeState: Identifiable {
     deinit {
         cancelGitStatus()
         cancelGitDiff()
+        cancelContentSearch()
         stopWatching()
     }
 
@@ -384,5 +402,89 @@ public final class FileTreeState: Identifiable {
     private func cancelGitDiff() {
         gitDiffProcess?.terminate()
         gitDiffProcess = nil
+    }
+
+    // MARK: - Tree Search
+
+    /// Toggle the tree search bar visibility.
+    public func toggleTreeSearch() {
+        isTreeSearchVisible.toggle()
+        if !isTreeSearchVisible {
+            clearTreeSearch()
+        }
+    }
+
+    /// Clear search state.
+    public func clearTreeSearch() {
+        treeSearchQuery = ""
+        contentSearchResults = nil
+        cancelContentSearch()
+    }
+
+    /// Compute the filtered tree based on current search state.
+    /// Returns the original tree if no search is active.
+    public func filteredRootNode() -> FileNode? {
+        guard !treeSearchQuery.isEmpty else { return rootNode }
+        switch treeSearchMode {
+        case .filename:
+            return rootNode?.filteredByName(treeSearchQuery)
+        case .content:
+            guard let results = contentSearchResults else { return rootNode }
+            return rootNode?.filteredByPaths(results)
+        }
+    }
+
+    /// Run a content search (grep) with debouncing.
+    public func searchContent(_ query: String) {
+        contentSearchDebounce?.cancel()
+        guard !query.isEmpty, let rootPath else {
+            contentSearchResults = nil
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            self?.runContentSearch(query: query, rootPath: rootPath)
+        }
+        contentSearchDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    private func runContentSearch(query: String, rootPath: String) {
+        cancelContentSearch()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/grep")
+        process.arguments = ["-rl", "--include=*", "-i", query, rootPath]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        let searchQuery = query
+        process.terminationHandler = { [weak self] proc in
+            let output: String? = proc.terminationStatus <= 1
+                ? String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+                : nil
+            DispatchQueue.main.async {
+                guard let self, self.contentSearchProcess === proc,
+                      self.treeSearchQuery == searchQuery else { return }
+                if let output, !output.isEmpty {
+                    let paths = Set(output.components(separatedBy: "\n").filter { !$0.isEmpty })
+                    self.contentSearchResults = paths
+                } else {
+                    self.contentSearchResults = Set()
+                }
+                self.contentSearchProcess = nil
+            }
+        }
+        do {
+            try process.run()
+            contentSearchProcess = process
+        } catch {
+            contentSearchResults = Set()
+        }
+    }
+
+    private func cancelContentSearch() {
+        contentSearchDebounce?.cancel()
+        contentSearchDebounce = nil
+        contentSearchProcess?.terminate()
+        contentSearchProcess = nil
     }
 }

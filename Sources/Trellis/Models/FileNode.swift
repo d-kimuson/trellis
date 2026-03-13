@@ -105,6 +105,48 @@ public enum FileNode: Identifiable, Equatable {
     /// Maximum recursion depth for tree traversal to prevent stack overflow on deeply nested directories.
     public static let maxTraversalDepth = 50
 
+    // MARK: - Filtering
+
+    /// Filter the tree to show only nodes whose name contains the query (case-insensitive).
+    /// Directories are kept if they match or contain matching descendants.
+    /// When a directory name matches, all its children are included.
+    /// Returns nil if no nodes match.
+    public func filteredByName(_ query: String, depth: Int = 0) -> FileNode? {
+        guard !query.isEmpty else { return self }
+        guard depth < FileNode.maxTraversalDepth else { return nil }
+
+        switch self {
+        case .file(_, let name, _):
+            return name.localizedCaseInsensitiveContains(query) ? self : nil
+        case .directory(let id, let name, let path, let children):
+            // If directory name matches, include it with all children
+            if name.localizedCaseInsensitiveContains(query) {
+                return self
+            }
+            // Otherwise, filter children recursively
+            let filtered = children.compactMap { $0.filteredByName(query, depth: depth + 1) }
+            if filtered.isEmpty { return nil }
+            return .directory(id: id, name: name, path: path, children: filtered)
+        }
+    }
+
+    /// Filter the tree to show only files whose paths are in the given set.
+    /// Directories are kept if they contain matching descendants.
+    /// Returns nil if no nodes match.
+    public func filteredByPaths(_ paths: Set<String>, depth: Int = 0) -> FileNode? {
+        guard !paths.isEmpty else { return nil }
+        guard depth < FileNode.maxTraversalDepth else { return nil }
+
+        switch self {
+        case .file(_, _, let path):
+            return paths.contains(path) ? self : nil
+        case .directory(let id, let name, let path, let children):
+            let filtered = children.compactMap { $0.filteredByPaths(paths, depth: depth + 1) }
+            if filtered.isEmpty { return nil }
+            return .directory(id: id, name: name, path: path, children: filtered)
+        }
+    }
+
     // MARK: - Private
 
     private static func listChildren(

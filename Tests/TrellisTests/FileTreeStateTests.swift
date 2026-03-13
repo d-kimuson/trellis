@@ -320,6 +320,108 @@ final class FileTreeStateTests: XCTestCase {
         XCTAssertNotNil(state.rootNode)
     }
 
+    // MARK: - FileNode filtering by name
+
+    func testFilteredByNameReturnsMatchingFiles() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .file(id: UUID(), name: "hello.swift", path: "/root/hello.swift"),
+            .file(id: UUID(), name: "world.txt", path: "/root/world.txt"),
+            .file(id: UUID(), name: "README.md", path: "/root/README.md"),
+        ])
+        let result = tree.filteredByName("swift")
+        XCTAssertEqual(result?.children.count, 1)
+        XCTAssertEqual(result?.children.first?.name, "hello.swift")
+    }
+
+    func testFilteredByNameIsCaseInsensitive() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .file(id: UUID(), name: "README.md", path: "/root/README.md"),
+            .file(id: UUID(), name: "readme.txt", path: "/root/readme.txt"),
+        ])
+        let result = tree.filteredByName("readme")
+        XCTAssertEqual(result?.children.count, 2)
+    }
+
+    func testFilteredByNamePreservesParentDirectories() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .directory(id: UUID(), name: "src", path: "/root/src", children: [
+                .file(id: UUID(), name: "app.swift", path: "/root/src/app.swift"),
+                .file(id: UUID(), name: "util.swift", path: "/root/src/util.swift"),
+            ]),
+            .directory(id: UUID(), name: "docs", path: "/root/docs", children: [
+                .file(id: UUID(), name: "guide.md", path: "/root/docs/guide.md"),
+            ]),
+        ])
+        let result = tree.filteredByName("swift")
+        XCTAssertEqual(result?.children.count, 1) // only src
+        XCTAssertEqual(result?.children.first?.name, "src")
+        XCTAssertEqual(result?.children.first?.children.count, 2)
+    }
+
+    func testFilteredByNameReturnsNilWhenNoMatch() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .file(id: UUID(), name: "hello.swift", path: "/root/hello.swift"),
+        ])
+        let result = tree.filteredByName("xyz")
+        XCTAssertNil(result)
+    }
+
+    func testFilteredByNameWithEmptyQueryReturnsOriginal() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .file(id: UUID(), name: "hello.swift", path: "/root/hello.swift"),
+        ])
+        let result = tree.filteredByName("")
+        XCTAssertEqual(result, tree)
+    }
+
+    func testFilteredByNameMatchesDirectoryNames() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .directory(id: UUID(), name: "Sources", path: "/root/Sources", children: [
+                .file(id: UUID(), name: "main.swift", path: "/root/Sources/main.swift"),
+            ]),
+            .file(id: UUID(), name: "README.md", path: "/root/README.md"),
+        ])
+        let result = tree.filteredByName("source")
+        XCTAssertEqual(result?.children.count, 1)
+        XCTAssertEqual(result?.children.first?.name, "Sources")
+        // When directory name matches, include all children
+        XCTAssertEqual(result?.children.first?.children.count, 1)
+    }
+
+    // MARK: - FileNode filtering by paths
+
+    func testFilteredByPathsReturnsMatchingFiles() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .file(id: UUID(), name: "hello.swift", path: "/root/hello.swift"),
+            .file(id: UUID(), name: "world.txt", path: "/root/world.txt"),
+            .directory(id: UUID(), name: "src", path: "/root/src", children: [
+                .file(id: UUID(), name: "app.swift", path: "/root/src/app.swift"),
+            ]),
+        ])
+        let paths: Set<String> = ["/root/hello.swift", "/root/src/app.swift"]
+        let result = tree.filteredByPaths(paths)
+        XCTAssertEqual(result?.children.count, 2) // hello.swift and src/
+        XCTAssertTrue(result?.children.contains(where: { $0.name == "hello.swift" }) == true)
+        XCTAssertTrue(result?.children.contains(where: { $0.name == "src" }) == true)
+    }
+
+    func testFilteredByPathsReturnsNilWhenNoMatch() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .file(id: UUID(), name: "hello.swift", path: "/root/hello.swift"),
+        ])
+        let paths: Set<String> = ["/other/file.txt"]
+        let result = tree.filteredByPaths(paths)
+        XCTAssertNil(result)
+    }
+
+    func testFilteredByEmptyPathsReturnsNil() {
+        let tree: FileNode = .directory(id: UUID(), name: "root", path: "/root", children: [
+            .file(id: UUID(), name: "hello.swift", path: "/root/hello.swift"),
+        ])
+        let result = tree.filteredByPaths([])
+        XCTAssertNil(result)
+    }
+
     // MARK: - Private helpers
 
     private func findNode(named name: String, in node: FileNode) -> FileNode? {
