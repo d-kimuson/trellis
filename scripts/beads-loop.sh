@@ -157,6 +157,12 @@ tasks_since_architect=0
 log "beads-loop 開始 (max: ${MAX_COUNT}, priority: ${PRIORITY:-all}, usage-limit: ${USAGE_LIMIT}%, architect-every: ${ARCHITECT_EVERY}, max-gates: ${MAX_GATES})"
 
 while true; do
+  # ループ先頭で必ず main にいることを保証
+  if [[ "$(git branch --show-current)" != "main" ]]; then
+    log "WARNING: main ブランチにいません。main に切り替えます。"
+    git checkout main
+  fi
+
   if (( count >= MAX_COUNT )); then
     log "${MAX_COUNT} タスク完了。終了します。"
     break
@@ -242,7 +248,7 @@ gates-review で NG になったタスクの再開です。bd comments ${task_id
     branch_name="dev/${task_id}"
     log "新規モード: ${task_id} (branch: ${branch_name}, session: ${session_id})"
 
-    git checkout -b "$branch_name" || {
+    git checkout -b "$branch_name" main || {
       log "ERROR: ブランチ ${branch_name} の作成に失敗。終了します。"
       break
     }
@@ -286,7 +292,7 @@ task-id: ${task_id}" \
 
   # --- gate:not-required なら main にマージ ---
   task_gate_label=$(bd state "$task_id" gate 2>/dev/null || true)
-  task_status=$(bd show "$task_id" --json 2>/dev/null | jq -r '.status // empty' 2>/dev/null || true)
+  task_status=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].status // empty' 2>/dev/null || true)
 
   if [[ "$task_gate_label" == "not-required" ]] && [[ "$task_status" == "closed" ]]; then
     log "gate:not-required + closed → main にマージします"
