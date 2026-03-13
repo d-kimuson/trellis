@@ -26,7 +26,7 @@ public struct ContentView: View {
             VStack {
                 Spacer().frame(height: 8)
                 Image(systemName: "sidebar.leading")
-                    .font(.system(size: 14))
+                    .font(.system(size: 16))
                     .foregroundColor(.secondary)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
@@ -114,7 +114,7 @@ public struct ContentView: View {
 
     private var settingsButton: some View {
         Image(systemName: "gearshape")
-            .font(.system(size: 14))
+            .font(.system(size: 16))
             .foregroundColor(.secondary)
             .frame(width: 24, height: 24)
             .contentShape(Rectangle())
@@ -128,7 +128,7 @@ public struct ContentView: View {
     private var notificationBell: some View {
         ZStack(alignment: .topTrailing) {
             Image(systemName: notificationStore.unreadCount > 0 ? "bell.badge.fill" : "bell")
-                .font(.system(size: 14))
+                .font(.system(size: 16))
                 .foregroundColor(notificationStore.unreadCount > 0 ? .accentColor : .secondary)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
