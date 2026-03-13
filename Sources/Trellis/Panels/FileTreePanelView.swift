@@ -30,33 +30,24 @@ struct FileTreePanelView: View {
     private var treePane: some View {
         VStack(spacing: 0) {
             toolbar
-            if state.isTreeSearchVisible {
-                treeSearchBar
-            }
 
             if let displayNode = state.filteredRootNode() {
-                if displayNode.children.isEmpty && !state.treeSearchQuery.isEmpty {
-                    noSearchResults
-                } else {
-                    GeometryReader { geo in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 0) {
-                                ForEach(displayNode.children) { child in
-                                    FileNodeRow(
-                                        node: child,
-                                        state: state,
-                                        depth: 0,
-                                        settings: settings
-                                    )
-                                }
+                GeometryReader { geo in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(displayNode.children) { child in
+                                FileNodeRow(
+                                    node: child,
+                                    state: state,
+                                    depth: 0,
+                                    settings: settings
+                                )
                             }
-                            .padding(.vertical, 4)
-                            .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
                         }
+                        .padding(.vertical, 4)
+                        .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
                     }
                 }
-            } else if state.rootNode != nil && !state.treeSearchQuery.isEmpty {
-                noSearchResults
             } else {
                 emptyState
             }
@@ -89,13 +80,6 @@ struct FileTreePanelView: View {
             .buttonStyle(.borderless)
             .help(state.isGitDiffFilterEnabled ? "Show All Files" : "Show Changed Files Only")
 
-            Button(action: { state.toggleTreeSearch() }) {
-                Image(systemName: "magnifyingglass")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
-            .help("Search Files")
-
             Button(
                 action: { state.openDirectoryPicker(initialDirectory: workspaceCwd) },
                 label: {
@@ -110,71 +94,6 @@ struct FileTreePanelView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(Color(nsColor: .controlBackgroundColor))
-    }
-
-    private var treeSearchBar: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-                .font(.caption)
-
-            TextField("Search files...", text: Bindable(state).treeSearchQuery)
-                .textFieldStyle(.plain)
-                .font(.system(size: settings.panelFontSize, design: .monospaced))
-                .onChange(of: state.treeSearchQuery) { _, newValue in
-                    if state.treeSearchMode == .content {
-                        state.searchContent(newValue)
-                    }
-                }
-
-            // Mode toggle: filename / content
-            Button(action: {
-                if state.treeSearchMode == .filename {
-                    state.treeSearchMode = .content
-                    if !state.treeSearchQuery.isEmpty {
-                        state.searchContent(state.treeSearchQuery)
-                    }
-                } else {
-                    state.treeSearchMode = .filename
-                    state.contentSearchResults = nil
-                }
-            }) {
-                Image(systemName: state.treeSearchMode == .filename
-                    ? "doc.text.magnifyingglass"
-                    : "text.magnifyingglass")
-                    .font(.caption)
-                    .foregroundColor(state.treeSearchMode == .content ? .accentColor : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .help(state.treeSearchMode == .filename ? "Switch to content search" : "Switch to filename search")
-
-            Button(action: {
-                state.isTreeSearchVisible = false
-                state.clearTreeSearch()
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
-    }
-
-    private var noSearchResults: some View {
-        VStack(spacing: 8) {
-            Spacer()
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 24))
-                .foregroundColor(.secondary)
-            Text("No results for \"\(state.treeSearchQuery)\"")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private var emptyState: some View {
