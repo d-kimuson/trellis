@@ -67,17 +67,21 @@ public indirect enum LayoutNode: Identifiable {
         case .leaf:
             return self
         case .split(let id, let dir, let first, let second, let ratio):
-            return .split(
-                id: id,
-                direction: dir,
-                first: first.splittingArea(
-                    areaId: areaId, direction: direction, newArea: newArea, insertBefore: insertBefore
-                ),
-                second: second.splittingArea(
-                    areaId: areaId, direction: direction, newArea: newArea, insertBefore: insertBefore
-                ),
-                ratio: ratio
-            )
+            if first.findArea(id: areaId) != nil {
+                return .split(
+                    id: id, direction: dir,
+                    first: first.splittingArea(areaId: areaId, direction: direction, newArea: newArea, insertBefore: insertBefore),
+                    second: second,
+                    ratio: ratio
+                )
+            } else {
+                return .split(
+                    id: id, direction: dir,
+                    first: first,
+                    second: second.splittingArea(areaId: areaId, direction: direction, newArea: newArea, insertBefore: insertBefore),
+                    ratio: ratio
+                )
+            }
         }
     }
 
@@ -97,13 +101,11 @@ public indirect enum LayoutNode: Identifiable {
             if case .leaf(let area) = second, area.id == areaId {
                 return first
             }
-            return .split(
-                id: id,
-                direction: dir,
-                first: first.removingArea(areaId: areaId),
-                second: second.removingArea(areaId: areaId),
-                ratio: ratio
-            )
+            if first.findArea(id: areaId) != nil {
+                return .split(id: id, direction: dir, first: first.removingArea(areaId: areaId), second: second, ratio: ratio)
+            } else {
+                return .split(id: id, direction: dir, first: first, second: second.removingArea(areaId: areaId), ratio: ratio)
+            }
         }
     }
 
@@ -132,13 +134,11 @@ public indirect enum LayoutNode: Identifiable {
         case .leaf:
             return self
         case .split(let id, let dir, let first, let second, let ratio):
-            return .split(
-                id: id,
-                direction: dir,
-                first: first.updatingArea(areaId: areaId, transform: transform),
-                second: second.updatingArea(areaId: areaId, transform: transform),
-                ratio: ratio
-            )
+            if first.findArea(id: areaId) != nil {
+                return .split(id: id, direction: dir, first: first.updatingArea(areaId: areaId, transform: transform), second: second, ratio: ratio)
+            } else {
+                return .split(id: id, direction: dir, first: first, second: second.updatingArea(areaId: areaId, transform: transform), ratio: ratio)
+            }
         }
     }
 }
