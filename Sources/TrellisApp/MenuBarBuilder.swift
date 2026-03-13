@@ -11,12 +11,28 @@ func buildMainMenu() -> NSMenu {
     mainMenu.addItem(appMenuItem)
     appMenuItem.submenu = buildAppMenu()
 
+    // Edit menu (standard text editing actions for TextFields / find bar)
+    let editMenuItem = NSMenuItem()
+    mainMenu.addItem(editMenuItem)
+    editMenuItem.submenu = buildEditMenu()
+
     // View menu
     let viewMenuItem = NSMenuItem()
     mainMenu.addItem(viewMenuItem)
     viewMenuItem.submenu = buildViewMenu()
 
     return mainMenu
+}
+
+private func buildEditMenu() -> NSMenu {
+    let editMenu = NSMenu(title: "Edit")
+
+    editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+    editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+    editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+    editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+    return editMenu
 }
 
 private func buildAppMenu() -> NSMenu {

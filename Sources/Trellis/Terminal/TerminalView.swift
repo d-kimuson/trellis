@@ -249,14 +249,6 @@ class GhosttyNSView: NSView, NSTextInputClient {
             // Use focusedSurface so paste goes to the last-clicked terminal regardless
             // of which NSView happens to be the current first responder.
             if char == "v" {
-                // If the find bar is visible, paste clipboard text directly into the find query.
-                // (The SwiftUI TextField may not reliably receive Cmd+V via the responder chain.)
-                if session.isFindVisible {
-                    if let content = NSPasteboard.general.string(forType: .string), !content.isEmpty {
-                        session.findQuery += content
-                    }
-                    return true
-                }
                 let pasteTarget = ghosttyApp.focusedSurface ?? surface
                 let pasteboard = NSPasteboard.general
                 if let content = pasteboard.string(forType: .string), !content.isEmpty {
