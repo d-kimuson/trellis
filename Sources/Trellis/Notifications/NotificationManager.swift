@@ -34,10 +34,14 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     public func sendNotification(
         title: String,
         body: String,
-        sessionId: UUID
+        sessionId: UUID,
+        workspaceName: String? = nil
     ) {
         let content = UNMutableNotificationContent()
         content.title = title
+        if let workspaceName {
+            content.subtitle = workspaceName
+        }
         content.body = body
         content.userInfo = [
             "sessionId": sessionId.uuidString

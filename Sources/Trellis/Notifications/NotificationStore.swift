@@ -7,6 +7,8 @@ public struct AppNotification: Identifiable {
     public let body: String
     /// The terminal session (panel) that generated this notification.
     public let sessionId: UUID
+    /// The workspace name at the time the notification was generated.
+    public let workspaceName: String?
     public let timestamp: Date
     public var isRead: Bool
 
@@ -15,6 +17,7 @@ public struct AppNotification: Identifiable {
         title: String,
         body: String,
         sessionId: UUID,
+        workspaceName: String? = nil,
         timestamp: Date = Date(),
         isRead: Bool = false
     ) {
@@ -22,6 +25,7 @@ public struct AppNotification: Identifiable {
         self.title = title
         self.body = body
         self.sessionId = sessionId
+        self.workspaceName = workspaceName
         self.timestamp = timestamp
         self.isRead = isRead
     }
@@ -39,11 +43,12 @@ public final class NotificationStore: ObservableObject {
 
     // MARK: - Add
 
-    public func add(title: String, body: String, sessionId: UUID) {
+    public func add(title: String, body: String, sessionId: UUID, workspaceName: String? = nil) {
         let notification = AppNotification(
             title: title,
             body: body,
-            sessionId: sessionId
+            sessionId: sessionId,
+            workspaceName: workspaceName
         )
         notifications.insert(notification, at: 0)
         if notifications.count > maxCount {

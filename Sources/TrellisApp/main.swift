@@ -149,11 +149,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             sessionId = UUID()
         }
 
-        notificationStore.add(title: title, body: body, sessionId: sessionId)
+        let workspaceName = store.workspaceName(forSession: sessionId)
+        notificationStore.add(title: title, body: body, sessionId: sessionId, workspaceName: workspaceName)
 
         // Fire desktop notification when the source terminal is not the focused surface
         if shouldFireDesktop {
-            notificationManager.sendNotification(title: title, body: body, sessionId: sessionId)
+            notificationManager.sendNotification(title: title, body: body, sessionId: sessionId, workspaceName: workspaceName)
         }
     }
 

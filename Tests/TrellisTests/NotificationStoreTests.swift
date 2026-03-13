@@ -19,12 +19,19 @@ final class NotificationStoreTests: XCTestCase {
     func testAddNotificationSetsCorrectFields() {
         let store = NotificationStore()
         let sessionId = UUID()
-        store.add(title: "Test Title", body: "Test Body", sessionId: sessionId)
+        store.add(title: "Test Title", body: "Test Body", sessionId: sessionId, workspaceName: "Dev")
         let n = store.notifications.first
         XCTAssertEqual(n?.title, "Test Title")
         XCTAssertEqual(n?.body, "Test Body")
         XCTAssertEqual(n?.sessionId, sessionId)
+        XCTAssertEqual(n?.workspaceName, "Dev")
         XCTAssertFalse(n?.isRead ?? true, "New notifications should be unread")
+    }
+
+    func testAddNotificationDefaultsWorkspaceNameToNil() {
+        let store = NotificationStore()
+        store.add(title: "A", body: "B", sessionId: UUID())
+        XCTAssertNil(store.notifications.first?.workspaceName)
     }
 
     func testAddNotificationDoesNotExceedMaxCount() {

@@ -27,6 +27,18 @@ extension WorkspaceStore {
 
     // MARK: - Queries
 
+    /// Returns the workspace name that contains the given session, or nil if not found.
+    public func workspaceName(forSession sessionId: UUID) -> String? {
+        for workspace in workspaces {
+            for area in workspace.allAreas {
+                if area.tabs.contains(where: { $0.content.terminalSession?.id == sessionId }) {
+                    return workspace.name
+                }
+            }
+        }
+        return nil
+    }
+
     /// All terminal session IDs belonging to the given workspace.
     /// Used by the sidebar to compute per-workspace notification badges.
     public func sessionIds(forWorkspace index: Int) -> [UUID] {

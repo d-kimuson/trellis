@@ -85,9 +85,20 @@ private struct NotificationRow: View {
                 .padding(.top, 4)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(notification.title)
-                    .font(.caption)
-                    .fontWeight(notification.isRead ? .regular : .semibold)
+                HStack(spacing: 4) {
+                    Text(notification.title)
+                        .font(.caption)
+                        .fontWeight(notification.isRead ? .regular : .semibold)
+                    if let workspaceName = notification.workspaceName {
+                        Text(workspaceName)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.secondary.opacity(0.12))
+                            .cornerRadius(3)
+                    }
+                }
                 Text(notification.body)
                     .font(.caption2)
                     .foregroundColor(.secondary)
