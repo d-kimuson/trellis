@@ -61,7 +61,7 @@ if [[ -n "$PRIORITY" ]]; then
 fi
 
 log() {
-  echo "[$(date '+%H:%M:%S')] $*"
+  echo "[$(date '+%H:%M:%S')] $*" >&2
 }
 
 check_uncommitted() {
