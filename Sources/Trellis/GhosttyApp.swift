@@ -129,7 +129,9 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
         var config = ghostty_surface_config_new()
         config.platform_tag = GHOSTTY_PLATFORM_MACOS
         config.platform.macos.nsview = Unmanaged.passUnretained(view).toOpaque()
-        config.userdata = userdata
+        // Surface userdata defaults to the app wrapper so that clipboard callbacks
+        // (read_clipboard_cb etc.) receive the wrapper pointer they expect.
+        config.userdata = userdata ?? Unmanaged.passUnretained(self).toOpaque()
 
         // Build env var C structs. strdup keeps pointers stable until ghostty_surface_new
         // returns; freed in defer block below.
