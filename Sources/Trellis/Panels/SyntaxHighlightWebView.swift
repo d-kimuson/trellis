@@ -118,13 +118,12 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         body { margin: 0; background: transparent; font-family: \(mono); font-size: \(size)px; }
         .d2h-file-header { display: none; }
         .d2h-file-wrapper { border: none; border-radius: 0; margin: 0; }
-        .d2h-diff-table { font-family: \(mono); font-size: \(size)px; }
-        .d2h-split { display: flex; align-items: flex-start; }
-        .d2h-split-nums { flex-shrink: 0; }
-        .d2h-split-code { overflow-x: auto; flex: 1; min-width: 0; }
-        .d2h-split-code .d2h-code-line { padding-left: 0.5em; }
+        .d2h-diff-table { font-family: \(mono); font-size: \(size)px; border-collapse: collapse; }
+        .d2h-file-diff { overflow-x: auto; }
         .d2h-code-linenumber, .d2h-code-side-linenumber {
-            position: relative !important; font-family: \(mono); font-size: \(size)px; }
+            position: sticky; left: 0; z-index: 1;
+            font-family: \(mono); font-size: \(size)px;
+            background: inherit; }
         .d2h-auto-color-scheme {
           --d2h-bg-color:#ffffff; --d2h-border-color:#d0d7de;
           --d2h-line-border-color:#d0d7de; --d2h-dim-color:#636c76;
@@ -156,38 +155,6 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         var html = Diff2Html.html(diff, { drawFileList: false, matching: 'lines',
                                           outputFormat: 'line-by-line' });
         document.body.innerHTML = html;
-        document.querySelectorAll('.d2h-diff-table').forEach(function(table) {
-            var rows = Array.from(table.querySelectorAll('tr'));
-            var numTbody = document.createElement('tbody');
-            var codeTbody = document.createElement('tbody');
-            rows.forEach(function(row) {
-                var numRow = document.createElement('tr');
-                var codeRow = document.createElement('tr');
-                Array.from(row.children).forEach(function(td) {
-                    (td.classList.contains('d2h-code-linenumber') ? numRow : codeRow)
-                        .appendChild(td.cloneNode(true));
-                });
-                numTbody.appendChild(numRow);
-                codeTbody.appendChild(codeRow);
-            });
-            var numTable = document.createElement('table');
-            numTable.className = table.className;
-            numTable.appendChild(numTbody);
-            var codeTable = document.createElement('table');
-            codeTable.className = table.className;
-            codeTable.appendChild(codeTbody);
-            var numsDiv = document.createElement('div');
-            numsDiv.className = 'd2h-split-nums';
-            numsDiv.appendChild(numTable);
-            var codeDiv = document.createElement('div');
-            codeDiv.className = 'd2h-split-code';
-            codeDiv.appendChild(codeTable);
-            var wrapper = document.createElement('div');
-            wrapper.className = 'd2h-split';
-            wrapper.appendChild(numsDiv);
-            wrapper.appendChild(codeDiv);
-            table.parentNode.replaceChild(wrapper, table);
-        });
         """
     }
 
