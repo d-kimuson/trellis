@@ -185,51 +185,22 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
         if event.modifierFlags.contains(.command) {
             let char = event.charactersIgnoringModifiers?.lowercased() ?? ""
-            let withShift = event.modifierFlags.contains(.shift)
 
-            // Command palette (Cmd+Shift+P)
-            if withShift && char == "p" {
-                ghosttyApp.store?.dispatch(.toggleCommandPalette)
-                return true
+            // Check custom key bindings first
+            if let combo = KeyCombo.from(event: event),
+               let action = AppSettings.shared.keyBindings.action(for: combo) {
+                return executeBindableAction(action, surface: surface)
             }
 
-            // Font size shortcuts — handle directly so they always reach GhosttyAppWrapper.
-            // keyCode 24 = the +/= key (US: Shift+= → "+", JIS: base key is already "+").
-            // Check both "+" and "=" to handle US and JIS keyboard layouts.
-            if withShift && (char == "+" || char == "=") {
+            // Font size: also handle "+" from JIS keyboards (Shift+= on US)
+            let withShift = event.modifierFlags.contains(.shift)
+            if withShift && char == "+" {
                 ghosttyApp.increaseFontSize()
                 return true
-            }
-            if char == "-" || char == "_" {
-                ghosttyApp.decreaseFontSize()
-                return true
-            }
-            if !withShift && char == "0" {
-                ghosttyApp.resetFontSize()
-                return true
-            }
-
-            // Toggle find bar (Cmd+F)
-            if char == "f" && !withShift {
-                if session.isFindVisible {
-                    // Cmd+F while bar is open: close it and return focus to terminal
-                    session.isFindVisible = false
-                } else {
-                    session.isFindVisible = true
-                }
-                return true
-            }
-
-            // Let these pass to the app menu bar
-            let menuKeys: Set<String> = ["q", "w", "d", "b", "=", ","]
-            if menuKeys.contains(char) {
-                return super.performKeyEquivalent(with: event)
             }
 
             // Handle Cmd+V paste directly via ghostty_surface_text
             // (ghostty's keybinding system doesn't trigger read_clipboard_cb)
-            // Use focusedSurface so paste goes to the last-clicked terminal regardless
-            // of which NSView happens to be the current first responder.
             if char == "v" {
                 let pasteTarget = ghosttyApp.focusedSurface ?? surface
                 let pasteboard = NSPasteboard.general
@@ -241,11 +212,44 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 return true
             }
 
+            // Let menu-bound keys pass to the app menu bar
+            let keyBindings = AppSettings.shared.keyBindings
+            let menuActions: [BindableAction] = [
+                .closeTab, .closeArea, .splitHorizontal, .splitVertical,
+                .toggleSidebar, .openSettings,
+            ]
+            for menuAction in menuActions {
+                if let menuCombo = keyBindings.combo(for: menuAction),
+                   menuCombo.key == char {
+                    return super.performKeyEquivalent(with: event)
+                }
+            }
+
             // Forward Cmd+C, Cmd+A, etc. to ghostty
             keyDown(with: event)
             return true
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    private func executeBindableAction(_ action: BindableAction, surface: ghostty_surface_t) -> Bool {
+        switch action {
+        case .toggleCommandPalette:
+            ghosttyApp.store?.dispatch(.toggleCommandPalette)
+        case .increaseFontSize:
+            ghosttyApp.increaseFontSize()
+        case .decreaseFontSize:
+            ghosttyApp.decreaseFontSize()
+        case .resetFontSize:
+            ghosttyApp.resetFontSize()
+        case .toggleFindBar:
+            session.isFindVisible.toggle()
+        // Menu-handled actions: pass through to super
+        case .splitHorizontal, .splitVertical, .closeTab, .closeArea,
+             .toggleSidebar, .openSettings:
+            return false
+        }
+        return true
     }
 
     override func keyDown(with event: NSEvent) {

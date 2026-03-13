@@ -307,6 +307,8 @@ let delegate = MainActor.assumeIsolated { AppDelegate() }
 app.delegate = delegate
 
 // Create menu bar
-app.mainMenu = buildMainMenu()
+app.mainMenu = MainActor.assumeIsolated {
+    buildMainMenu(keyBindings: AppSettings.shared.keyBindings)
+}
 
 app.run()

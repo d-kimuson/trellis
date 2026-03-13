@@ -120,6 +120,32 @@ public struct ConfigFile: Sendable {
         return nil
     }
 
+    /// Returns all values for a given key (for keys that can appear multiple times, e.g. `keybind`).
+    public func strings(forKey key: String) -> [String] {
+        entries.compactMap { entry in
+            if case .keyValue(let k, let v) = entry, k == key {
+                switch v {
+                case .string(let s): return s
+                default: return nil
+                }
+            }
+            return nil
+        }
+    }
+
+    /// Replaces all entries for a given key with the provided values.
+    public mutating func setAll(_ values: [String], forKey key: String) {
+        // Remove existing entries for this key
+        entries.removeAll { entry in
+            if case .keyValue(let k, _) = entry, k == key { return true }
+            return false
+        }
+        // Append new entries
+        for value in values {
+            entries.append(.keyValue(key: key, value: .string(value)))
+        }
+    }
+
     // MARK: - Mutators
 
     public mutating func set(_ value: Value, forKey key: String) {

@@ -147,6 +147,27 @@ final class ConfigFileTests: XCTestCase {
         XCTAssertEqual(loaded.bool(forKey: "ipc-enabled"), true)
     }
 
+    // MARK: - Multi-value keys
+
+    func testStringsForKeyReturnsAllValues() {
+        let text = """
+        keybind = "cmd+d=split_horizontal"
+        keybind = "cmd+shift+d=split_vertical"
+        """
+        let config = ConfigFile.parse(text)
+        let values = config.strings(forKey: "keybind")
+        XCTAssertEqual(values.count, 2)
+        XCTAssertTrue(values.contains("cmd+d=split_horizontal"))
+        XCTAssertTrue(values.contains("cmd+shift+d=split_vertical"))
+    }
+
+    func testSetAllReplacesExistingEntries() {
+        var config = ConfigFile.parse(#"keybind = "cmd+d=split_horizontal""#)
+        config.setAll(["cmd+b=toggle_sidebar"], forKey: "keybind")
+        let values = config.strings(forKey: "keybind")
+        XCTAssertEqual(values, ["cmd+b=toggle_sidebar"])
+    }
+
     func testLoadNonexistentFileReturnsEmpty() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

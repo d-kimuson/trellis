@@ -135,6 +135,41 @@ final class AppSettingsTests: XCTestCase {
         defaults.removePersistentDomain(forName: suite)
     }
 
+    // MARK: - Key Bindings
+
+    func testDefaultKeyBindingsLoaded() {
+        let settings = makeSettings()
+        let combo = KeyCombo(modifiers: [.command], key: "d")
+        XCTAssertEqual(settings.keyBindings.action(for: combo), .splitHorizontal)
+    }
+
+    func testKeyBindingsFromConfig() throws {
+        let url = configURL()
+        var config = ConfigFile.empty
+        config.setAll(["cmd+d=close_tab"], forKey: "keybind")
+        try config.save(to: url)
+
+        let settings = AppSettings(configURL: url)
+        let combo = KeyCombo(modifiers: [.command], key: "d")
+        XCTAssertEqual(settings.keyBindings.action(for: combo), .closeTab)
+    }
+
+    func testKeyBindingsPersisted() throws {
+        let url = configURL()
+        let settings1 = AppSettings(configURL: url)
+        let newBindings = KeyBindingMap.defaults.merging([
+            KeyBinding(
+                combo: KeyCombo(modifiers: [.command], key: "d"),
+                action: .closeTab
+            ),
+        ])
+        settings1.keyBindings = newBindings
+
+        let settings2 = AppSettings(configURL: url)
+        let combo = KeyCombo(modifiers: [.command], key: "d")
+        XCTAssertEqual(settings2.keyBindings.action(for: combo), .closeTab)
+    }
+
     func testMigrateSkipsWhenConfigExists() throws {
         let url = configURL()
 

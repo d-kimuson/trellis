@@ -3,13 +3,13 @@ import AppKit
 import Trellis
 #endif
 
-func buildMainMenu() -> NSMenu {
+func buildMainMenu(keyBindings: KeyBindingMap = .defaults) -> NSMenu {
     let mainMenu = NSMenu()
 
     // App menu
     let appMenuItem = NSMenuItem()
     mainMenu.addItem(appMenuItem)
-    appMenuItem.submenu = buildAppMenu()
+    appMenuItem.submenu = buildAppMenu(keyBindings: keyBindings)
 
     // Edit menu (standard text editing actions for TextFields / find bar)
     let editMenuItem = NSMenuItem()
@@ -19,7 +19,7 @@ func buildMainMenu() -> NSMenu {
     // View menu
     let viewMenuItem = NSMenuItem()
     mainMenu.addItem(viewMenuItem)
-    viewMenuItem.submenu = buildViewMenu()
+    viewMenuItem.submenu = buildViewMenu(keyBindings: keyBindings)
 
     return mainMenu
 }
@@ -35,7 +35,7 @@ private func buildEditMenu() -> NSMenu {
     return editMenu
 }
 
-private func buildAppMenu() -> NSMenu {
+private func buildAppMenu(keyBindings: KeyBindingMap) -> NSMenu {
     let appMenu = NSMenu()
     appMenu.addItem(
         withTitle: "About Trellis",
@@ -44,12 +44,13 @@ private func buildAppMenu() -> NSMenu {
     )
     appMenu.addItem(NSMenuItem.separator())
 
+    let settingsCombo = keyBindings.combo(for: .openSettings)
     let settingsItem = NSMenuItem(
         title: "Settings...",
         action: #selector(AppDelegate.openSettings(_:)),
-        keyEquivalent: ","
+        keyEquivalent: settingsCombo?.menuKeyEquivalent ?? ","
     )
-    settingsItem.keyEquivalentModifierMask = [.command]
+    settingsItem.keyEquivalentModifierMask = settingsCombo?.menuModifierMask ?? [.command]
     appMenu.addItem(settingsItem)
 
     appMenu.addItem(NSMenuItem.separator())
@@ -67,78 +68,65 @@ private func buildAppMenu() -> NSMenu {
     return appMenu
 }
 
-private func buildViewMenu() -> NSMenu {
+private func addMenuItem(
+    to menu: NSMenu,
+    title: String,
+    action: Selector,
+    bindableAction: BindableAction,
+    keyBindings: KeyBindingMap
+) {
+    let combo = keyBindings.combo(for: bindableAction)
+    let item = NSMenuItem(
+        title: title,
+        action: action,
+        keyEquivalent: combo?.menuKeyEquivalent ?? ""
+    )
+    if let combo {
+        item.keyEquivalentModifierMask = combo.menuModifierMask
+    }
+    menu.addItem(item)
+}
+
+private func buildViewMenu(keyBindings: KeyBindingMap) -> NSMenu {
     let viewMenu = NSMenu(title: "View")
 
-    let resetFontSizeItem = NSMenuItem(
-        title: "Reset Font Size",
-        action: #selector(AppDelegate.resetFontSize(_:)),
-        keyEquivalent: "0"
-    )
-    resetFontSizeItem.keyEquivalentModifierMask = [.command]
-    viewMenu.addItem(resetFontSizeItem)
+    addMenuItem(to: viewMenu, title: "Reset Font Size",
+                action: #selector(AppDelegate.resetFontSize(_:)),
+                bindableAction: .resetFontSize, keyBindings: keyBindings)
 
-    let increaseFontSizeItem = NSMenuItem(
-        title: "Increase Font Size",
-        action: #selector(AppDelegate.increaseFontSize(_:)),
-        keyEquivalent: "+"
-    )
-    increaseFontSizeItem.keyEquivalentModifierMask = [.command]
-    viewMenu.addItem(increaseFontSizeItem)
+    addMenuItem(to: viewMenu, title: "Increase Font Size",
+                action: #selector(AppDelegate.increaseFontSize(_:)),
+                bindableAction: .increaseFontSize, keyBindings: keyBindings)
 
-    let decreaseFontSizeItem = NSMenuItem(
-        title: "Decrease Font Size",
-        action: #selector(AppDelegate.decreaseFontSize(_:)),
-        keyEquivalent: "-"
-    )
-    decreaseFontSizeItem.keyEquivalentModifierMask = [.command]
-    viewMenu.addItem(decreaseFontSizeItem)
+    addMenuItem(to: viewMenu, title: "Decrease Font Size",
+                action: #selector(AppDelegate.decreaseFontSize(_:)),
+                bindableAction: .decreaseFontSize, keyBindings: keyBindings)
 
     viewMenu.addItem(NSMenuItem.separator())
 
-    let splitHItem = NSMenuItem(
-        title: "Split Horizontal",
-        action: #selector(AppDelegate.splitHorizontal(_:)),
-        keyEquivalent: "d"
-    )
-    splitHItem.keyEquivalentModifierMask = [.command]
-    viewMenu.addItem(splitHItem)
+    addMenuItem(to: viewMenu, title: "Split Horizontal",
+                action: #selector(AppDelegate.splitHorizontal(_:)),
+                bindableAction: .splitHorizontal, keyBindings: keyBindings)
 
-    let splitVItem = NSMenuItem(
-        title: "Split Vertical",
-        action: #selector(AppDelegate.splitVertical(_:)),
-        keyEquivalent: "d"
-    )
-    splitVItem.keyEquivalentModifierMask = [.command, .shift]
-    viewMenu.addItem(splitVItem)
+    addMenuItem(to: viewMenu, title: "Split Vertical",
+                action: #selector(AppDelegate.splitVertical(_:)),
+                bindableAction: .splitVertical, keyBindings: keyBindings)
 
     viewMenu.addItem(NSMenuItem.separator())
 
-    let closeTabItem = NSMenuItem(
-        title: "Close Tab",
-        action: #selector(AppDelegate.closeTab(_:)),
-        keyEquivalent: "w"
-    )
-    closeTabItem.keyEquivalentModifierMask = [.command]
-    viewMenu.addItem(closeTabItem)
+    addMenuItem(to: viewMenu, title: "Close Tab",
+                action: #selector(AppDelegate.closeTab(_:)),
+                bindableAction: .closeTab, keyBindings: keyBindings)
 
-    let closeAreaItem = NSMenuItem(
-        title: "Close Area",
-        action: #selector(AppDelegate.closeArea(_:)),
-        keyEquivalent: "w"
-    )
-    closeAreaItem.keyEquivalentModifierMask = [.command, .shift]
-    viewMenu.addItem(closeAreaItem)
+    addMenuItem(to: viewMenu, title: "Close Area",
+                action: #selector(AppDelegate.closeArea(_:)),
+                bindableAction: .closeArea, keyBindings: keyBindings)
 
     viewMenu.addItem(NSMenuItem.separator())
 
-    let toggleSidebarItem = NSMenuItem(
-        title: "Toggle Sidebar",
-        action: #selector(AppDelegate.toggleSidebar(_:)),
-        keyEquivalent: "b"
-    )
-    toggleSidebarItem.keyEquivalentModifierMask = [.command]
-    viewMenu.addItem(toggleSidebarItem)
+    addMenuItem(to: viewMenu, title: "Toggle Sidebar",
+                action: #selector(AppDelegate.toggleSidebar(_:)),
+                bindableAction: .toggleSidebar, keyBindings: keyBindings)
 
     viewMenu.addItem(NSMenuItem.separator())
 

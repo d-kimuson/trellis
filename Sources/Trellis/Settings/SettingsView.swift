@@ -11,6 +11,9 @@ public struct SettingsView: View {
     @State private var snapshotFontFamily: String = ""
     @State private var snapshotPanelFontSize: Double = 13
     @State private var snapshotIPCEnabled: Bool = false
+    @State private var snapshotKeyBindings: KeyBindingMap = .defaults
+    @State private var editingAction: BindableAction?
+    @State private var capturedCombo: KeyCombo?
 
 
     public init(settings: AppSettings, onApply: @escaping () -> Void) {
@@ -44,6 +47,7 @@ public struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     ghosttySection
                     panelsSection
+                    keyBindingsSection
                     cliSection
                 }
                 .padding(20)
@@ -58,6 +62,7 @@ public struct SettingsView: View {
                     settings.fontFamily = snapshotFontFamily
                     settings.panelFontSize = snapshotPanelFontSize
                     settings.ipcServerEnabled = snapshotIPCEnabled
+                    settings.keyBindings = snapshotKeyBindings
                     onApply()
                 }
                 .foregroundColor(.secondary)
@@ -80,6 +85,7 @@ public struct SettingsView: View {
             snapshotFontFamily = settings.fontFamily
             snapshotPanelFontSize = settings.panelFontSize
             snapshotIPCEnabled = settings.ipcServerEnabled
+            snapshotKeyBindings = settings.keyBindings
         }
         .onChange(of: settings.fontSize) { _ in onApply() }
         .onChange(of: settings.fontFamily) { _ in onApply() }
@@ -165,6 +171,61 @@ public struct SettingsView: View {
                         .textSelection(.enabled)
                 }
             }
+        }
+    }
+
+    // MARK: - Key Bindings Section
+
+    private var keyBindingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Key Bindings", icon: "keyboard")
+
+            VStack(spacing: 1) {
+                ForEach(BindableAction.allCases, id: \.rawValue) { action in
+                    let combo = settings.keyBindings.combo(for: action)
+                    HStack {
+                        Text(action.displayTitle)
+                            .font(.system(size: 13))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if editingAction == action {
+                            KeyCaptureField(combo: $capturedCombo) {
+                                if let newCombo = capturedCombo {
+                                    let binding = KeyBinding(combo: newCombo, action: action)
+                                    settings.keyBindings = settings.keyBindings.merging([binding])
+                                }
+                                editingAction = nil
+                                capturedCombo = nil
+                            }
+                            .frame(width: 160)
+                        } else {
+                            Button {
+                                editingAction = action
+                                capturedCombo = combo
+                            } label: {
+                                Text(combo?.displayString ?? "—")
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .foregroundColor(combo != nil ? .primary : .secondary)
+                                    .frame(width: 160, alignment: .center)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.secondary.opacity(0.08))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
+            }
+
+            Button("Reset to Defaults") {
+                settings.keyBindings = .defaults
+            }
+            .font(.system(size: 12))
+            .foregroundColor(.secondary)
         }
     }
 

@@ -32,6 +32,12 @@ public final class AppSettings {
         didSet { save() }
     }
 
+    // MARK: - Key Bindings
+
+    public var keyBindings: KeyBindingMap {
+        didSet { save() }
+    }
+
     // MARK: - Config location
 
     public static var defaultConfigURL: URL {
@@ -55,6 +61,12 @@ public final class AppSettings {
         let storedPanelSize = config.double(forKey: Keys.panelFontSize)
         panelFontSize = storedPanelSize.map { $0 > 0 ? $0 : 13 } ?? 13
         ipcServerEnabled = config.bool(forKey: Keys.ipcServerEnabled) ?? false
+
+        let keybindStrings = config.strings(forKey: Keys.keybind)
+        let userBindings = keybindStrings.compactMap { KeyBinding.parse($0) }
+        keyBindings = userBindings.isEmpty
+            ? KeyBindingMap.defaults
+            : KeyBindingMap.defaults.merging(userBindings)
     }
 
     // MARK: - Migration from UserDefaults
@@ -101,6 +113,10 @@ public final class AppSettings {
         config.set(.double(fontSize), forKey: Keys.fontSize)
         config.set(.double(panelFontSize), forKey: Keys.panelFontSize)
         config.set(.bool(ipcServerEnabled), forKey: Keys.ipcServerEnabled)
+
+        let keybindValues = keyBindings.bindings.map { $0.serialize() }
+        config.setAll(keybindValues, forKey: Keys.keybind)
+
         try? config.save(to: configURL)
     }
 
@@ -111,6 +127,7 @@ public final class AppSettings {
         static let fontSize = "font-size"
         static let panelFontSize = "panel-font-size"
         static let ipcServerEnabled = "ipc-server-enabled"
+        static let keybind = "keybind"
     }
 
     // MARK: - Legacy UserDefaults keys (for migration)
