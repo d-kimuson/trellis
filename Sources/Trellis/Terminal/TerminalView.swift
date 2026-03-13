@@ -59,6 +59,8 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
         wantsLayer = true
         layer?.isOpaque = true
+
+        registerForDraggedTypes([.fileURL])
     }
 
     @available(*, unavailable)
@@ -631,6 +633,32 @@ class GhosttyNSView: NSView, NSTextInputClient {
         // Also schedule a debounced redraw as fallback for precision-scroll accumulation.
         redrawHighlights()
         scheduleHighlightRefresh()
+    }
+
+    // MARK: - File Drop
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        guard sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: [
+            .urlReadingFileURLsOnly: true,
+        ]) else { return [] }
+        return .copy
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        guard let surface else { return false }
+        guard let urls = sender.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL], !urls.isEmpty else { return false }
+
+        let filePaths = urls.map(\.path)
+        let text = formatDroppedPaths(filePaths: filePaths, base: session.pwd)
+        guard !text.isEmpty else { return false }
+
+        text.withCString { cstr in
+            ghostty_surface_text(surface, cstr, UInt(text.utf8.count))
+        }
+        return true
     }
 
     // MARK: - Helpers

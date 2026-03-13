@@ -244,6 +244,7 @@ private struct FileNodeRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .draggable(URL(fileURLWithPath: node.path))
             .background(
                 state.selectedFilePath == node.path
                     ? Color.accentColor.opacity(0.15)
