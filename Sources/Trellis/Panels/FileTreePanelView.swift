@@ -201,49 +201,49 @@ private struct FileNodeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: handleTap) {
-                HStack(spacing: 4) {
-                    // Indentation
+            // Use plain view + onTapGesture instead of Button to allow .draggable() to work.
+            // Button consumes the drag gesture, preventing file dragging.
+            HStack(spacing: 4) {
+                // Indentation
+                Spacer()
+                    .frame(width: CGFloat(depth) * 16)
+
+                // Disclosure indicator for directories
+                if node.isDirectory {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                        .frame(width: 12)
+                } else {
                     Spacer()
-                        .frame(width: CGFloat(depth) * 16)
-
-                    // Disclosure indicator for directories
-                    if node.isDirectory {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                            .frame(width: 12)
-                    } else {
-                        Spacer()
-                            .frame(width: 12)
-                    }
-
-                    // Icon
-                    Image(systemName: node.isDirectory ? "folder.fill" : fileIcon(for: node.name))
-                        .foregroundColor(node.isDirectory ? .accentColor : .secondary)
-                        .font(.caption)
-
-                    // Name
-                    Text(node.name)
-                        .font(.system(size: settings.panelFontSize, design: .monospaced))
-                        .foregroundColor(nameColor)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    // Git status badge (files only, right-aligned)
-                    if let badge = gitBadge {
-                        Text(badge.label)
-                            .font(.system(size: settings.panelFontSize - 2, weight: .medium, design: .monospaced))
-                            .foregroundColor(badge.color)
-                            .padding(.trailing, 2)
-                    }
+                        .frame(width: 12)
                 }
-                .padding(.vertical, 2)
-                .padding(.horizontal, 4)
-                .contentShape(Rectangle())
+
+                // Icon
+                Image(systemName: node.isDirectory ? "folder.fill" : fileIcon(for: node.name))
+                    .foregroundColor(node.isDirectory ? .accentColor : .secondary)
+                    .font(.caption)
+
+                // Name
+                Text(node.name)
+                    .font(.system(size: settings.panelFontSize, design: .monospaced))
+                    .foregroundColor(nameColor)
+                    .lineLimit(1)
+
+                Spacer()
+
+                // Git status badge (files only, right-aligned)
+                if let badge = gitBadge {
+                    Text(badge.label)
+                        .font(.system(size: settings.panelFontSize - 2, weight: .medium, design: .monospaced))
+                        .foregroundColor(badge.color)
+                        .padding(.trailing, 2)
+                }
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+            .onTapGesture { handleTap() }
             .draggable(URL(fileURLWithPath: node.path))
             .background(
                 state.selectedFilePath == node.path
