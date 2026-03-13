@@ -58,7 +58,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         window.title = "Trellis"
         window.delegate = self
-        window.collectionBehavior = [.fullScreenPrimary]
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
+        window.tabbingMode = .preferred
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
         window.makeKeyAndOrderFront(nil)
