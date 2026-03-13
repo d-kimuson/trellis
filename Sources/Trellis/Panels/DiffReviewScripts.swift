@@ -50,7 +50,12 @@ enum DiffReviewScripts {
             color: var(--d2h-dim-color, #636c76);
         }
         .review-saved button:hover { background: var(--d2h-border-color, #d0d7de); }
-        .d2h-code-linenumber { cursor: pointer; }
+        .d2h-code-linenumber {
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: auto !important;
+        }
         .d2h-code-linenumber:hover {
             background: var(--d2h-ins-highlight-bg-color, #abf2bc) !important;
         }
@@ -139,22 +144,22 @@ enum DiffReviewScripts {
             if (row) row.remove();
             __notifyBridge();
         }
-        (function() {
-            document.querySelectorAll('.d2h-code-linenumber').forEach(function(el) {
-                el.addEventListener('click', function(e) {
-                    var num = parseInt(el.textContent.trim());
-                    if (isNaN(num)) return;
-                    var tr = el.closest('tr');
-                    if (!tr) return;
-                    __addCommentUI(num, tr);
-                    setTimeout(function() {
-                        var ta = document.querySelector(
-                            '.review-comment-row[data-line="'+num+'"] textarea');
-                        if (ta) ta.focus();
-                    }, 50);
-                });
-            });
-        })();
+        // Use event delegation so the listener works even if the DOM is mutated after setup.
+        document.addEventListener('click', function(e) {
+            var cell = e.target.closest('td.d2h-code-linenumber');
+            if (!cell) return;
+            var numEl = cell.querySelector('.line-num2') || cell.querySelector('.line-num1');
+            var num = numEl ? parseInt(numEl.textContent.trim()) : NaN;
+            if (isNaN(num) || num <= 0) return;
+            var tr = cell.closest('tr');
+            if (!tr) return;
+            __addCommentUI(num, tr);
+            setTimeout(function() {
+                var ta = document.querySelector(
+                    '.review-comment-row[data-line="'+num+'"] textarea');
+                if (ta) ta.focus();
+            }, 50);
+        });
         """
 }
 // swiftlint:enable file_length

@@ -304,6 +304,7 @@ struct AreaPanelView: View {
             // Close button: use Button for reliable click handling.
             // .onTapGesture on a tiny icon inside a .draggable() parent can fail to fire
             // on the first click in an unfocused area.
+            let activeFg = Color(nsColor: .windowBackgroundColor)
             Button(action: { store.closeTab(in: area.id, at: index) }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8))
@@ -311,17 +312,19 @@ struct AreaPanelView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundColor(.secondary)
+            .foregroundColor(isActive ? activeFg.opacity(0.7) : .secondary)
 
             // Tab label area: draggable and selectable.
             HStack(spacing: 4) {
                 Image(systemName: tab.content.iconName)
-                    .font(.system(size: 10)).foregroundColor(.secondary)
+                    .font(.system(size: 10))
+                    .foregroundColor(isActive ? activeFg : .secondary)
                 TabTitleLabel(content: tab.content)
                 if case .terminal(let session) = tab.content {
                     TabNotificationBadge(session: session, notificationStore: notificationStore)
                 }
             }
+            .foregroundColor(isActive ? activeFg : nil)
             .padding(.horizontal, 6).padding(.vertical, 4)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -340,7 +343,7 @@ struct AreaPanelView: View {
             }
         }
         .padding(.leading, 4)
-        .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
+        .background(isActive ? Color.primary : Color.clear)
         .cornerRadius(4)
     }
 }
