@@ -217,6 +217,16 @@ struct FileTreePanelView: View {
                 previewTabPicker
             }
             Spacer()
+            if state.selectedPreviewTab == .diff && state.reviewBridge.hasComments {
+                Button(action: { state.copyReview() }) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "doc.on.doc").font(.caption)
+                        Text("Copy Review").font(.system(size: settings.panelFontSize - 1))
+                    }
+                }
+                .buttonStyle(.borderless)
+                .help("Copy review comments to clipboard")
+            }
             Button(action: { state.isPreviewSearchVisible.toggle() }) {
                 Image(systemName: "magnifyingglass").font(.caption)
             }
@@ -262,7 +272,8 @@ struct FileTreePanelView: View {
                     fontSize: settings.panelFontSize,
                     isDiff: true,
                     searchQuery: state.previewSearchQuery,
-                    onFindRequested: { state.isPreviewSearchVisible = true }
+                    onFindRequested: { state.isPreviewSearchVisible = true },
+                    reviewBridge: state.reviewBridge
                 )
             } else {
                 SyntaxHighlightWebView(

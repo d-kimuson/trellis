@@ -48,13 +48,28 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     var searchQuery: String = ""
     /// Called when the user presses Cmd+F while the web view is focused.
     var onFindRequested: (() -> Void)?
+    /// Bridge for diff review comments. Only used when isDiff is true.
+    var reviewBridge: DiffReviewBridge?
 
-    final class Coordinator {
+    final class Coordinator: NSObject, WKScriptMessageHandler {
         var cachedCode: String = ""
         var cachedFilePath: String = ""
         var cachedFontSize: CGFloat = 0
         var cachedIsDiff: Bool = false
         var cachedSearchQuery: String = ""
+        weak var reviewBridge: DiffReviewBridge?
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard message.name == "reviewUpdate" else { return }
+            if let hasComments = message.body as? Bool {
+                DispatchQueue.main.async { [weak self] in
+                    self?.reviewBridge?.hasComments = hasComments
+                }
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -64,6 +79,9 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        if isDiff && reviewBridge != nil {
+            config.userContentController.add(context.coordinator, name: "reviewUpdate")
+        }
         let webView = EditableWKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.onFindRequested = onFindRequested
@@ -74,6 +92,11 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         coordinator.cachedFilePath = filePath
         coordinator.cachedFontSize = fontSize
         coordinator.cachedIsDiff = isDiff
+        coordinator.reviewBridge = reviewBridge
+        if isDiff {
+            reviewBridge?.webView = webView
+            reviewBridge?.hasComments = false
+        }
         return webView
     }
 
@@ -95,6 +118,11 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
             coordinator.cachedFontSize = fontSize
             coordinator.cachedIsDiff = isDiff
             coordinator.cachedSearchQuery = ""
+            coordinator.reviewBridge = reviewBridge
+            if isDiff {
+                reviewBridge?.webView = webView
+                reviewBridge?.hasComments = false
+            }
             // Re-run search after content loads if there's a query
             if !searchQuery.isEmpty {
                 let query = searchQuery
@@ -146,6 +174,10 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     private func diff2htmlHTML(js: String, css: String) -> String {
         let size = Int(fontSize)
         let mono = "'SF Mono', 'Menlo', 'Monaco', monospace"
+        let reviewScripts = reviewBridge != nil ? """
+        <style>\(DiffReviewScripts.css)</style>
+        <script>\(DiffReviewScripts.js)</script>
+        """ : ""
         return """
         <!DOCTYPE html>
         <html>
@@ -163,6 +195,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         \(diff2htmlRenderJS(escaped: escapeJS(code)))
         </script>
         <script>\(findInPageJS)</script>
+        \(reviewScripts)
         </body>
         </html>
         """

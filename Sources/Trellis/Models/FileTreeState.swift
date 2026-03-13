@@ -36,6 +36,7 @@ public final class FileTreeState: Identifiable {
     public var treeSearchMode: TreeSearchMode = .filename
     public var contentSearchResults: Set<String>?
     public var isGitDiffFilterEnabled: Bool = false
+    public let reviewBridge = DiffReviewBridge()
 
     @ObservationIgnored private(set) var gitRootPath: String?
     @ObservationIgnored private var ignoredPatterns: [String] = []
@@ -406,6 +407,24 @@ public final class FileTreeState: Identifiable {
     }
 
     // MARK: - Tree Search
+
+    /// Relative path of the selected file from the git root (or root path).
+    public var selectedFileRelativePath: String? {
+        guard let filePath = selectedFilePath else { return nil }
+        let root = gitRootPath ?? rootPath
+        guard let root else { return URL(fileURLWithPath: filePath).lastPathComponent }
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        if filePath.hasPrefix(prefix) {
+            return String(filePath.dropFirst(prefix.count))
+        }
+        return URL(fileURLWithPath: filePath).lastPathComponent
+    }
+
+    /// Copy review comments to clipboard.
+    public func copyReview() {
+        guard let relativePath = selectedFileRelativePath else { return }
+        reviewBridge.copyReview(filePath: relativePath)
+    }
 
     /// Toggle the tree search bar visibility.
     public func toggleTreeSearch() {
