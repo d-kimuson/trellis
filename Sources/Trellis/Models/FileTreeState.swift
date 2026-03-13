@@ -35,6 +35,7 @@ public final class FileTreeState: Identifiable {
     public var treeSearchQuery: String = ""
     public var treeSearchMode: TreeSearchMode = .filename
     public var contentSearchResults: Set<String>?
+    public var isGitDiffFilterEnabled: Bool = false
 
     @ObservationIgnored private(set) var gitRootPath: String?
     @ObservationIgnored private var ignoredPatterns: [String] = []
@@ -422,16 +423,23 @@ public final class FileTreeState: Identifiable {
     }
 
     /// Compute the filtered tree based on current search state.
-    /// Returns the original tree if no search is active.
+    /// Search query takes precedence over the git diff filter.
+    /// Returns the original tree if neither search nor filter is active.
     public func filteredRootNode() -> FileNode? {
-        guard !treeSearchQuery.isEmpty else { return rootNode }
-        switch treeSearchMode {
-        case .filename:
-            return rootNode?.filteredByName(treeSearchQuery)
-        case .content:
-            guard let results = contentSearchResults else { return rootNode }
-            return rootNode?.filteredByPaths(results)
+        if !treeSearchQuery.isEmpty {
+            switch treeSearchMode {
+            case .filename:
+                return rootNode?.filteredByName(treeSearchQuery)
+            case .content:
+                guard let results = contentSearchResults else { return rootNode }
+                return rootNode?.filteredByPaths(results)
+            }
         }
+        if isGitDiffFilterEnabled {
+            let changedPaths = Set(gitStatusMap.keys)
+            return rootNode?.filteredByPaths(changedPaths)
+        }
+        return rootNode
     }
 
     /// Run a content search (grep) with debouncing.

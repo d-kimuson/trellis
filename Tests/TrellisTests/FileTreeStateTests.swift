@@ -422,6 +422,78 @@ final class FileTreeStateTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    // MARK: - Git diff filter
+
+    func testGitDiffFilterOffReturnsFull树() {
+        touch(makePath("a.txt"))
+        touch(makePath("b.txt"))
+        let state = FileTreeState(rootPath: tempDir)
+        state.isGitDiffFilterEnabled = false
+        // gitStatusMap is empty → filter off should return full rootNode
+        XCTAssertEqual(state.filteredRootNode()?.children.count, state.rootNode?.children.count)
+    }
+
+    func testGitDiffFilterOnWithNoChangesReturnsNil() {
+        touch(makePath("a.txt"))
+        let state = FileTreeState(rootPath: tempDir)
+        // gitStatusMap is empty (not a git repo), filter on → no matches
+        state.isGitDiffFilterEnabled = true
+        XCTAssertNil(state.filteredRootNode())
+    }
+
+    func testGitDiffFilterOnShowsOnlyChangedFiles() {
+        touch(makePath("changed.swift"))
+        touch(makePath("clean.swift"))
+        touch(makePath("new.txt"))
+        let state = FileTreeState(rootPath: tempDir)
+        // Simulate git status: changed.swift modified, new.txt untracked
+        state.gitStatusMap = [
+            makePath("changed.swift"): .modified,
+            makePath("new.txt"): .untracked,
+        ]
+        state.isGitDiffFilterEnabled = true
+        let result = state.filteredRootNode()
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.children.count, 2)
+        XCTAssertTrue(result?.children.contains(where: { $0.name == "changed.swift" }) == true)
+        XCTAssertTrue(result?.children.contains(where: { $0.name == "new.txt" }) == true)
+        XCTAssertFalse(result?.children.contains(where: { $0.name == "clean.swift" }) == true)
+    }
+
+    func testGitDiffFilterMaintainsDirectoryHierarchy() {
+        mkdir(makePath("src"))
+        touch(makePath("src", "changed.swift"))
+        touch(makePath("src", "clean.swift"))
+        let state = FileTreeState(rootPath: tempDir)
+        // Expand src so children are loaded
+        guard let srcNode = state.rootNode?.children.first(where: { $0.name == "src" }) else {
+            return XCTFail("src not found")
+        }
+        state.toggleExpanded(srcNode.id)
+        state.gitStatusMap = [makePath("src", "changed.swift"): .modified]
+        state.isGitDiffFilterEnabled = true
+        let result = state.filteredRootNode()
+        // Only src directory should appear (contains changed.swift)
+        XCTAssertEqual(result?.children.count, 1)
+        XCTAssertEqual(result?.children.first?.name, "src")
+        // Inside src, only changed.swift
+        XCTAssertEqual(result?.children.first?.children.count, 1)
+        XCTAssertEqual(result?.children.first?.children.first?.name, "changed.swift")
+    }
+
+    func testGitDiffFilterIgnoredWhenSearchQueryIsActive() {
+        touch(makePath("foo.swift"))
+        touch(makePath("bar.txt"))
+        let state = FileTreeState(rootPath: tempDir)
+        state.gitStatusMap = [makePath("foo.swift"): .modified]
+        state.isGitDiffFilterEnabled = true
+        // Active search query takes precedence
+        state.treeSearchQuery = "bar"
+        let result = state.filteredRootNode()
+        XCTAssertEqual(result?.children.count, 1)
+        XCTAssertEqual(result?.children.first?.name, "bar.txt")
+    }
+
     // MARK: - Private helpers
 
     private func findNode(named name: String, in node: FileNode) -> FileNode? {

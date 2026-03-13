@@ -81,6 +81,14 @@ struct FileTreePanelView: View {
 
             Spacer()
 
+            Button(action: { state.isGitDiffFilterEnabled.toggle() }) {
+                Image(systemName: "line.3.horizontal.decrease.circle\(state.isGitDiffFilterEnabled ? ".fill" : "")")
+                    .font(.caption)
+                    .foregroundColor(state.isGitDiffFilterEnabled ? .accentColor : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(state.isGitDiffFilterEnabled ? "Show All Files" : "Show Changed Files Only")
+
             Button(action: { state.toggleTreeSearch() }) {
                 Image(systemName: "magnifyingglass")
                     .font(.caption)
