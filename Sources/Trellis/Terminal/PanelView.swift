@@ -8,6 +8,7 @@ struct AreaLayoutView: View {
     let ghosttyApp: any GhosttyAppProviding
     var store: WorkspaceStore
     var notificationStore: NotificationStore
+    var settings: AppSettings
 
     var body: some View {
         switch node {
@@ -17,6 +18,7 @@ struct AreaLayoutView: View {
                 ghosttyApp: ghosttyApp,
                 store: store,
                 notificationStore: notificationStore,
+                settings: settings,
                 isActiveArea: store.activeWorkspace?.activeAreaId == area.id
             )
 
@@ -28,10 +30,10 @@ struct AreaLayoutView: View {
                     store.updateRatio(splitId: splitId, ratio: newRatio)
                 },
                 first: {
-                    AreaLayoutView(node: first, ghosttyApp: ghosttyApp, store: store, notificationStore: notificationStore)
+                    AreaLayoutView(node: first, ghosttyApp: ghosttyApp, store: store, notificationStore: notificationStore, settings: settings)
                 },
                 second: {
-                    AreaLayoutView(node: second, ghosttyApp: ghosttyApp, store: store, notificationStore: notificationStore)
+                    AreaLayoutView(node: second, ghosttyApp: ghosttyApp, store: store, notificationStore: notificationStore, settings: settings)
                 }
             )
         }
@@ -50,6 +52,7 @@ struct AreaPanelView: View {
     let ghosttyApp: any GhosttyAppProviding
     var store: WorkspaceStore
     var notificationStore: NotificationStore
+    var settings: AppSettings
     var isActiveArea: Bool = false
 
     @State private var dropInsertIndex: Int?
@@ -210,9 +213,9 @@ struct AreaPanelView: View {
             }
             let session = area.tabs.compactMap { $0.content.terminalSession }.first
             if let session {
-                FileTreePanelWithCwd(state: state, session: session, onFocused: onFileTreeFocused)
+                FileTreePanelWithCwd(state: state, session: session, settings: settings, onFocused: onFileTreeFocused)
             } else {
-                FileTreePanelView(state: state, settings: AppSettings.shared, onFocused: onFileTreeFocused)
+                FileTreePanelView(state: state, settings: settings, onFocused: onFileTreeFocused)
             }
         }
     }
@@ -566,10 +569,11 @@ private struct TerminalTabTitle: View {
 private struct FileTreePanelWithCwd: View {
     var state: FileTreeState
     var session: TerminalSession
+    var settings: AppSettings
     var onFocused: (() -> Void)?
 
     var body: some View {
-        FileTreePanelView(state: state, workspaceCwd: session.pwd, settings: AppSettings.shared, onFocused: onFocused)
+        FileTreePanelView(state: state, workspaceCwd: session.pwd, settings: settings, onFocused: onFocused)
     }
 }
 

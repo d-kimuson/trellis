@@ -71,7 +71,8 @@ public struct ContentView: View {
                     node: workspace.layout,
                     ghosttyApp: store.ghosttyApp,
                     store: store,
-                    notificationStore: notificationStore
+                    notificationStore: notificationStore,
+                    settings: settings
                 )
             } else {
                 Text("No workspace")

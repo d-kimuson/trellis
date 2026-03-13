@@ -25,6 +25,7 @@ enum GhosttyFontSizeChange {
 @MainActor
 public final class GhosttyAppWrapper: GhosttyAppProviding {
     private(set) var app: ghostty_app_t?
+    private let settings: AppSettings
     /// The most recently focused terminal surface, used for clipboard operations.
     public var focusedSurface: ghostty_surface_t?
 
@@ -41,7 +42,8 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
     /// Back-reference to the workspace store for dispatching UI actions from NSView subclasses.
     public weak var store: WorkspaceStore?
 
-    public init() {
+    public init(settings: AppSettings = AppSettings.shared) {
+        self.settings = settings
         debugLog("[STARTUP] GhosttyAppWrapper init")
 
         // Point ghostty at our bundled resources so it can inject shell integration.
@@ -102,7 +104,7 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
 
         // Write current Trellis settings to the ghostty config file before creating the app,
         // so that the initial config load picks them up.
-        GhosttyConfigManager.apply(AppSettings.shared)
+        GhosttyConfigManager.apply(settings)
 
         app = ghostty_app_new(&runtimeConfig, config)
         ghostty_config_free(config)
@@ -267,18 +269,18 @@ public final class GhosttyAppWrapper: GhosttyAppProviding {
     }
 
     public func increaseFontSize() {
-        AppSettings.shared.fontSize = min(AppSettings.shared.fontSize + 1, 72)
-        applySettings(AppSettings.shared)
+        settings.fontSize = min(settings.fontSize + 1, 72)
+        applySettings(settings)
     }
 
     public func decreaseFontSize() {
-        AppSettings.shared.fontSize = max(AppSettings.shared.fontSize - 1, 6)
-        applySettings(AppSettings.shared)
+        settings.fontSize = max(settings.fontSize - 1, 6)
+        applySettings(settings)
     }
 
     public func resetFontSize() {
-        AppSettings.shared.fontSize = 13
-        applySettings(AppSettings.shared)
+        settings.fontSize = 13
+        applySettings(settings)
     }
 
     /// Write settings to the ghostty config file and reload the ghostty app config.
