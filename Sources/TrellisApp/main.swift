@@ -15,6 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var ipcServer: IPCServer!
     private var sessionTitleCancellable: AnyCancellable?
     private var settingsPanel: NSPanel?
+    private var workspaceActivity: NSUserActivity?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.migrateFromUserDefaultsIfNeeded()
@@ -197,6 +198,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func updateWindowTitle() {
         guard let workspace = store.activeWorkspace else {
             window.title = "Trellis"
+            workspaceActivity?.invalidate()
+            workspaceActivity = nil
             return
         }
         if let cwd = workspace.representativeSession?.shortPwd {
@@ -205,6 +208,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             window.title = "Trellis / \(workspace.name)"
         }
+        updateSpotlightActivity(workspace: workspace)
+    }
+
+    private func updateSpotlightActivity(workspace: Workspace) {
+        let activity = workspaceActivity ?? NSUserActivity(activityType: "dev.trellis.workspace")
+        activity.title = "Trellis: \(workspace.name)"
+        activity.isEligibleForSearch = true
+        activity.isEligibleForHandoff = false
+        activity.userInfo = ["workspaceName": workspace.name]
+        activity.keywords = Set([workspace.name, "Trellis", "terminal"])
+        activity.becomeCurrent()
+        workspaceActivity = activity
     }
 
     private func handleDesktopNotification(
