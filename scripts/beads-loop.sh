@@ -131,7 +131,7 @@ run_architect_review() {
     --permission-mode auto \
     --model opus \
     --effort high \
-    -p '/teams/architect' \
+    -p 'teams:architect' \
     --verbose \
     || {
       log "WARNING: アーキテクトレビューが非ゼロで終了 (exit=$?)"
@@ -141,7 +141,7 @@ run_architect_review() {
 
   claude \
     --permission-mode auto \
-    -p '/teams/pdm アーキテクトレビューの結果を docs/tmp/architect-review/ の最新ファイルから読み込んで issue を起票してください' \
+    -p 'teams:pdm アーキテクトレビューの結果を docs/tmp/architect-review/ の最新ファイルから読み込んで issue を起票してください' \
     --verbose \
     || {
       log "WARNING: PdM セッションが非ゼロで終了 (exit=$?)"
@@ -211,8 +211,7 @@ ${gate_prompt}"
 
   claude \
     --permission-mode auto \
-    --model sonnet \
-    -p '/teams/dev-auto' \
+    -p 'teams:dev-auto' \
     --session-id "$session_id" \
     --append-system-prompt "$system_prompt" \
     --verbose \

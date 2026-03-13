@@ -82,20 +82,20 @@ bd dep add "$MAIN_ID" "$AC_ID"
 ## ワークフロー概要
 
 ```
-1. [pdm]       /teams/pdm           → issue 起票・AC設定・依存設計
-2. [dev]       /teams/dev-auto|colab → bd ready --unassigned から実装
+1. [pdm]       teams:pdm           → issue 起票・AC設定・依存設計
+2. [dev]       teams:dev-auto|colab → bd ready --unassigned から実装
 3. [dev]       実装完了              → gate:required なら gate issue 作成
-4. [po]        /teams/gates-review   → kimuson が動作確認し結果を返す
-5. [pdm]       /teams/gates-review   → OK なら close、NG なら note + タスク open に戻す
-6. [architect] /teams/architect      → 定期レビュー → pdm が issue 化
+4. [po]        teams:gates-review   → kimuson が動作確認し結果を返す
+5. [pdm]       teams:gates-review   → OK なら close、NG なら note + タスク open に戻す
+6. [architect] teams:architect      → 定期レビュー → pdm が issue 化
 ```
 
 ## コマンド一覧
 
 | コマンド | 用途 |
 |----------|------|
-| `/teams/pdm` | issue 起票・整理・依存設計 |
-| `/teams/dev-auto` | 自律実装。ユーザー確認なし |
-| `/teams/dev-colab` | 協働実装。kimuson に確認しながら進む |
-| `/teams/gates-review` | gate 確認サマリー出力 + kimuson の結果処理 |
-| `/teams/architect` | アーキテクチャレビュー + CODING_GUIDELINE.md + Lint更新 |
+| `teams:pdm` | issue 起票・整理・依存設計 |
+| `teams:dev-auto` | 自律実装。ユーザー確認なし |
+| `teams:dev-colab` | 協働実装。kimuson に確認しながら進む |
+| `teams:gates-review` | gate 確認サマリー出力 + kimuson の結果処理 |
+| `teams:architect` | アーキテクチャレビュー + CODING_GUIDELINE.md + Lint更新 |
