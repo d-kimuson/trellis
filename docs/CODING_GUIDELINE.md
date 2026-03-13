@@ -78,14 +78,24 @@ SwiftUI の細粒度トラッキングを活かすため、「変更しても再
 - ✅ バックグラウンドタスク参照（`gitProcess`, `reloadTask`）
 - ❌ UI に表示されるデータ（`title`, `pwd`, `gitBranch`）
 
-### UIAction のディスパッチ
+### 状態イベント伝達パターン
 
-NSView → SwiftUI View への通知は `pendingUIAction` パターンを使う。ただし、**同一フレームで複数 dispatch する場合は後者が前者を上書き**することに注意。将来的にキュー化を検討。
+NSView → SwiftUI View への通知に `pendingAction?: ActionType` パターンを使う場合、**同一フレームで複数 dispatch すると後者が前者を上書きする**。
+
+新規実装では `actions: [ActionType]` キューまたは `AsyncStream` を優先すること。
 
 ```swift
-// 現在の実装（単発アクションに限定）
-store.dispatch(.toggleSidebar)
+// ❌ 単一 pending フィールド — 複数イベントを失う可能性がある
+var pendingAction: MyAction?
+
+// ✅ キュー — 複数イベントを安全に処理できる
+var pendingActions: [MyAction] = []
+
+// ✅ AsyncStream — リアクティブに処理できる
+var actionStream: AsyncStream<MyAction>
 ```
+
+既存の `pendingUIAction` は単発アクション専用として維持し、複数 dispatch が必要な箇所ではキュー化すること。
 
 ---
 
