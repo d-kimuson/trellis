@@ -7,6 +7,7 @@ struct CommandPaletteView: View {
     @Binding var isPresented: Bool
     @State private var query = ""
     @State private var selectedIndex = 0
+    @FocusState private var isSearchFieldFocused: Bool
 
     private var filteredCommands: [AppCommand] {
         AppCommand.allCommands.filter { $0.matches(query) }
@@ -22,6 +23,7 @@ struct CommandPaletteView: View {
                 TextField("Type a command...", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14))
+                    .focused($isSearchFieldFocused)
                     .onSubmit { executeSelected() }
             }
             .padding(.horizontal, 12)
@@ -59,6 +61,9 @@ struct CommandPaletteView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
         )
+        .onAppear {
+            isSearchFieldFocused = true
+        }
         .onChange(of: query) { _, _ in
             selectedIndex = 0
         }
