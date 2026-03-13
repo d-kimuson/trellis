@@ -206,6 +206,35 @@ final class FileNodeTests: XCTestCase {
 
     // MARK: - replacingChildren
 
+    func testReplacingChildrenStopsAtMaxDepth() {
+        // Build a tree deeper than maxTraversalDepth
+        let deepId = UUID()
+        var tree = FileNode.directory(id: deepId, name: "deep", path: "/deep", children: [])
+
+        // Wrap the target node in (maxTraversalDepth + 5) layers of directories
+        let extraDepth = FileNode.maxTraversalDepth + 5
+        for i in 0..<extraDepth {
+            tree = FileNode.directory(
+                id: UUID(), name: "level\(i)", path: "/level\(i)", children: [tree]
+            )
+        }
+
+        let newChildren: [FileNode] = [
+            .file(id: UUID(), name: "injected.txt", path: "/deep/injected.txt")
+        ]
+
+        // replacingChildren should NOT reach the deeply-buried node
+        let updated = tree.replacingChildren(ofNodeId: deepId, with: newChildren)
+
+        // Walk down to the deepest node — it should still have empty children
+        var current = updated
+        while !current.children.isEmpty {
+            current = current.children[0]
+        }
+        XCTAssertEqual(current.id, deepId)
+        XCTAssertTrue(current.children.isEmpty, "replacingChildren should stop before reaching nodes beyond maxTraversalDepth")
+    }
+
     func testReplacingChildrenUpdatesTargetNode() {
         let childDirId = UUID()
         let root = FileNode.directory(

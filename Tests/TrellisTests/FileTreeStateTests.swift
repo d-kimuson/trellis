@@ -267,6 +267,59 @@ final class FileTreeStateTests: XCTestCase {
         // If nil, that's the expected case for a non-git directory
     }
 
+    // MARK: - Depth limit safety
+
+    /// toggleExpanded (which uses findNode internally) should not crash
+    /// even when the tree is very deeply nested.
+    func testToggleExpandedDoesNotCrashOnDeeplyNestedTree() {
+        // Create a directory structure deeper than maxTraversalDepth
+        let depth = FileNode.maxTraversalDepth + 10
+        var path = tempDir!
+        for i in 0..<depth {
+            path = (path as NSString).appendingPathComponent("d\(i)")
+            mkdir(path)
+        }
+        touch((path as NSString).appendingPathComponent("leaf.txt"))
+
+        let state = FileTreeState(rootPath: tempDir)
+
+        // Expand directories as deep as possible — should not crash
+        var current = state.rootNode
+        for _ in 0..<depth {
+            guard let dir = current?.children.first(where: { $0.isDirectory }) else { break }
+            state.toggleExpanded(dir.id)
+            // Re-fetch from updated tree
+            current = findNode(named: dir.name, in: state.rootNode!)
+        }
+        // Reaching here without a crash is the test passing
+    }
+
+    /// reload (which uses restoreExpanded internally) should not crash
+    /// even when many directories are expanded deeply.
+    func testReloadDoesNotCrashOnDeeplyNestedExpandedTree() {
+        let depth = FileNode.maxTraversalDepth + 10
+        var path = tempDir!
+        for i in 0..<depth {
+            path = (path as NSString).appendingPathComponent("d\(i)")
+            mkdir(path)
+        }
+        touch((path as NSString).appendingPathComponent("leaf.txt"))
+
+        let state = FileTreeState(rootPath: tempDir)
+
+        // Expand as deep as possible
+        var current = state.rootNode
+        for _ in 0..<depth {
+            guard let dir = current?.children.first(where: { $0.isDirectory }) else { break }
+            state.toggleExpanded(dir.id)
+            current = findNode(named: dir.name, in: state.rootNode!)
+        }
+
+        // reload should not crash even with deeply nested expansions
+        state.reload()
+        XCTAssertNotNil(state.rootNode)
+    }
+
     // MARK: - Private helpers
 
     private func findNode(named name: String, in node: FileNode) -> FileNode? {

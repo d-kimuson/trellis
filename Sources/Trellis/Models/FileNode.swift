@@ -83,6 +83,10 @@ public enum FileNode: Identifiable, Equatable {
 
     /// Replace the children of a specific directory node (by ID) in the tree.
     public func replacingChildren(ofNodeId targetId: UUID, with newChildren: [FileNode]) -> FileNode {
+        replacingChildren(ofNodeId: targetId, with: newChildren, depth: 0)
+    }
+
+    private func replacingChildren(ofNodeId targetId: UUID, with newChildren: [FileNode], depth: Int) -> FileNode {
         switch self {
         case .file:
             return self
@@ -90,10 +94,16 @@ public enum FileNode: Identifiable, Equatable {
             if id == targetId {
                 return .directory(id: id, name: name, path: path, children: newChildren)
             }
-            let updatedChildren = children.map { $0.replacingChildren(ofNodeId: targetId, with: newChildren) }
+            guard depth < FileNode.maxTraversalDepth else { return self }
+            let updatedChildren = children.map {
+                $0.replacingChildren(ofNodeId: targetId, with: newChildren, depth: depth + 1)
+            }
             return .directory(id: id, name: name, path: path, children: updatedChildren)
         }
     }
+
+    /// Maximum recursion depth for tree traversal to prevent stack overflow on deeply nested directories.
+    public static let maxTraversalDepth = 50
 
     // MARK: - Private
 

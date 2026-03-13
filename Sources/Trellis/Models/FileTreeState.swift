@@ -170,14 +170,15 @@ public final class FileTreeState: Identifiable {
     /// Recursively restore expanded directories top-down in a freshly-built shallow tree.
     /// Processing top-down ensures that a parent's children are loaded before we attempt
     /// to expand any of its children, which was the root cause of the nested-expansion bug.
-    private func restoreExpanded(in node: FileNode) -> FileNode {
+    private func restoreExpanded(in node: FileNode, depth: Int = 0) -> FileNode {
         guard case .directory(let id, let name, let path, var children) = node else {
             return node
         }
+        guard depth < FileNode.maxTraversalDepth else { return node }
         if expandedDirectories.contains(id) && children.isEmpty {
             children = FileNode.loadChildren(at: path, ignoredPatterns: ignoredPatterns)
         }
-        let updatedChildren = children.map { restoreExpanded(in: $0) }
+        let updatedChildren = children.map { restoreExpanded(in: $0, depth: depth + 1) }
         return .directory(id: id, name: name, path: path, children: updatedChildren)
     }
 
@@ -193,10 +194,11 @@ public final class FileTreeState: Identifiable {
         rootNode = root.replacingChildren(ofNodeId: nodeId, with: children)
     }
 
-    private func findNode(id: UUID, in node: FileNode) -> FileNode? {
+    private func findNode(id: UUID, in node: FileNode, depth: Int = 0) -> FileNode? {
         if node.id == id { return node }
+        guard depth < FileNode.maxTraversalDepth else { return nil }
         for child in node.children {
-            if let found = findNode(id: id, in: child) {
+            if let found = findNode(id: id, in: child, depth: depth + 1) {
                 return found
             }
         }
