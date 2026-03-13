@@ -1,7 +1,7 @@
 import SwiftUI
 
 public struct SettingsView: View {
-    @ObservedObject var settings: AppSettings
+    @Bindable var settings: AppSettings
     let onApply: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -14,7 +14,7 @@ public struct SettingsView: View {
 
 
     public init(settings: AppSettings, onApply: @escaping () -> Void) {
-        self._settings = ObservedObject(wrappedValue: settings)
+        self.settings = settings
         self.onApply = onApply
     }
 

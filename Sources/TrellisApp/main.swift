@@ -13,7 +13,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var notificationManager: NotificationManager!
     var notificationStore: NotificationStore!
     var ipcServer: IPCServer!
-    private var cancellables = Set<AnyCancellable>()
     private var sessionTitleCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -72,11 +71,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 debugLog("[STARTUP] IPC server failed to start: \(error)")
             }
         }
-        settings.$ipcServerEnabled
-            .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] enabled in
+        observeIPCServerEnabled()
+    }
+
+    private func observeIPCServerEnabled() {
+        withObservationTracking {
+            _ = AppSettings.shared.ipcServerEnabled
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
+                let enabled = AppSettings.shared.ipcServerEnabled
                 if enabled {
                     do {
                         try self.ipcServer.start()
@@ -88,8 +92,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     self.ipcServer.stop()
                     debugLog("[IPC] Server stopped")
                 }
+                observeIPCServerEnabled()
             }
-            .store(in: &cancellables)
+        }
     }
 
     private func observeNotificationBadge() {

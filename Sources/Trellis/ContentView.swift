@@ -3,7 +3,7 @@ import SwiftUI
 public struct ContentView: View {
     var store: WorkspaceStore
     var notificationStore: NotificationStore
-    @ObservedObject var settings: AppSettings
+    @Bindable var settings: AppSettings
     @State private var showSidebar = true
     @State private var showNotifications = false
     @State private var showSettings = false
@@ -17,7 +17,7 @@ public struct ContentView: View {
     ) {
         self.store = store
         self.notificationStore = notificationStore
-        self._settings = ObservedObject(wrappedValue: settings)
+        self.settings = settings
     }
 
     public var body: some View {

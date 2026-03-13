@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 /// Manages workspaces, areas, tabs, and terminal sessions.
@@ -11,8 +10,6 @@ public final class WorkspaceStore {
     public var activeWorkspaceIndex: Int
     private var nextTerminalCounter: Int = 1
     @ObservationIgnored private var autosaveTimer: Timer?
-    /// Subscriptions forwarding terminal session changes to WorkspaceStore observation tracking.
-    @ObservationIgnored private var sessionCancellables: Set<AnyCancellable> = []
 
     /// Optional reference to the in-app notification store for marking read on focus.
     public weak var notificationStore: NotificationStore?
@@ -50,10 +47,6 @@ public final class WorkspaceStore {
         RunLoop.main.add(timer, forMode: .common)
         autosaveTimer = timer
 
-        // Forward terminal session changes (pwd, branch) to WorkspaceStore observation tracking
-        // so views observing the store (SidebarView, AreaPanelView, etc.) re-render on OSC 7.
-        rebuildSessionSubscriptions(for: workspaces)
-        startObservingWorkspaces(knownSessionIds: Set(allSessions.map(\.id)))
     }
 
     deinit {
@@ -82,32 +75,6 @@ public final class WorkspaceStore {
     }
 
     // MARK: - Helpers
-
-    /// Previously subscribed to TerminalSession.objectWillChange to forward changes.
-    /// Now that TerminalSession is @Observable, SwiftUI views track session properties
-    /// directly via fine-grained observation — no manual forwarding needed.
-    /// Kept as a no-op until all ObservableObject types are migrated (H-1d).
-    func rebuildSessionSubscriptions(for workspaces: [Workspace]) {
-        sessionCancellables = []
-        debugLog("[SESSION] rebuildSessionSubscriptions: no-op (TerminalSession is @Observable)")
-    }
-
-    /// Observes `workspaces` changes using @Observable tracking.
-    /// Rebuilds session subscriptions only when the set of session IDs changes (structural change).
-    func startObservingWorkspaces(knownSessionIds: Set<UUID>) {
-        withObservationTracking {
-            _ = workspaces
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let newSessionIds = Set(allSessions.map(\.id))
-                if newSessionIds != knownSessionIds {
-                    rebuildSessionSubscriptions(for: workspaces)
-                }
-                startObservingWorkspaces(knownSessionIds: newSessionIds)
-            }
-        }
-    }
 
     /// Returns the pwd of the active terminal in the given area, if available.
     func activeTerminalPwd(in areaId: UUID, workspace: Workspace?) -> String? {

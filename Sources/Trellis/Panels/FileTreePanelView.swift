@@ -7,7 +7,7 @@ struct FileTreePanelView: View {
     /// Current working directory of the representative terminal session in the area.
     /// Passed as the initial directory when no root has been selected yet.
     var workspaceCwd: String?
-    @ObservedObject var settings: AppSettings
+    var settings: AppSettings
     var onFocused: (() -> Void)?
 
     var body: some View {
@@ -197,7 +197,7 @@ private struct FileNodeRow: View {
     let node: FileNode
     var state: FileTreeState
     let depth: Int
-    @ObservedObject var settings: AppSettings
+    var settings: AppSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

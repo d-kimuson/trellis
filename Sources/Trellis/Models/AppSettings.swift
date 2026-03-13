@@ -1,32 +1,34 @@
 import Foundation
+import Observation
 
 /// App-level settings persisted to UserDefaults.
 /// Font settings are also written to the ghostty config file on apply.
+@Observable
 @MainActor
-public final class AppSettings: ObservableObject {
+public final class AppSettings {
     public static let shared = AppSettings()
 
-    private let defaults: UserDefaults
+    @ObservationIgnored private let defaults: UserDefaults
 
     // MARK: - Font (written to ghostty config)
 
-    @Published public var fontFamily: String {
+    public var fontFamily: String {
         didSet { defaults.set(fontFamily, forKey: Keys.fontFamily) }
     }
 
-    @Published public var fontSize: Double {
+    public var fontSize: Double {
         didSet { defaults.set(fontSize, forKey: Keys.fontSize) }
     }
 
     // MARK: - Panel Font Size (applies to non-terminal panels like file tree)
 
-    @Published public var panelFontSize: Double {
+    public var panelFontSize: Double {
         didSet { defaults.set(panelFontSize, forKey: Keys.panelFontSize) }
     }
 
     // MARK: - IPC Server
 
-    @Published public var ipcServerEnabled: Bool {
+    public var ipcServerEnabled: Bool {
         didSet { defaults.set(ipcServerEnabled, forKey: Keys.ipcServerEnabled) }
     }
 
