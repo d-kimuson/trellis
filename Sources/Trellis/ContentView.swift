@@ -21,7 +21,7 @@ public struct ContentView: View {
 
     public var body: some View {
         HStack(spacing: 0) {
-            // Sidebar toggle column
+            // ActivityBar
             VStack {
                 Spacer().frame(height: 8)
                 Image(systemName: "sidebar.leading")

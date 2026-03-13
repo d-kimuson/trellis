@@ -53,6 +53,16 @@ npx -y check-changed@0.0.1-beta.4 run
 
 lint, build, test を変更ファイルに対して実行する。全チェック通過が必須。失敗したら修正して再実行。
 
+## UI Terminology
+
+| Term | Description | Code |
+|------|-------------|------|
+| ActivityBar | Sidebar の左にある狭いアイコン列。Sidebar トグル・通知ベル・設定等 | ContentView の左端 VStack (width: 32) |
+| Sidebar | ワークスペース一覧が並ぶ左ペイン (macOS HIG 準拠) | SidebarView |
+| Area | ワークスペース内のコンテンツ表示単位。LayoutNode で分割管理 | AreaLayoutView |
+| Panel | Area 内の個別ビュー | TerminalPanel, BrowserPanel, FileTreePanel 等 |
+| Workspace | 複数の Area をまとめた作業単位 | Workspace model |
+
 ## Source Structure
 
 ```
