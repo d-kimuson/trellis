@@ -17,7 +17,12 @@ public final class IPCServer {
     private var serverSource: DispatchSourceRead?
     private var clientSources: [Int32: DispatchSourceRead] = [:]
     private var clientBuffers: [Int32: Data] = [:]
+    private var clientWriteBuffers: [Int32: Data] = [:]
+    private var clientWriteSources: [Int32: DispatchSourceWrite] = [:]
     private var isRunning = false
+
+    /// Maximum write buffer size per client before disconnecting (256 KB)
+    private static let maxWriteBufferSize = 256 * 1024
 
     public init(store: WorkspaceStore, ghosttyApp: GhosttyAppWrapper) {
         self.store = store
@@ -78,6 +83,9 @@ public final class IPCServer {
         guard isRunning else { return }
         serverSource?.cancel()
         serverSource = nil
+        clientWriteSources.values.forEach { $0.cancel() }
+        clientWriteSources.removeAll()
+        clientWriteBuffers.removeAll()
         clientSources.values.forEach { $0.cancel() }
         clientSources.removeAll()
         clientBuffers.removeAll()
@@ -96,6 +104,12 @@ public final class IPCServer {
             }
         }
         guard clientFd >= 0 else { return }
+
+        // Set non-blocking mode so writes never block the main queue
+        let flags = fcntl(clientFd, F_GETFL)
+        if flags >= 0 {
+            _ = fcntl(clientFd, F_SETFL, flags | O_NONBLOCK)
+        }
 
         clientBuffers[clientFd] = Data()
 
@@ -127,6 +141,9 @@ public final class IPCServer {
     }
 
     private func removeClient(fd: Int32) {
+        clientWriteSources[fd]?.cancel()
+        clientWriteSources.removeValue(forKey: fd)
+        clientWriteBuffers.removeValue(forKey: fd)
         clientSources[fd]?.cancel()
         clientSources.removeValue(forKey: fd)
         clientBuffers.removeValue(forKey: fd)
@@ -135,9 +152,53 @@ public final class IPCServer {
     private func writeResponse(fd: Int32, data: Data) {
         var out = data
         out.append(UInt8(ascii: "\n"))
-        out.withUnsafeBytes { ptr in
-            _ = write(fd, ptr.baseAddress!, ptr.count)
+
+        clientWriteBuffers[fd, default: Data()].append(out)
+
+        if clientWriteBuffers[fd, default: Data()].count > Self.maxWriteBufferSize {
+            removeClient(fd: fd)
+            return
         }
+
+        ensureWriteSource(fd: fd)
+    }
+
+    private func ensureWriteSource(fd: Int32) {
+        guard clientWriteSources[fd] == nil else { return }
+
+        let source = DispatchSource.makeWriteSource(fileDescriptor: fd, queue: .main)
+        source.setEventHandler { [weak self] in self?.drainWriteBuffer(fd: fd) }
+        source.setCancelHandler { /* fd is closed by removeClient's read source cancel */ }
+        source.resume()
+        clientWriteSources[fd] = source
+    }
+
+    private func drainWriteBuffer(fd: Int32) {
+        guard var buffer = clientWriteBuffers[fd], !buffer.isEmpty else {
+            // Nothing left to write; suspend the write source
+            clientWriteSources[fd]?.cancel()
+            clientWriteSources.removeValue(forKey: fd)
+            return
+        }
+
+        let written = buffer.withUnsafeBytes { ptr -> Int in
+            guard let base = ptr.baseAddress else { return 0 }
+            return write(fd, base, ptr.count)
+        }
+
+        if written > 0 {
+            buffer.removeFirst(written)
+            clientWriteBuffers[fd] = buffer
+
+            if buffer.isEmpty {
+                clientWriteSources[fd]?.cancel()
+                clientWriteSources.removeValue(forKey: fd)
+            }
+        } else if written < 0 && errno != EAGAIN && errno != EWOULDBLOCK {
+            // Write error (broken pipe, etc.) — disconnect
+            removeClient(fd: fd)
+        }
+        // written == 0 or EAGAIN: wait for next writable event
     }
 
     // MARK: - Command Dispatch
