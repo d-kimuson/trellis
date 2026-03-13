@@ -680,6 +680,12 @@ class GhosttyNSView: NSView, NSTextInputClient {
     }
 }
 
+// MARK: - TerminalSurfaceView conformance
+
+extension GhosttyNSView: TerminalSurfaceView {
+    public var nsView: NSView { self }
+}
+
 // MARK: - NSScreen extension for display ID
 
 extension NSScreen {
@@ -697,11 +703,11 @@ struct TerminalView: NSViewRepresentable {
     let session: TerminalSession
 
     func makeNSView(context: Context) -> GhosttyNSView {
-        if let existing = session.nsView {
+        if let existing = session.surfaceView as? GhosttyNSView {
             return existing
         }
         let view = GhosttyNSView(ghosttyApp: ghosttyApp, session: session)
-        session.nsView = view
+        session.surfaceView = view
         return view
     }
 

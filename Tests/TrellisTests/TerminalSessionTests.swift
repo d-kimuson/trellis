@@ -13,11 +13,11 @@ final class TerminalSessionTests: XCTestCase {
         XCTAssertFalse(session.isActive)
     }
 
-    func testCloseNilsOutNsView() {
+    func testCloseNilsOutSurfaceView() {
         let session = TerminalSession(title: "Test")
-        // nsView starts nil; close() should handle that gracefully
+        // surfaceView starts nil; close() should handle that gracefully
         session.close()
-        XCTAssertNil(session.nsView)
+        XCTAssertNil(session.surfaceView)
     }
 
     func testSessionCanBeReleasedAfterClose() {
