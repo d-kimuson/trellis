@@ -169,8 +169,46 @@ struct FileTreePanelView: View {
             TextField("Find...", text: Bindable(state).previewSearchQuery)
                 .textFieldStyle(.plain)
                 .font(.system(size: settings.panelFontSize, design: .monospaced))
-                .onSubmit { /* Enter does nothing for now; live search updates on type */ }
-            Button(action: { state.isPreviewSearchVisible = false; state.previewSearchQuery = "" }) {
+                .onSubmit {
+                    if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
+                        state.navigateSearchPrevious()
+                    } else {
+                        state.navigateSearchNext()
+                    }
+                }
+            if state.previewSearchMatchCount > 0 {
+                Text("\(state.previewSearchCurrentIndex) of \(state.previewSearchMatchCount)")
+                    .font(.system(size: settings.panelFontSize - 1, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+            } else if !state.previewSearchQuery.isEmpty {
+                Text("No results")
+                    .font(.system(size: settings.panelFontSize - 1, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+            }
+            Button(action: { state.navigateSearchPrevious() }) {
+                Image(systemName: "chevron.up")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .disabled(state.previewSearchMatchCount == 0)
+            .help("Previous match (Shift+Enter)")
+            Button(action: { state.navigateSearchNext() }) {
+                Image(systemName: "chevron.down")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .disabled(state.previewSearchMatchCount == 0)
+            .help("Next match (Enter)")
+            Button(action: {
+                state.isPreviewSearchVisible = false
+                state.previewSearchQuery = ""
+                state.previewSearchMatchCount = 0
+                state.previewSearchCurrentIndex = 0
+            }) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.secondary)
                     .font(.caption)
@@ -192,6 +230,11 @@ struct FileTreePanelView: View {
                     isDiff: true,
                     searchQuery: state.previewSearchQuery,
                     onFindRequested: { state.isPreviewSearchVisible = true },
+                    onFindUpdate: { current, total in
+                        state.previewSearchCurrentIndex = current
+                        state.previewSearchMatchCount = total
+                    },
+                    webViewRef: { state.previewWebView = $0 },
                     reviewBridge: state.reviewBridge
                 )
             } else {
@@ -200,7 +243,12 @@ struct FileTreePanelView: View {
                     filePath: path,
                     fontSize: settings.panelFontSize,
                     searchQuery: state.previewSearchQuery,
-                    onFindRequested: { state.isPreviewSearchVisible = true }
+                    onFindRequested: { state.isPreviewSearchVisible = true },
+                    onFindUpdate: { current, total in
+                        state.previewSearchCurrentIndex = current
+                        state.previewSearchMatchCount = total
+                    },
+                    webViewRef: { state.previewWebView = $0 }
                 )
             }
         }

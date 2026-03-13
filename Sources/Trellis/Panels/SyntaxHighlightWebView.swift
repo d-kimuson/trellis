@@ -48,6 +48,10 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     var searchQuery: String = ""
     /// Called when the user presses Cmd+F while the web view is focused.
     var onFindRequested: (() -> Void)?
+    /// Called when find results change. Parameters: (currentIndex 1-based, totalCount).
+    var onFindUpdate: ((Int, Int) -> Void)?
+    /// Weak reference to store the created WKWebView for external access (e.g., find navigation).
+    var webViewRef: ((WKWebView) -> Void)?
     /// Bridge for diff review comments. Only used when isDiff is true.
     var reviewBridge: DiffReviewBridge?
 
@@ -58,11 +62,21 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         var cachedIsDiff: Bool = false
         var cachedSearchQuery: String = ""
         weak var reviewBridge: DiffReviewBridge?
+        var onFindUpdate: ((Int, Int) -> Void)?
 
         func userContentController(
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
+            if message.name == "findUpdate",
+               let body = message.body as? [String: Any],
+               let current = body["current"] as? Int,
+               let total = body["total"] as? Int {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onFindUpdate?(current, total)
+                }
+                return
+            }
             guard message.name == "reviewUpdate" else { return }
             if let hasComments = message.body as? Bool {
                 DispatchQueue.main.async { [weak self] in
@@ -79,6 +93,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.userContentController.add(context.coordinator, name: "findUpdate")
         if isDiff && reviewBridge != nil {
             config.userContentController.add(context.coordinator, name: "reviewUpdate")
         }
@@ -93,6 +108,8 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         coordinator.cachedFontSize = fontSize
         coordinator.cachedIsDiff = isDiff
         coordinator.reviewBridge = reviewBridge
+        coordinator.onFindUpdate = onFindUpdate
+        webViewRef?(webView)
         if isDiff {
             reviewBridge?.webView = webView
             reviewBridge?.hasComments = false
@@ -106,6 +123,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         }
 
         let coordinator = context.coordinator
+        coordinator.onFindUpdate = onFindUpdate
         let contentChanged = code != coordinator.cachedCode
             || filePath != coordinator.cachedFilePath
             || fontSize != coordinator.cachedFontSize
@@ -348,6 +366,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
                 p.removeChild(n);
             });
             if(__m.length>0){__c=0;__m[0].classList.add('__find-cur');__m[0].scrollIntoView({block:'center'});}
+            __postFind();
         }
         function __findNext(){
             if(!__m.length) return;
@@ -355,6 +374,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
             __c=(__c+1)%__m.length;
             __m[__c].classList.add('__find-cur');
             __m[__c].scrollIntoView({block:'center'});
+            __postFind();
         }
         function __findPrev(){
             if(!__m.length) return;
@@ -362,6 +382,10 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
             __c=(__c-1+__m.length)%__m.length;
             __m[__c].classList.add('__find-cur');
             __m[__c].scrollIntoView({block:'center'});
+            __postFind();
+        }
+        function __postFind(){
+            try{window.webkit.messageHandlers.findUpdate.postMessage({current:__m.length>0?__c+1:0,total:__m.length});}catch(e){}
         }
         function __clearHL(){
             document.querySelectorAll('.__find-hl').forEach(function(mk){

@@ -2,6 +2,7 @@ import AppKit
 import CoreServices
 import Foundation
 import Observation
+import WebKit
 
 /// Tab selection for the file preview pane.
 public enum PreviewTab: Equatable {
@@ -23,6 +24,9 @@ public final class FileTreeState: Identifiable {
     public var selectedPreviewTab: PreviewTab = .content
     public var isPreviewSearchVisible: Bool = false
     public var previewSearchQuery: String = ""
+    public var previewSearchMatchCount: Int = 0
+    public var previewSearchCurrentIndex: Int = 0
+    @ObservationIgnored public weak var previewWebView: WKWebView?
     public var gitStatusMap: [String: GitFileStatus] = [:]
     public var dirtyDirectoryPaths: Set<String> = []
     public var isGitDiffFilterEnabled: Bool = false
@@ -156,6 +160,20 @@ public final class FileTreeState: Identifiable {
         selectedPreviewTab = .content
         isPreviewSearchVisible = false
         previewSearchQuery = ""
+        previewSearchMatchCount = 0
+        previewSearchCurrentIndex = 0
+    }
+
+    /// Navigate to the next search match in the file preview.
+    public func navigateSearchNext() {
+        guard let webView = previewWebView else { return }
+        webView.evaluateJavaScript("__findNext()", completionHandler: nil)
+    }
+
+    /// Navigate to the previous search match in the file preview.
+    public func navigateSearchPrevious() {
+        guard let webView = previewWebView else { return }
+        webView.evaluateJavaScript("__findPrev()", completionHandler: nil)
     }
 
     /// Select a file and load its content for preview.
@@ -167,6 +185,8 @@ public final class FileTreeState: Identifiable {
         selectedPreviewTab = .content
         isPreviewSearchVisible = false
         previewSearchQuery = ""
+        previewSearchMatchCount = 0
+        previewSearchCurrentIndex = 0
         selectedFileContent = nil
 
         selectFileTask?.cancel()
