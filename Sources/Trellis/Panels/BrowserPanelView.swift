@@ -48,8 +48,7 @@ struct WebViewRepresentable: NSViewRepresentable {
         let onFocused: (() -> Void)?
         var lastNavigatedURL: URL?
         weak var webView: WKWebView?
-        private var mouseMonitor: Any?
-        private var keyboardMonitor: Any?
+        private let eventMonitor = BrowserEventMonitor.shared
 
         init(state: BrowserState, onFocused: (() -> Void)?) {
             self.state = state
@@ -82,13 +81,12 @@ struct WebViewRepresentable: NSViewRepresentable {
         }
 
         deinit {
-            removeMouseMonitor()
-            removeKeyboardMonitor()
+            eventMonitor.removeAll(for: self)
         }
 
         func setupKeyboardMonitor(webView: WKWebView) {
             // F12 (keyCode 111) opens DevTools when the WebView is focused.
-            keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak webView] event in
+            eventMonitor.addKeyboardHandler(for: self) { [weak self, weak webView] event in
                 guard let webView, event.keyCode == 111 else { return event }
                 let responder = webView.window?.firstResponder
                 let isWebViewFocused: Bool
@@ -106,16 +104,11 @@ struct WebViewRepresentable: NSViewRepresentable {
         }
 
         func removeKeyboardMonitor() {
-            if let monitor = keyboardMonitor {
-                NSEvent.removeMonitor(monitor)
-                keyboardMonitor = nil
-            }
+            eventMonitor.removeKeyboardHandler(for: self)
         }
 
         func setupMouseMonitor(webView: WKWebView) {
-            mouseMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: .leftMouseDown
-            ) { [weak self, weak webView] event in
+            eventMonitor.addMouseHandler(for: self) { [weak self, weak webView] event in
                 guard let webView = webView else { return event }
                 let point = webView.convert(event.locationInWindow, from: nil)
                 if webView.bounds.contains(point) {
@@ -126,10 +119,7 @@ struct WebViewRepresentable: NSViewRepresentable {
         }
 
         func removeMouseMonitor() {
-            if let monitor = mouseMonitor {
-                NSEvent.removeMonitor(monitor)
-                mouseMonitor = nil
-            }
+            eventMonitor.removeMouseHandler(for: self)
         }
 
         func webView(
