@@ -35,9 +35,6 @@ extension Notification.Name {
 /// Manages the global ghostty state and provides surface creation.
 @MainActor
 public final class GhosttyAppWrapper {
-    /// Singleton reference for C callback access (C function pointers can't capture context).
-    static weak var current: GhosttyAppWrapper?
-
     private(set) var app: ghostty_app_t?
     private var displayLink: CVDisplayLink?
     /// The most recently focused terminal surface, used for clipboard operations.
@@ -54,7 +51,6 @@ public final class GhosttyAppWrapper {
     public var onDesktopNotification: ((String, String, Bool, TerminalSession?) -> Void)?
 
     public init() {
-        GhosttyAppWrapper.current = self
         debugLog("[STARTUP] GhosttyAppWrapper init")
 
         // Point ghostty at our bundled resources so it can inject shell integration.
@@ -92,7 +88,9 @@ public final class GhosttyAppWrapper {
         }
         runtimeConfig.action_cb = { app, target, action in
             guard let app else { return false }
-            return GhosttyAppWrapper.handleAction(app: app, target: target, action: action)
+            guard let ud = ghostty_app_userdata(app) else { return false }
+            let wrapper = Unmanaged<GhosttyAppWrapper>.fromOpaque(ud).takeUnretainedValue()
+            return GhosttyAppWrapper.handleAction(wrapper: wrapper, target: target, action: action)
         }
         runtimeConfig.read_clipboard_cb = { userdata, location, state in
             GhosttyAppWrapper.readClipboard(userdata: userdata, location: location, state: state)
@@ -342,7 +340,7 @@ public final class GhosttyAppWrapper {
     // MARK: - Static Callbacks
 
     private static func handleAction(
-        app: ghostty_app_t,
+        wrapper: GhosttyAppWrapper,
         target: ghostty_target_s,
         action: ghostty_action_s
     ) -> Bool {
@@ -355,7 +353,7 @@ public final class GhosttyAppWrapper {
                 MainActor.assumeIsolated {
                     if target.tag == GHOSTTY_TARGET_SURFACE,
                        let surface = target.target.surface,
-                       let session = current?.lookupSession(surface: surface) {
+                       let session = wrapper.lookupSession(surface: surface) {
                         session.title = title
                     }
                     NotificationCenter.default.post(
@@ -373,15 +371,15 @@ public final class GhosttyAppWrapper {
             let sourceSurface: ghostty_surface_t? = target.tag == GHOSTTY_TARGET_SURFACE
                 ? target.target.surface : nil
             let isSourceFocused: Bool
-            if let src = sourceSurface, let focused = current?.focusedSurface {
+            if let src = sourceSurface, let focused = wrapper.focusedSurface {
                 isSourceFocused = src == focused
             } else {
                 isSourceFocused = false
             }
             // Resolve session before the callback so callers don't need GhosttyKit import.
-            let sourceSession = sourceSurface.flatMap { current?.lookupSession(surface: $0) }
+            let sourceSession = sourceSurface.flatMap { wrapper.lookupSession(surface: $0) }
             // Call directly — no DispatchQueue.main.async to avoid Metal render delays
-            current?.onDesktopNotification?(title, body, !isSourceFocused, sourceSession)
+            wrapper.onDesktopNotification?(title, body, !isSourceFocused, sourceSession)
         case GHOSTTY_ACTION_PWD:
             let pwdAction = action.action.pwd
             if let pwdPtr = pwdAction.pwd {
@@ -390,7 +388,7 @@ public final class GhosttyAppWrapper {
                 MainActor.assumeIsolated {
                     if target.tag == GHOSTTY_TARGET_SURFACE,
                        let surface = target.target.surface,
-                       let session = current?.lookupSession(surface: surface) {
+                       let session = wrapper.lookupSession(surface: surface) {
                         session.pwd = pwd
                         session.updateGitBranch(at: pwd)
                     }
@@ -404,7 +402,7 @@ public final class GhosttyAppWrapper {
                 MainActor.assumeIsolated {
                     if target.tag == GHOSTTY_TARGET_SURFACE,
                        let surface = target.target.surface,
-                       let session = current?.lookupSession(surface: surface) {
+                       let session = wrapper.lookupSession(surface: surface) {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             session.pendingURL = url
                         }
@@ -413,10 +411,10 @@ public final class GhosttyAppWrapper {
             }
         case GHOSTTY_ACTION_CLOSE_TAB:
             debugLog("[ACTION] CLOSE_TAB")
-            notifySessionClose(target: target)
+            notifySessionClose(wrapper: wrapper, target: target)
         case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
             debugLog("[ACTION] SHOW_CHILD_EXITED")
-            notifySessionClose(target: target)
+            notifySessionClose(wrapper: wrapper, target: target)
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
             let linkAction = action.action.mouse_over_link
             let url: String?
@@ -428,7 +426,7 @@ public final class GhosttyAppWrapper {
             MainActor.assumeIsolated {
                 if target.tag == GHOSTTY_TARGET_SURFACE,
                    let surface = target.target.surface,
-                   let session = current?.lookupSession(surface: surface) {
+                   let session = wrapper.lookupSession(surface: surface) {
                     session.hoveredURL = url
                 }
             }
@@ -449,11 +447,11 @@ public final class GhosttyAppWrapper {
     }
 
     /// Extract the TerminalSession from a surface target and notify it to close.
-    private static func notifySessionClose(target: ghostty_target_s) {
+    private static func notifySessionClose(wrapper: GhosttyAppWrapper, target: ghostty_target_s) {
         MainActor.assumeIsolated {
             guard target.tag == GHOSTTY_TARGET_SURFACE,
                   let surface = target.target.surface,
-                  let session = current?.lookupSession(surface: surface) else { return }
+                  let session = wrapper.lookupSession(surface: surface) else { return }
             session.onProcessExited?()
         }
     }
