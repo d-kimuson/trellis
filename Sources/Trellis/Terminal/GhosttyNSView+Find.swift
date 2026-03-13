@@ -324,4 +324,53 @@ extension GhosttyNSView {
         highlightLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
         CATransaction.commit()
     }
+
+    // MARK: - Find Observation (@Observable)
+
+    func setupFindSubscriptions() {
+        // Wire navigation callback.
+        session.onFindNavigate = { [weak self] forward in
+            self?.navigateFind(forward: forward)
+        }
+
+        // Re-run search whenever the query changes (debounced slightly).
+        observeFindQuery()
+
+        // Clear highlights when find bar is dismissed.
+        observeFindVisible()
+    }
+
+    /// Observe `session.findQuery` using @Observable tracking. Re-arms itself on each change.
+    private func observeFindQuery() {
+        withObservationTracking {
+            _ = session.findQuery
+        } onChange: { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.surface != nil else { return }
+                // Debounce: cancel previous and schedule new
+                self.findQueryDebounceWork?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    self?.performFind()
+                }
+                self.findQueryDebounceWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+                self.observeFindQuery()
+            }
+        }
+    }
+
+    /// Observe `session.isFindVisible` using @Observable tracking. Re-arms itself on each change.
+    private func observeFindVisible() {
+        withObservationTracking {
+            _ = session.isFindVisible
+        } onChange: { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.surface != nil else { return }
+                if !self.session.isFindVisible {
+                    self.clearFind()
+                }
+                self.observeFindVisible()
+            }
+        }
+    }
 }

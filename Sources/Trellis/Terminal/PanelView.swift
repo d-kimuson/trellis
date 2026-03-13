@@ -325,25 +325,16 @@ struct TerminalPanelWrapper: View {
     let ghosttyApp: GhosttyAppWrapper
     let areaId: UUID
     var store: WorkspaceStore
-    @ObservedObject private var sessionObserver: TerminalSession
-
-    init(session: TerminalSession, ghosttyApp: GhosttyAppWrapper, areaId: UUID, store: WorkspaceStore) {
-        self.session = session
-        self.ghosttyApp = ghosttyApp
-        self.areaId = areaId
-        self.store = store
-        self.sessionObserver = session
-    }
 
     var body: some View {
         TerminalView(ghosttyApp: ghosttyApp, session: session)
             .id(session.id)
             .border(Color(nsColor: .separatorColor), width: 0.5)
             .overlay(alignment: .top) {
-                FindBarView(session: sessionObserver)
+                FindBarView(session: session)
             }
             .overlay(alignment: .bottomLeading) {
-                if let url = sessionObserver.pendingURL {
+                if let url = session.pendingURL {
                     URLSuggestBanner(url: url, onDismiss: {
                         session.pendingURL = nil
                     }, onOpenInBrowser: { parsedURL in
@@ -503,7 +494,7 @@ struct SplitContainer<First: View, Second: View>: View {
 // MARK: - Tab Title Label
 
 /// Reactively displays tab title. For terminal tabs, observes the session
-/// to update when pwd changes (since TerminalSession is ObservableObject).
+/// to update when pwd changes (TerminalSession is @Observable).
 struct TabTitleLabel: View {
     let content: PanelContent
 
@@ -519,7 +510,7 @@ struct TabTitleLabel: View {
 
 /// Observes a terminal session to reactively update the tab title when pwd changes.
 private struct TerminalTabTitle: View {
-    @ObservedObject var session: TerminalSession
+    var session: TerminalSession
 
     var body: some View {
         Text(tabTitle).font(.caption).lineLimit(1)
@@ -535,7 +526,7 @@ private struct TerminalTabTitle: View {
 /// the workspace cwd stays current even after the terminal navigates to a new directory.
 private struct FileTreePanelWithCwd: View {
     @ObservedObject var state: FileTreeState
-    @ObservedObject var session: TerminalSession
+    var session: TerminalSession
     var onFocused: (() -> Void)?
 
     var body: some View {
@@ -545,7 +536,7 @@ private struct FileTreePanelWithCwd: View {
 
 /// Observes both the session and the notification store for reactive updates.
 private struct TabNotificationBadge: View {
-    @ObservedObject var session: TerminalSession
+    var session: TerminalSession
     @ObservedObject var notificationStore: NotificationStore
 
     var body: some View {

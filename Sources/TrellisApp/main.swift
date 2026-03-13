@@ -113,11 +113,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func subscribeToRepresentativeSession() {
-        sessionTitleCancellable = store.activeWorkspace?.representativeSession?.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                DispatchQueue.main.async { self?.updateWindowTitle() }
+        guard let session = store.activeWorkspace?.representativeSession else {
+            sessionTitleCancellable = nil
+            return
+        }
+        // Observe session properties used in window title (pwd, title) via @Observable tracking.
+        sessionTitleCancellable = nil  // Clear previous subscription
+        observeSessionForWindowTitle(session)
+    }
+
+    private func observeSessionForWindowTitle(_ session: TerminalSession) {
+        withObservationTracking {
+            _ = session.pwd
+            _ = session.title
+        } onChange: { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                self?.updateWindowTitle()
+                // Re-arm observation if the session is still representative
+                if self?.store.activeWorkspace?.representativeSession === session {
+                    self?.observeSessionForWindowTitle(session)
+                }
             }
+        }
     }
 
     private func updateWindowTitle() {

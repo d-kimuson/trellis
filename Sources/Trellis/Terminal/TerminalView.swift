@@ -1,5 +1,4 @@
 import AppKit
-import Combine
 import GhosttyKit
 import SwiftUI
 
@@ -43,7 +42,8 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// Terminal column width at last search read.
     var findTerminalCols: Int = 0
 
-    var findCancellables: Set<AnyCancellable> = []
+    /// Pending work item for debounced find query changes.
+    var findQueryDebounceWork: DispatchWorkItem?
 
     /// Pending work item for debounced highlight refresh after scroll/key events.
     var highlightRefreshWork: DispatchWorkItem?
@@ -148,32 +148,6 @@ class GhosttyNSView: NSView, NSTextInputClient {
         highlightLayer.frame = bounds
         highlightLayer.zPosition = 100
         layer?.addSublayer(highlightLayer)
-    }
-
-    private func setupFindSubscriptions() {
-        findCancellables.removeAll()
-
-        // Re-run search whenever the query changes (debounced slightly).
-        session.$findQuery
-            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.performFind()
-            }
-            .store(in: &findCancellables)
-
-        // Wire navigation callback.
-        session.onFindNavigate = { [weak self] forward in
-            self?.navigateFind(forward: forward)
-        }
-
-        // Clear highlights when find bar is dismissed.
-        session.$isFindVisible
-            .sink { [weak self] visible in
-                if !visible {
-                    self?.clearFind()
-                }
-            }
-            .store(in: &findCancellables)
     }
 
     private func updateSurfaceSize() {

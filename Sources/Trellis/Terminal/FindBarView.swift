@@ -3,7 +3,7 @@ import SwiftUI
 /// Find bar overlay shown at the top of a terminal view when Cmd+F is pressed.
 /// Provides keyword search with previous/next navigation and match count display.
 struct FindBarView: View {
-    @ObservedObject var session: TerminalSession
+    @Bindable var session: TerminalSession
     @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {

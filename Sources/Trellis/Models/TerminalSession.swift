@@ -3,23 +3,24 @@ import GhosttyKit
 
 /// Represents a single terminal session with an associated libghostty surface.
 /// Owns the GhosttyNSView so it survives SwiftUI view hierarchy rebuilds.
-public final class TerminalSession: Identifiable, ObservableObject {
+@Observable
+public final class TerminalSession: Identifiable {
     public let id: UUID
-    @Published public var title: String
-    @Published public var isActive: Bool
+    public var title: String
+    public var isActive: Bool
 
     /// Current working directory reported by the shell (via OSC 7).
-    @Published public var pwd: String?
+    public var pwd: String?
 
     /// Git branch name at the current working directory (detected automatically).
-    @Published public var gitBranch: String?
+    public var gitBranch: String?
 
     /// URL pending user action (open / dismiss). Set by ghostty OPEN_URL action.
-    @Published public var pendingURL: String?
+    public var pendingURL: String?
 
     /// URL currently under the mouse cursor. Set by ghostty MOUSE_OVER_LINK action.
     /// Nil when the cursor is not hovering over a link.
-    var hoveredURL: String?
+    @ObservationIgnored var hoveredURL: String?
 
     /// Working directory to use when creating the ghostty surface.
     public let initialWorkingDirectory: String?
@@ -28,29 +29,29 @@ public final class TerminalSession: Identifiable, ObservableObject {
     public let initialEnvVars: [String: String]
 
     // Opaque pointer to ghostty surface - managed by GhosttyNSView
-    var surface: ghostty_surface_t?
+    @ObservationIgnored var surface: ghostty_surface_t?
 
     /// The NSView hosting this session's terminal surface.
     /// Stored here so SwiftUI layout changes don't destroy and recreate it.
-    var nsView: GhosttyNSView?
+    @ObservationIgnored var nsView: GhosttyNSView?
 
     /// Called when the terminal view receives mouse focus (clicked).
-    var onFocused: (() -> Void)?
+    @ObservationIgnored var onFocused: (() -> Void)?
 
     /// Called when the shell process exits and the surface should be closed.
-    var onProcessExited: (() -> Void)?
+    @ObservationIgnored var onProcessExited: (() -> Void)?
 
     // MARK: - Find Bar State
 
-    @Published public var isFindVisible: Bool = false
-    @Published public var findQuery: String = ""
-    @Published public var findMatchCount: Int = 0
-    @Published public var findCurrentMatchIndex: Int = 0  // 1-based, 0 = no matches
+    public var isFindVisible: Bool = false
+    public var findQuery: String = ""
+    public var findMatchCount: Int = 0
+    public var findCurrentMatchIndex: Int = 0  // 1-based, 0 = no matches
 
     /// Called when the user navigates to next (true) or previous (false) match.
-    var onFindNavigate: ((Bool) -> Void)?
+    @ObservationIgnored var onFindNavigate: ((Bool) -> Void)?
 
-    private var gitProcess: Process?
+    @ObservationIgnored private var gitProcess: Process?
 
     public init(title: String = "Terminal", workingDirectory: String? = nil, envVars: [String: String] = [:]) {
         self.id = UUID()

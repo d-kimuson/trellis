@@ -83,29 +83,13 @@ public final class WorkspaceStore {
 
     // MARK: - Helpers
 
-    /// Re-subscribes to every terminal session's objectWillChange.
-    /// Called whenever the set of sessions changes so new sessions are included.
-    /// When any session fires (pwd, branch, etc.), WorkspaceStore.workspaces is touched
-    /// to trigger @Observable tracking so observing views (SidebarView, AreaPanelView) re-render.
+    /// Previously subscribed to TerminalSession.objectWillChange to forward changes.
+    /// Now that TerminalSession is @Observable, SwiftUI views track session properties
+    /// directly via fine-grained observation — no manual forwarding needed.
+    /// Kept as a no-op until all ObservableObject types are migrated (H-1d).
     func rebuildSessionSubscriptions(for workspaces: [Workspace]) {
         sessionCancellables = []
-        let sessions = workspaces
-            .flatMap { $0.allAreas }
-            .flatMap { $0.tabs }
-            .compactMap { $0.content.terminalSession }
-        debugLog("[SESSION] rebuildSessionSubscriptions: \(sessions.count) sessions")
-        for session in sessions {
-            session.objectWillChange
-                .sink { [weak self] _ in
-                    debugLog("[SESSION] session objectWillChange → forwarding to WorkspaceStore")
-                    Task { @MainActor [weak self] in
-                        guard let self else { return }
-                        // Touch workspaces to trigger @Observable tracking for observing views
-                        self.workspaces = self.workspaces
-                    }
-                }
-                .store(in: &sessionCancellables)
-        }
+        debugLog("[SESSION] rebuildSessionSubscriptions: no-op (TerminalSession is @Observable)")
     }
 
     /// Observes `workspaces` changes using @Observable tracking.
