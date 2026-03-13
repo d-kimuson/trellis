@@ -55,7 +55,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
     /// Bridge for diff review comments. Only used when isDiff is true.
     var reviewBridge: DiffReviewBridge?
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         var cachedCode: String = ""
         var cachedFilePath: String = ""
         var cachedFontSize: CGFloat = 0
@@ -63,6 +63,17 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         var cachedSearchQuery: String = ""
         weak var reviewBridge: DiffReviewBridge?
         var onFindUpdate: ((Int, Int) -> Void)?
+
+        /// Search query to execute once the page finishes loading (replaces asyncAfter hack).
+        var pendingSearchQuery: String?
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard let query = pendingSearchQuery else { return }
+            pendingSearchQuery = nil
+            let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            webView.evaluateJavaScript("__findInPage(\"\(escaped)\")", completionHandler: nil)
+        }
 
         func userContentController(
             _ userContentController: WKUserContentController,
@@ -99,6 +110,7 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         }
         let webView = EditableWKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = context.coordinator
         webView.onFindRequested = onFindRequested
         let html = buildHTML()
         webView.loadHTMLString(html, baseURL: nil)
@@ -141,14 +153,9 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
                 reviewBridge?.webView = webView
                 reviewBridge?.hasComments = false
             }
-            // Re-run search after content loads if there's a query
+            // Re-run search once the new content finishes loading (via WKNavigationDelegate).
             if !searchQuery.isEmpty {
-                let query = searchQuery
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
-                        .replacingOccurrences(of: "\"", with: "\\\"")
-                    webView.evaluateJavaScript("__findInPage(\"\(escaped)\")", completionHandler: nil)
-                }
+                coordinator.pendingSearchQuery = searchQuery
                 coordinator.cachedSearchQuery = searchQuery
             }
             return
