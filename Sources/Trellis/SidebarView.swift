@@ -203,9 +203,9 @@ private struct WorkspaceCard: View {
                 if showActionButtons {
                     // Pin / unpin toggle
                     Image(systemName: workspace.isPinned ? "pin.slash" : "pin")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
-                        .frame(width: 16, height: 16)
+                        .frame(width: 20, height: 20)
                         .background(
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.primary.opacity(0.08))
@@ -215,9 +215,9 @@ private struct WorkspaceCard: View {
 
                     // Close button
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
-                        .frame(width: 16, height: 16)
+                        .frame(width: 20, height: 20)
                         .background(
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.primary.opacity(0.08))
@@ -232,13 +232,13 @@ private struct WorkspaceCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     if let branch = sessionBranch {
                         Label(branch, systemImage: "arrow.triangle.branch")
-                            .font(.system(size: 10))
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
                     if let shortPwd = sessionShortPwd {
                         Label(shortPwd, systemImage: "folder")
-                            .font(.system(size: 10))
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
