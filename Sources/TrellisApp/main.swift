@@ -287,6 +287,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         openSettingsPanel()
     }
 
+    private struct GithubRelease: Decodable {
+        let tagName: String
+        let htmlUrl: String
+
+        enum CodingKeys: String, CodingKey {
+            case tagName = "tag_name"
+            case htmlUrl = "html_url"
+        }
+    }
+
     @objc func checkForUpdates(_ sender: Any?) {
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
 
@@ -299,9 +309,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let window = NSApp.keyWindow ?? NSApp.mainWindow
 
                 guard let data, error == nil,
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let tagName = json["tag_name"] as? String,
-                      let htmlUrl = json["html_url"] as? String
+                      let release = try? JSONDecoder().decode(GithubRelease.self, from: data)
                 else {
                     let alert = NSAlert()
                     alert.messageText = "Update Check Failed"
@@ -314,6 +322,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     return
                 }
 
+                let tagName = release.tagName
+                let htmlUrl = release.htmlUrl
                 let latestVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
 
                 if latestVersion == currentVersion {
