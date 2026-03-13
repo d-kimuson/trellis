@@ -212,35 +212,56 @@ while true; do
   fi
   log "タスク選択: ${task_id}"
 
-  # --- セッション ID を生成 ---
-  session_id=$(uuidgen)
-  log "セッション開始: ${session_id}"
+  # --- 新規 or 再開の判定 ---
+  existing_branch=$(bd state "$task_id" branch 2>/dev/null || true)
+  existing_session=$(bd state "$task_id" session 2>/dev/null || true)
 
-  # --- ブランチ作成 ---
-  branch_name="dev/${task_id}"
-  git checkout -b "$branch_name" || {
-    log "ERROR: ブランチ ${branch_name} の作成に失敗。終了します。"
-    break
-  }
-  log "ブランチ作成: ${branch_name}"
+  if [[ -n "$existing_branch" ]] && git rev-parse --verify "$existing_branch" &>/dev/null; then
+    # --- 再開モード: 既存ブランチ + 前のセッションを --resume ---
+    branch_name="$existing_branch"
+    session_id="${existing_session:-$(uuidgen)}"
+    log "再開モード: ${task_id} (branch: ${branch_name}, session: ${session_id})"
 
-  # --- set-state でメタデータ記録 ---
-  bd set-state "$task_id" branch="$branch_name" --reason "beads-loop で自動作成" 2>/dev/null || true
-  bd set-state "$task_id" session="$session_id" --reason "beads-loop セッション開始" 2>/dev/null || true
+    git checkout "$branch_name"
 
-  # --- Claude Code で teams:dev-auto を実行 ---
-  system_prompt="session-id: ${session_id}
-task-id: ${task_id}"
+    # session を更新（同じセッションを resume するが記録は残す）
+    bd set-state "$task_id" session="$session_id" --reason "beads-loop 再開" 2>/dev/null || true
 
-  claude \
-    --dangerously-skip-permissions \
-    -p 'teams:dev-auto' \
-    --session-id "$session_id" \
-    --append-system-prompt "$system_prompt" \
-    --verbose \
-    || {
-      log "WARNING: Claude Code が非ゼロで終了 (exit=$?)"
+    claude \
+      --dangerously-skip-permissions \
+      --resume "$session_id" \
+      --append-system-prompt "task-id: ${task_id}
+gates-review で NG になったタスクの再開です。bd comments ${task_id} で NG の詳細を確認し、問題を修正してください。" \
+      --verbose \
+      || {
+        log "WARNING: Claude Code (再開) が非ゼロで終了 (exit=$?)"
+      }
+  else
+    # --- 新規モード ---
+    session_id=$(uuidgen)
+    branch_name="dev/${task_id}"
+    log "新規モード: ${task_id} (branch: ${branch_name}, session: ${session_id})"
+
+    git checkout -b "$branch_name" || {
+      log "ERROR: ブランチ ${branch_name} の作成に失敗。終了します。"
+      break
     }
+
+    # set-state でメタデータ記録
+    bd set-state "$task_id" branch="$branch_name" --reason "beads-loop で自動作成" 2>/dev/null || true
+    bd set-state "$task_id" session="$session_id" --reason "beads-loop セッション開始" 2>/dev/null || true
+
+    claude \
+      --dangerously-skip-permissions \
+      -p 'teams:dev-auto' \
+      --session-id "$session_id" \
+      --append-system-prompt "session-id: ${session_id}
+task-id: ${task_id}" \
+      --verbose \
+      || {
+        log "WARNING: Claude Code が非ゼロで終了 (exit=$?)"
+      }
+  fi
 
   log "セッション完了: ${session_id}"
 
@@ -263,8 +284,25 @@ task-id: ${task_id}"
     fi
   fi
 
-  # --- main に戻る ---
-  git checkout main
+  # --- gate:not-required なら main にマージ ---
+  task_gate_label=$(bd state "$task_id" gate 2>/dev/null || true)
+  task_status=$(bd show "$task_id" --json 2>/dev/null | jq -r '.status // empty' 2>/dev/null || true)
+
+  if [[ "$task_gate_label" == "not-required" ]] && [[ "$task_status" == "closed" ]]; then
+    log "gate:not-required + closed → main にマージします"
+    git checkout main
+    git merge "$branch_name" --no-ff -m "merge: ${task_id} ($branch_name)" || {
+      log "ERROR: マージに失敗。ブランチ ${branch_name} を残して続行します。"
+      git merge --abort 2>/dev/null || true
+    }
+    # マージ成功したらブランチ削除
+    if [[ "$(git branch --show-current)" == "main" ]]; then
+      git branch -d "$branch_name" 2>/dev/null || true
+    fi
+  else
+    # gate:required or まだ close されていない → ブランチを残して main に戻る
+    git checkout main
+  fi
   log "main に復帰"
 
   count=$((count + 1))
