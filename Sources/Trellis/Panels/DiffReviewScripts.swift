@@ -13,7 +13,7 @@ enum DiffReviewScripts {
             display: flex; align-items: flex-start; gap: 8px;
             background: var(--d2h-bg-color, #fff);
             border-radius: 6px; border: 1px solid var(--d2h-border-color, #d0d7de);
-            padding: 8px;
+            padding: 8px; max-width: calc(100vw - 40px); box-sizing: border-box;
         }
         .review-input-wrap textarea {
             flex: 1; border: none; outline: none; resize: vertical;
@@ -37,6 +37,7 @@ enum DiffReviewScripts {
             background: var(--d2h-info-bg-color, #ddf4ff);
             border-radius: 6px; border: 1px solid var(--d2h-info-border-color, #54aeff66);
             padding: 8px; cursor: pointer;
+            max-width: calc(100vw - 40px); box-sizing: border-box;
         }
         .review-saved-text {
             flex: 1; white-space: pre-wrap; word-break: break-word;
