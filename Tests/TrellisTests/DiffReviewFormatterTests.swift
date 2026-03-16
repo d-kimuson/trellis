@@ -65,4 +65,26 @@ struct DiffReviewFormatterTests {
         second
         """)
     }
+
+    @Test("review JS falls back to line-num1 when line-num2 is empty")
+    func jsContainsFallbackLogic() {
+        let js = DiffReviewScripts.js
+        #expect(js.contains("__getLineNum"))
+        #expect(js.contains("line-num2"))
+        #expect(js.contains("line-num1"))
+    }
+
+    @Test("review CSS includes add button styles")
+    func cssContainsAddButton() {
+        let css = DiffReviewScripts.css
+        #expect(css.contains(".review-add-btn"))
+        #expect(css.contains("d2h-code-linenumber:hover .review-add-btn"))
+    }
+
+    @Test("review JS injects add buttons into line number cells")
+    func jsInjectsAddButtons() {
+        let js = DiffReviewScripts.js
+        #expect(js.contains("__injectAddButtons"))
+        #expect(js.contains("review-add-btn"))
+    }
 }

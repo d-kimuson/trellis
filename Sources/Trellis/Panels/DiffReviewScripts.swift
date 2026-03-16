@@ -55,9 +55,24 @@ enum DiffReviewScripts {
             user-select: none;
             -webkit-user-select: none;
             pointer-events: auto !important;
+            position: relative;
         }
         .d2h-code-linenumber:hover {
             background: var(--d2h-ins-highlight-bg-color, #abf2bc) !important;
+        }
+        .d2h-code-linenumber .review-add-btn {
+            display: none;
+            position: absolute; top: 50%; left: 2px;
+            transform: translateY(-50%);
+            width: 18px; height: 18px;
+            border-radius: 4px; border: none;
+            background: #2ea043; color: #fff;
+            font-size: 14px; line-height: 18px;
+            text-align: center; cursor: pointer;
+            z-index: 2; padding: 0;
+        }
+        .d2h-code-linenumber:hover .review-add-btn {
+            display: block;
         }
         """
 
@@ -144,13 +159,34 @@ enum DiffReviewScripts {
             if (row) row.remove();
             __notifyBridge();
         }
+        function __getLineNum(cell) {
+            var el2 = cell.querySelector('.line-num2');
+            var el1 = cell.querySelector('.line-num1');
+            var n2 = el2 ? parseInt(el2.textContent.trim()) : NaN;
+            if (!isNaN(n2) && n2 > 0) return n2;
+            var n1 = el1 ? parseInt(el1.textContent.trim()) : NaN;
+            if (!isNaN(n1) && n1 > 0) return n1;
+            return NaN;
+        }
+        function __injectAddButtons() {
+            document.querySelectorAll('td.d2h-code-linenumber').forEach(function(cell) {
+                if (cell.querySelector('.review-add-btn')) return;
+                var num = __getLineNum(cell);
+                if (isNaN(num)) return;
+                var btn = document.createElement('button');
+                btn.className = 'review-add-btn';
+                btn.textContent = '+';
+                btn.setAttribute('data-line', num);
+                cell.insertBefore(btn, cell.firstChild);
+            });
+        }
+        __injectAddButtons();
         // Use event delegation so the listener works even if the DOM is mutated after setup.
         document.addEventListener('click', function(e) {
             var cell = e.target.closest('td.d2h-code-linenumber');
             if (!cell) return;
-            var numEl = cell.querySelector('.line-num2') || cell.querySelector('.line-num1');
-            var num = numEl ? parseInt(numEl.textContent.trim()) : NaN;
-            if (isNaN(num) || num <= 0) return;
+            var num = __getLineNum(cell);
+            if (isNaN(num)) return;
             var tr = cell.closest('tr');
             if (!tr) return;
             __addCommentUI(num, tr);
