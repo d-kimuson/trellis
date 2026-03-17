@@ -236,8 +236,8 @@ while true; do
     claude \
       --dangerously-skip-permissions \
       --resume "$session_id" \
-      --append-system-prompt "task-id: ${task_id}
-gates-review で NG になったタスクの再開です。bd comments ${task_id} で NG の詳細を確認し、問題を修正してください。" \
+      --append-system-prompt "task-id: ${task_id}" \
+      -p "gates-review で NG になったタスクの再開です。bd comments ${task_id} で NG の詳細を確認し、問題を修正してください。" \
       --verbose \
       || {
         log "WARNING: Claude Code (再開) が非ゼロで終了 (exit=$?)"
