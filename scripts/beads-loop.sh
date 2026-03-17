@@ -196,9 +196,15 @@ while true; do
   fi
 
   # --- タスク選択 ---
+  # in_progress タスクがあれば最優先で再開
+  task_id=$(bd list --status=in_progress --no-assignee --json 2>/dev/null \
+    | jq -r '.[0].id // empty' 2>/dev/null || true)
+
   # Gate count に応じて選択対象を絞る
   gate_count=$(get_open_gate_count)
-  if (( gate_count >= MAX_GATES )); then
+  if [[ -n "$task_id" ]]; then
+    log "in_progress タスクを検出。再開します: ${task_id}"
+  elif (( gate_count >= MAX_GATES )); then
     log "open gate: ${gate_count} 件 (>= ${MAX_GATES})。gate:not-required タスクを優先します。"
     # gate:not-required ラベル付きの ready タスクから1件目を取得
     task_id=$(bd ready --unassigned --label gate:not-required --json 2>/dev/null \
@@ -216,7 +222,8 @@ while true; do
     log "タスク ID を取得できませんでした。終了します。"
     break
   fi
-  log "タスク選択: ${task_id}"
+  task_title=$(bd show "$task_id" --json 2>/dev/null | jq -r '.[0].title // empty' 2>/dev/null || true)
+  log "タスク選択: ${task_id} — ${task_title}"
 
   # --- 新規 or 再開の判定 ---
   existing_branch=$(bd state "$task_id" branch 2>/dev/null || true)
@@ -297,7 +304,7 @@ task-id: ${task_id}" \
   if [[ "$task_gate_label" == "not-required" ]] && [[ "$task_status" == "closed" ]]; then
     log "gate:not-required + closed → main にマージします"
     git checkout main
-    git merge "$branch_name" --no-ff -m "merge: ${task_id} ($branch_name)" || {
+    git merge --squash "$branch_name" && git commit -m "merge: ${task_id} ($branch_name)" || {
       log "ERROR: マージに失敗。ブランチ ${branch_name} を残して続行します。"
       git merge --abort 2>/dev/null || true
     }

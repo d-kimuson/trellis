@@ -353,7 +353,9 @@ struct SyntaxHighlightWebView: NSViewRepresentable {
         function __findInPage(q) {
             __clearHL(); __m=[]; __c=-1;
             if (!q) return;
-            var tw=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            function __skipScripts(n){var t=n.parentNode.nodeName;
+                return(t==='SCRIPT'||t==='STYLE')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}
+            var tw=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:__skipScripts});
             var nodes=[];
             while(tw.nextNode()) nodes.push(tw.currentNode);
             var lq=q.toLowerCase();

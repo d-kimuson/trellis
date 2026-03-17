@@ -10,6 +10,9 @@ struct FileTreePanelView: View {
     var settings: AppSettings
     var onFocused: (() -> Void)?
 
+    /// Incremented to trigger focus on the search field (including re-focus).
+    @State private var searchFocusTrigger = 0
+
     var body: some View {
         VSplitView {
             treePane
@@ -146,7 +149,10 @@ struct FileTreePanelView: View {
                 .buttonStyle(.borderless)
                 .help("Copy review comments to clipboard")
             }
-            Button(action: { state.isPreviewSearchVisible.toggle() }) {
+            Button(action: {
+                state.isPreviewSearchVisible.toggle()
+                if state.isPreviewSearchVisible { searchFocusTrigger += 1 }
+            }) {
                 Image(systemName: "magnifyingglass").font(.caption)
             }
             .buttonStyle(.borderless)
@@ -166,16 +172,13 @@ struct FileTreePanelView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
                 .font(.caption)
-            TextField("Find...", text: Bindable(state).previewSearchQuery)
-                .textFieldStyle(.plain)
-                .font(.system(size: settings.panelFontSize, design: .monospaced))
-                .onSubmit {
-                    if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
-                        state.navigateSearchPrevious()
-                    } else {
-                        state.navigateSearchNext()
-                    }
-                }
+            SearchTextField(
+                text: Bindable(state).previewSearchQuery,
+                fontSize: settings.panelFontSize,
+                focusTrigger: searchFocusTrigger,
+                onNavigateNext: { state.navigateSearchNext() },
+                onNavigatePrevious: { state.navigateSearchPrevious() }
+            )
             if state.previewSearchMatchCount > 0 {
                 Text("\(state.previewSearchCurrentIndex) of \(state.previewSearchMatchCount)")
                     .font(.system(size: settings.panelFontSize - 1, design: .monospaced))
@@ -229,7 +232,10 @@ struct FileTreePanelView: View {
                     fontSize: settings.panelFontSize,
                     isDiff: true,
                     searchQuery: state.previewSearchQuery,
-                    onFindRequested: { state.isPreviewSearchVisible = true },
+                    onFindRequested: {
+                        state.isPreviewSearchVisible = true
+                        searchFocusTrigger += 1
+                    },
                     onFindUpdate: { current, total in
                         state.previewSearchCurrentIndex = current
                         state.previewSearchMatchCount = total
@@ -243,7 +249,10 @@ struct FileTreePanelView: View {
                     filePath: path,
                     fontSize: settings.panelFontSize,
                     searchQuery: state.previewSearchQuery,
-                    onFindRequested: { state.isPreviewSearchVisible = true },
+                    onFindRequested: {
+                        state.isPreviewSearchVisible = true
+                        searchFocusTrigger += 1
+                    },
                     onFindUpdate: { current, total in
                         state.previewSearchCurrentIndex = current
                         state.previewSearchMatchCount = total
@@ -441,6 +450,84 @@ private struct FileNodeRow: View {
         case "rb": return "doc.text"
         case "sh", "zsh", "bash": return "terminal"
         default: return "doc"
+        }
+    }
+}
+
+// MARK: - Search Text Field (AppKit)
+
+/// NSViewRepresentable text field that uses AppKit's `makeFirstResponder` directly.
+/// Solves the focus problem where SwiftUI's @FocusState cannot steal focus from WKWebView.
+private struct SearchTextField: NSViewRepresentable {
+    @Binding var text: String
+    var fontSize: CGFloat
+    var focusTrigger: Int
+    var onNavigateNext: () -> Void
+    var onNavigatePrevious: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.placeholderString = "Find..."
+        field.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        field.isBordered = false
+        field.backgroundColor = .clear
+        field.focusRingType = .none
+        field.delegate = context.coordinator
+        context.coordinator.lastFocusTrigger = focusTrigger
+        DispatchQueue.main.async {
+            field.window?.makeFirstResponder(field)
+        }
+        return field
+    }
+
+    func updateNSView(_ field: NSTextField, context: Context) {
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+        if field.font?.pointSize != fontSize {
+            field.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        }
+        if focusTrigger != context.coordinator.lastFocusTrigger {
+            context.coordinator.lastFocusTrigger = focusTrigger
+            DispatchQueue.main.async {
+                field.window?.makeFirstResponder(field)
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: SearchTextField
+        var lastFocusTrigger: Int = 0
+
+        init(_ parent: SearchTextField) { self.parent = parent }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            parent.text = field.stringValue
+        }
+
+        func control(
+            _ control: NSControl,
+            textView: NSTextView,
+            doCommandBy sel: Selector
+        ) -> Bool {
+            if sel == #selector(NSResponder.insertNewline(_:)) {
+                let isShift = NSApp.currentEvent?.modifierFlags.contains(.shift) == true
+                if isShift { parent.onNavigatePrevious() }
+                else { parent.onNavigateNext() }
+                return true
+            }
+            if sel == #selector(NSResponder.moveUp(_:)) {
+                parent.onNavigatePrevious()
+                return true
+            }
+            if sel == #selector(NSResponder.moveDown(_:)) {
+                parent.onNavigateNext()
+                return true
+            }
+            return false
         }
     }
 }
